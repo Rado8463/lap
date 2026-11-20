@@ -337,6 +337,7 @@
                 :isFullScreen="false"
                 :file="fileList[selectedItemIndex]"
                 :nextFilePath="getNextImagePath(selectedItemIndex)"
+                :neighborFilePaths="getNeighborImagePaths(selectedItemIndex)"
                 :hasPrevious="selectedItemIndex > 0"
                 :hasNext="selectedItemIndex < fileList.length - 1"
                 :fileIndex="selectedItemIndex"
@@ -393,6 +394,7 @@
               :isFullScreen="false"
               :file="fileList[selectedItemIndex]"
               :nextFilePath="getNextImagePath(selectedItemIndex)"
+                :neighborFilePaths="getNeighborImagePaths(selectedItemIndex)"
               :hasPrevious="selectedItemIndex > 0"
               :hasNext="selectedItemIndex < fileList.length - 1"
               :fileIndex="selectedItemIndex"
@@ -2252,6 +2254,20 @@ const imageScale = ref(1);
 const imageMinScale = ref(0);
 const imageMaxScale = ref(10);
 const isSlideShow = ref(false);
+
+// Nearby image paths for preloading, in priority order: the next PRELOAD_AHEAD
+// images, then the previous PRELOAD_BEHIND ones.
+const PRELOAD_AHEAD = 5;
+const PRELOAD_BEHIND = 5;
+function getNeighborImagePaths(index: number, files: any[] = fileList.value): string[] {
+  const paths: string[] = [];
+  const add = (target: any) => {
+    if (target && !target.isPlaceholder && target.file_type === 1 && target.file_path) paths.push(target.file_path);
+  };
+  for (let i = 1; i <= PRELOAD_AHEAD; i++) add(files[index + i]);
+  for (let i = 1; i <= PRELOAD_BEHIND; i++) add(files[index - i]);
+  return paths;
+}
 
 function getNextImagePath(index: number): string {
   const target = fileList.value[index + 1];
@@ -4447,9 +4463,10 @@ function handleItemDblClicked(
   modifiers: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean } = {}
 ) {
   if (!ensureGroupedFileAtIndex(index)) return;
-  const openInNewWindow = !!(
-    modifiers.shiftKey || modifiers.metaKey || modifiers.ctrlKey
-  );
+  // Double-click opens the Image Viewer window (setting `dblClickNewWindow`);
+  // holding Shift/Ctrl/Cmd does the opposite (in-window quick view).
+  const modifierHeld = !!(modifiers.shiftKey || modifiers.metaKey || modifiers.ctrlKey);
+  const openInNewWindow = config.settings.dblClickNewWindow !== false ? !modifierHeld : modifierHeld;
   if (openInNewWindow) {
     checkUnsavedChanges(() => {
       selectedItemIndex.value = index;
@@ -6423,6 +6440,7 @@ onMounted( async() => {
                  const next = viewerFiles[requestIndex + 1];
                  return next && !next.isPlaceholder && next.file_type === 1 ? next.file_path : '';
                })(),
+               neighborFilePaths: getNeighborImagePaths(requestIndex, viewerFiles),
                pane,
              });
            }
@@ -11690,7 +11708,7 @@ async function openImageViewer(
       const forceSplitParam = compareSplitCount || 0;
       const compareModeParam = compareMode ? 1 : 0;
       imageWindow = new WebviewWindow(webViewLabel, {
-        url: `/image-viewer?fileId=${leftFileId}&fileIndex=${leftIndex}&fileCount=${fileCount}&rightFileId=${rightFileId}&rightFileIndex=${rightIndex}&forceSplitCount=${forceSplitParam}&compareFileCount=${compareMode ? fileCount : 0}&compareMode=${compareModeParam}&nextFilePath=${encodeURIComponent(leftNextFilePath)}&rightNextFilePath=${encodeURIComponent(rightNextFilePath)}`,
+        url: `/image-viewer?fileId=${leftFileId}&fileIndex=${leftIndex}&fileCount=${fileCount}&rightFileId=${rightFileId}&rightFileIndex=${rightIndex}&forceSplitCount=${forceSplitParam}&compareFileCount=${compareMode ? fileCount : 0}&compareMode=${compareModeParam}&nextFilePath=${encodeURIComponent(leftNextFilePath)}&neighborFilePaths=${encodeURIComponent(JSON.stringify(getNeighborImagePaths(leftIndex, viewerFiles)))}&rightNextFilePath=${encodeURIComponent(rightNextFilePath)}`,
         title: 'Image Viewer',
         width: 1200,
         height: 800,
@@ -11730,6 +11748,7 @@ async function openImageViewer(
       fileIndex: leftIndex,   // selected file index
       fileCount: fileCount, // total files length
       nextFilePath: leftNextFilePath,
+      neighborFilePaths: getNeighborImagePaths(leftIndex, viewerFiles),
       pane: 'left',
       resetSplit: newViewer,
       compareMode: newViewer ? compareMode : undefined,
@@ -11791,6 +11810,7 @@ async function syncSelectionToImageViewer(index: number) {
     fileIndex: index,
     fileCount: fileList.value.length,
     nextFilePath: next && !next.isPlaceholder && next.file_type === 1 ? next.file_path : '',
+    neighborFilePaths: getNeighborImagePaths(index),
     pane: 'left',
   });
 }

@@ -540,9 +540,11 @@ pub async fn get_video_thumbnail(
         0
     };
     let ffmpeg_threads = thumbnail_ffmpeg_threads().to_string();
+    // Fit inside thumbnail_size x thumbnail_size but never enlarge: without the
+    // min() a smaller source (e.g. a 3840 px PSD) was upscaled to the box.
     let filter = format!(
-        "scale=w={}:h={}:force_original_aspect_ratio=decrease",
-        thumbnail_size, thumbnail_size
+        "scale=w='min(iw,{0})':h='min(ih,{0})':force_original_aspect_ratio=decrease",
+        thumbnail_size
     );
 
     let primary_strategy = probe

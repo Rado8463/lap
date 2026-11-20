@@ -268,6 +268,27 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.dbl_click_new_window') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.dbl_click_new_window_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.dblClickNewWindow" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.transparency_color') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.transparency_color_hint') }}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.transparencyColor" />
+                <button class="btn btn-ghost btn-sm" @click="config.settings.transparencyColor = '#5a5a5a'">{{ $t('settings.image_view.transparency_color_reset') }}</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.slide_show_transition') }}</div>
               </div>
                 <select class="select select-bordered select-sm min-w-32" v-model="config.settings.slideShowTransition">
@@ -1734,6 +1755,9 @@ watch(() => config.settings.navigatorViewSize, (newValue) => {
 });
 watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
   emit('settings-navigatorSharpnessGrid-changed', newValue);
+});
+watch(() => config.settings.transparencyColor, (newValue) => {
+  emit('settings-transparencyColor-changed', newValue);
 });
 watch(() => config.settings.viewBackground, (newValue) => {
   emit('settings-viewBackground-changed', newValue);

@@ -83,7 +83,7 @@
         <!-- AF areas share the image buffer's layout and outer transition. -->
         <div v-if="showAfAreas && !loadError && index === activeImage && imageFilePath[index] === filePath"
           class="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-          <div :style="{ ...getImageStyle(index), pointerEvents: 'none', filter: 'none' }">
+          <div :style="{ ...getImageStyle(index), pointerEvents: 'none', filter: 'none', backgroundColor: 'transparent' }">
             <div v-for="(region, regionIndex) in afAreas" :key="regionIndex"
               class="absolute box-border"
               :style="{
@@ -246,6 +246,11 @@ const props = defineProps({
   nextFilePath: {
     type: String,
     default: '',
+  },
+  // Paths of nearby images in preload priority order (next first, then previous).
+  neighborFilePaths: {
+    type: Array as () => string[],
+    default: () => [],
   },
   rotate: {
     type: Number,
@@ -478,6 +483,8 @@ const getImageStyle = (index: number) => ({
   willChange: 'transform',
   backfaceVisibility: 'hidden',
   pointerEvents: 'auto',
+  // Visible only through transparent pixels (PNG, PSD, TIFF ...).
+  backgroundColor: config.settings.transparencyColor || '#5a5a5a',
   filter: adjustmentStyle.value(index === activeImage.value ? imageSrc.value[activeImage.value] : imageSrc.value[index]),
 });
 // loading and error overlays
@@ -501,7 +508,7 @@ watch([isLoading, currentLoadingId], ([loading]) => {
 });
 
 const activeImageEl = ref<HTMLImageElement | null>(null);
-type LoadedImage = { src: string; naturalWidth: number; naturalHeight: number; raw?: { source: RawPreviewSource; unavailable: boolean; pair: string | null } };
+type LoadedImage = { src: string; naturalWidth: number; naturalHeight: number; img?: HTMLImageElement; raw?: { source: RawPreviewSource; unavailable: boolean; pair: string | null } };
 const preloadCache = new Map<string, Promise<LoadedImage>>();
 const rawOverride = ref<RawDisplayOptions | null>(null);
 const rawSource = ref<RawPreviewSource>('');
@@ -811,12 +818,13 @@ function loadImageResource(filePath?: string) {
     return cached;
   }
 
-  const loadPromise = new Promise<{ src: string; naturalWidth: number; naturalHeight: number }>((resolve, reject) => {
+  const loadPromise = new Promise<LoadedImage>((resolve, reject) => {
     let src = '';
 
     const img = new Image();
     img.decoding = 'async';
 
+    // The element is kept in the result so a decoded neighbour stays in memory.
     img.onload = () => {
       img.decode()
         .then(() => {
@@ -824,6 +832,7 @@ function loadImageResource(filePath?: string) {
             src,
             naturalWidth: img.naturalWidth,
             naturalHeight: img.naturalHeight,
+            img,
           });
         })
         .catch(() => {
@@ -831,6 +840,7 @@ function loadImageResource(filePath?: string) {
             src,
             naturalWidth: img.naturalWidth,
             naturalHeight: img.naturalHeight,
+            img,
           });
         });
     };
@@ -877,42 +887,62 @@ function loadImageResource(filePath?: string) {
   return loadPromise;
 }
 
+// ---- Neighbour preloading --------------------------------------------------
+// Up to PRELOAD_AHEAD following and PRELOAD_BEHIND previous images are decoded
+// and kept in memory (via preloadCache) so stepping through a folder is instant.
+// A pixel budget keeps very large photos from using too much RAM.
+const PRELOAD_PIXEL_BUDGET = 250_000_000;   // ~1 GB of decoded RGBA
 let warmImageRequest = 0;
-function warmImage(filePath?: string) {
-  if (!filePath || filePath === props.filePath || shouldUseBackendPreview(filePath, Number(props.fileType || 0))) {
-    return;
-  }
 
-  if (warmImageTimeout) {
-    clearTimeout(warmImageTimeout);
-    warmImageTimeout = null;
+function getNeighborPaths(): string[] {
+  const list = props.neighborFilePaths.length > 0 ? props.neighborFilePaths : [props.nextFilePath];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const path of list) {
+    if (!path || path === props.filePath || seen.has(path)) continue;
+    seen.add(path);
+    out.push(path);
   }
-  if (warmImageIdleId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
-    window.cancelIdleCallback(warmImageIdleId);
-    warmImageIdleId = null;
-  }
+  return out;
+}
 
-  const request = ++warmImageRequest;
+function warmNeighbors() {
+  cancelWarmImageScheduling();
+  const request = warmImageRequest;
+  const paths = getNeighborPaths();
+  if (paths.length === 0) return;
+
+  const isStale = () => request !== warmImageRequest;
+  const step = async () => {
+    let pixels = 0;
+    for (const path of paths) {
+      if (isStale()) return;
+      if (shouldUseBackendPreview(path, Number(props.fileType || 0))) continue;
+      try {
+        // Reading a cloud-only original would trigger a download.
+        if (await isCloudOnlyFile(path)) continue;
+        if (isStale()) return;
+        const loaded = await loadImageResource(path);
+        pixels += (loaded.naturalWidth || 0) * (loaded.naturalHeight || 0);
+      } catch {
+        // Ignore preload failures and let the main load path surface errors.
+      }
+      if (pixels > PRELOAD_PIXEL_BUDGET) return;
+      // Yield between images so the UI thread is never starved.
+      await new Promise<void>((resolve) => {
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          warmImageIdleId = window.requestIdleCallback(() => { warmImageIdleId = null; resolve(); }, { timeout: 300 });
+        } else {
+          setTimeout(resolve, 0);
+        }
+      });
+    }
+  };
+
   warmImageTimeout = setTimeout(() => {
     warmImageTimeout = null;
-    if (props.nextFilePath !== filePath || filePath === props.filePath) return;
-
-    const runWarmup = () => {
-      warmImageIdleId = null;
-      if (props.nextFilePath !== filePath || filePath === props.filePath) return;
-
-      if (request !== warmImageRequest || props.nextFilePath !== filePath || filePath === props.filePath) return;
-      void loadImageResource(filePath).catch(() => {
-        // Ignore preload failures and let the main load path surface errors.
-      });
-    };
-
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      warmImageIdleId = window.requestIdleCallback(runWarmup, { timeout: 300 });
-      return;
-    }
-
-    queueMicrotask(runWarmup);
+    if (isStale()) return;
+    void step();
   }, 150);
 }
 
@@ -928,10 +958,9 @@ function cancelWarmImageScheduling() {
   }
 }
 
-function clearStalePreloadEntries(activeFilePath?: string, nextFilePath?: string) {
-  const keep = new Set<string>();
+function clearStalePreloadEntries(activeFilePath?: string, neighborPaths: string[] = []) {
+  const keep = new Set<string>(neighborPaths);
   if (activeFilePath) keep.add(activeFilePath);
-  if (nextFilePath) keep.add(nextFilePath);
 
   for (const key of preloadCache.keys()) {
     if (!keep.has(key)) {
@@ -1309,7 +1338,7 @@ watch([
   ) {
     preloadCache.delete(newFilePath);
   }
-  clearStalePreloadEntries(newFilePath || '', props.nextFilePath || '');
+  clearStalePreloadEntries(newFilePath || '', getNeighborPaths());
 
   if (loadingTimeout) {
     clearTimeout(loadingTimeout);
@@ -1487,7 +1516,7 @@ watch([
       for (const url of rawObjectUrls) {
         if (!imageSrc.value.includes(url)) { URL.revokeObjectURL(url); rawObjectUrls.delete(url); }
       }
-      warmImage(props.nextFilePath);
+      warmNeighbors();
     });
   } catch (e) {
     console.error("Error getting asset source:", e);

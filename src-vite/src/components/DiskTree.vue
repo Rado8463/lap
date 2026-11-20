@@ -60,7 +60,7 @@ import { getAllAlbums, addAlbum, removeAlbum, listAlbumSubfolders } from '@/comm
 import ContextMenu from '@/components/ContextMenu.vue';
 import { useAlbumSelectionProvider } from '@/composables/useAlbumSelection';
 import { useToast } from '@/common/toast';
-import { IconRight, IconFolder, IconFolderExpanded } from '@/common/icons';
+import { IconRight, IconFolder, IconFolderExpanded, IconOk } from '@/common/icons';
 
 defineProps({
   titlebar: { type: String, default: '' },
@@ -223,20 +223,31 @@ async function clickNode(node: DiskNode) {
 const menuNode = ref<DiskNode | null>(null);
 const menuItems = computed(() => {
   const node = menuNode.value;
-  if (!node || node.isRoot) return [];
-  const album = albums.value.find((a) => isInside(node.path, a.path));
-  if (album && !isDiskAlbum(album.id)) return [];   // already in Albums
-  return [{
-    label: t('disk_tree.add_to_albums'),
-    action: () => addToAlbums(node),
-  }];
+  const items: any[] = [];
+  if (node && !node.isRoot) {
+    const album = albums.value.find((a) => isInside(node.path, a.path));
+    if (!album || isDiskAlbum(album.id)) {          // not in Albums yet
+      items.push({ label: t('disk_tree.add_to_albums'), action: () => addToAlbums(node) });
+      items.push({ label: '-', action: () => {} });
+    }
+  }
+  items.push({
+    label: t('settings.browse.show_subfolder_files'),
+    icon: config.settings.showSubfolderFiles ? IconOk : undefined,
+    iconClass: 'w-4 h-4',
+    action: () => {
+      const value = !config.settings.showSubfolderFiles;
+      config.setShowSubfolderFiles(value);
+      void tauriEmit('settings-showSubfolderFiles-changed', value);
+    },
+  });
+  return items;
 });
 
 async function openRowMenu(node: DiskNode, event: MouseEvent) {
   albums.value = (await getAllAlbums()) || [];
   menuNode.value = node;
   await nextTick();
-  if (menuItems.value.length === 0) return;
   contextMenuRef.value?.open?.(event.clientX, event.clientY);
 }
 
@@ -292,11 +303,9 @@ async function openFolder(node: DiskNode) {
   }
   refreshAlbumMarks();
 
-  if (normalize(album.path) === normalize(node.path)) {
-    selection.selectAlbum(album);
-  } else {
-    await selection.selectFolder(album.id, { id: 0, name: node.name, path: node.path } as any);
-  }
+  // Always select the folder itself (never the whole album) so a root folder
+  // shows only its own files unless "Show files from subfolders" is on.
+  await selection.selectFolder(album.id, { id: 0, name: node.name, path: node.path } as any);
 }
 
 // Expand the tree down to the currently selected album folder.

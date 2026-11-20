@@ -244,6 +244,9 @@ if (isMainWindow) {
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)
   })
+  listen('settings-transparencyColor-changed', (event) => {
+    config.settings.transparencyColor = event.payload
+  })
   listen('settings-slideShowTransition-changed', (event) => {
     config.setSlideShowTransition(event.payload)
   })

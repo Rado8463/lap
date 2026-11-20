@@ -383,6 +383,7 @@
           :showInlineLoading="mode === 2"
           :suppressAutoNavigator="suppressAutoNavigator && !previewFullScreen"
           :nextFilePath="nextFilePath"
+          :neighborFilePaths="neighborFilePaths"
           :rotate="file?.rotate ?? 0"
           :isZoomFit="isZoomFit"
           :isSlideShow="isSlideShow"
@@ -548,6 +549,10 @@ const props = defineProps({
   fileCount: {
     type: Number,
     default: 0
+  },
+  neighborFilePaths: {
+    type: Array,
+    default: () => [],
   },
   nextFilePath: {
     type: String,

@@ -24,6 +24,7 @@
           :file="fileInfo"
           :showThumbnailPlaceholder="true"
           :nextFilePath="nextFilePath"
+          :neighborFilePaths="neighborFilePaths"
           :hasPrevious="fileIndex > 0"
           :hasNext="fileIndex < fileCount - 1"
           :fileIndex="fileIndex"
@@ -73,6 +74,7 @@
             :isFullScreen="isFullScreen"
             :file="getFileInfoByPane(activePane)"
             :nextFilePath="getNextFilePathByPane(activePane)"
+            :neighborFilePaths="getNeighborPathsByPane(activePane)"
             :hasPrevious="getFileIndexByPane(activePane) > 0"
             :hasNext="getFileIndexByPane(activePane) < fileCount - 1"
             :fileIndex="getFileIndexByPane(activePane)"
@@ -118,6 +120,7 @@
                 :file="getFileInfoByPane(pane)"
                 :showThumbnailPlaceholder="true"
                 :nextFilePath="getNextFilePathByPane(pane)"
+                :neighborFilePaths="getNeighborPathsByPane(pane)"
                 :hasPrevious="getFileIndexByPane(pane) > 0"
                 :hasNext="getFileIndexByPane(pane) < fileCount - 1"
                 :fileIndex="getFileIndexByPane(pane)"
@@ -253,6 +256,7 @@ const fileCount = ref(0);       // Total number of files
 
 const fileInfo = ref<any>(null);
 const nextFilePath = ref('');
+const neighborFilePaths = ref<string[]>([]);
 const iconRotate = ref(0);      // icon rotation angle
 const isTransitionDisabled = ref(true);
 
@@ -376,6 +380,12 @@ onMounted(async() => {
   fileIndex.value = Number(urlParams.get('fileIndex'));
   fileCount.value = Number(urlParams.get('fileCount'));
   nextFilePath.value = decodeURIComponent(urlParams.get('nextFilePath') || '');
+  try {
+    const parsed = JSON.parse(urlParams.get('neighborFilePaths') || '[]');
+    neighborFilePaths.value = Array.isArray(parsed) ? parsed.filter((p: unknown) => typeof p === 'string') : [];
+  } catch {
+    neighborFilePaths.value = [];
+  }
   const initialRightFileId = Number(urlParams.get('rightFileId') || '0');
   const initialRightFileIndex = Number(urlParams.get('rightFileIndex') || '-1');
   rightNextFilePath.value = decodeURIComponent(urlParams.get('rightNextFilePath') || '');
@@ -462,6 +472,7 @@ onMounted(async() => {
       fileId.value = Number(event.payload.fileId);
       fileIndex.value = Number(event.payload.fileIndex);
       nextFilePath.value = event.payload.nextFilePath || '';
+      neighborFilePaths.value = Array.isArray(event.payload.neighborFilePaths) ? event.payload.neighborFilePaths : [];
     }
   });
   ensureFourPanesLoaded();
@@ -1212,6 +1223,10 @@ function getFileIndexByPane(pane: Pane = 'left') {
   if (pane === 'right') return rightFileIndex.value;
   if (pane === 'bottomLeft' || pane === 'bottomRight') return extraPaneState[pane].fileIndex;
   return fileIndex.value;
+}
+
+function getNeighborPathsByPane(pane: Pane = 'left') {
+  return pane === 'left' ? neighborFilePaths.value : [];
 }
 
 function getNextFilePathByPane(pane: Pane = 'left') {
