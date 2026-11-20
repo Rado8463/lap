@@ -1039,6 +1039,21 @@ for (const pane of ['bottomLeft', 'bottomRight'] as const) {
   });
 }
 
+// Expose the current state in the native window title so external tools
+// (e.g. AutoHotkey: WinGetTitle) can read it. Format, "|"-separated:
+//   Image Viewer | <zoom %> | <width>x<height> | <size in MB> | <file name>
+const windowTitleInfo = computed(() => {
+  const file = fileInfo.value;
+  if (!file) return 'Image Viewer';
+  const zoom = Math.round(imageScale.value * (window.devicePixelRatio || 1) * 100);
+  const resolution = file.width && file.height ? `${file.width}x${file.height}` : '-';
+  const sizeMb = file.size > 0 ? (file.size / (1024 * 1024)).toFixed(2) : '-';
+  return `Image Viewer | ${zoom}% | ${resolution} | ${sizeMb} MB | ${file.name ?? ''}`;
+});
+watch(windowTitleInfo, (title) => {
+  void appWindow.setTitle(title).catch(() => {});
+}, { immediate: true });
+
 // watch file index
 watch(() => fileIndex.value, async (newIndex) => {
   if(newIndex === -1) {

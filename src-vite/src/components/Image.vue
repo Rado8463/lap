@@ -1058,6 +1058,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousemove', trackImageDragOut, true);
   document.documentElement.removeEventListener('mouseleave', trackImageDragOut);
   document.removeEventListener('mouseup', handleImageMouseUp, true);
+  endLoupe();
   rawAbortController?.abort();
   for (const url of rawObjectUrls) URL.revokeObjectURL(url);
   if (rawUpgradeTimer) clearTimeout(rawUpgradeTimer);
@@ -1927,6 +1928,61 @@ function trackImageDragOut(event: MouseEvent) {
   });
 }
 
+// ---- Press-and-hold "loupe": hold the left button to zoom to 100 % under the
+// cursor (drag to pan); release to return to the previous zoom and position.
+const LOUPE_HOLD_MS = 280;
+const LOUPE_MOVE_TOLERANCE = 6;
+let loupeTimer: ReturnType<typeof setTimeout> | null = null;
+let loupeStart = { x: 0, y: 0 };
+let loupeSaved: { index: number; scale: number; x: number; y: number } | null = null;
+
+function cancelLoupeTimer() {
+  if (loupeTimer) clearTimeout(loupeTimer);
+  loupeTimer = null;
+}
+
+function startLoupeTimer(event: MouseEvent) {
+  cancelLoupeTimer();
+  if (props.isSlideShow || loadError.value || isLoading.value) return;
+  loupeStart = { x: event.clientX, y: event.clientY };
+  loupeTimer = setTimeout(() => {
+    loupeTimer = null;
+    beginLoupe();
+  }, LOUPE_HOLD_MS);
+}
+
+function beginLoupe() {
+  if (!isDraggingImage.value || loupeSaved) return;
+  const index = activeImage.value;
+  const target = getActualSizeScale();
+  const current = scale.value[index];
+  if (!(imageSizeRotated.value[index].width > 0) || Math.abs(current - target) / target < 0.01) return;
+
+  updatePosition();
+  loupeSaved = { index, scale: current, x: position.value[index].x, y: position.value[index].y };
+  noTransition.value = true;
+  zoomImage(loupeStart.x - containerPos.value.x, loupeStart.y - containerPos.value.y, target, true);
+  releaseNoTransition();
+  window.addEventListener('mouseup', endLoupe, { once: true, capture: true });
+}
+
+function endLoupe() {
+  cancelLoupeTimer();
+  window.removeEventListener('mouseup', endLoupe, true);
+  const saved = loupeSaved;
+  loupeSaved = null;
+  if (!saved || activeImage.value !== saved.index) return;
+  noTransition.value = true;
+  scale.value[saved.index] = saved.scale;
+  position.value[saved.index] = { x: saved.x, y: saved.y };
+  clampPosition(true);
+  releaseNoTransition();
+}
+
+function releaseNoTransition() {
+  requestAnimationFrame(() => requestAnimationFrame(() => { noTransition.value = false; }));
+}
+
 // start dragging
 const handleImageMouseDown = (event: MouseEvent) => {
   if (isTouchActive.value) return; // touch path owns this gesture
@@ -1944,6 +2000,7 @@ const handleImageMouseDown = (event: MouseEvent) => {
       document.addEventListener('mouseup', handleImageMouseUp, true);
     }
     isDraggingImage.value = true;
+    startLoupeTimer(event);
     lastMousePosition.value = { x: event.clientX, y: event.clientY };
     mouseDragNavDeltaX.value = 0;
     mouseDragNavDeltaY.value = 0;
@@ -1969,6 +2026,9 @@ const handleImageMouseMove = (event: MouseEvent) => {
 
   if (!isDraggingImage.value) return;
 
+  if (loupeTimer && Math.hypot(event.clientX - loupeStart.x, event.clientY - loupeStart.y) > LOUPE_MOVE_TOLERANCE) {
+    cancelLoupeTimer();
+  }
   latestMouseEvent.value = event;
 
   if (animationFrameId) {
@@ -1987,6 +2047,7 @@ function finishImageMouseDrag(navigate: boolean) {
   // A quick swipe may release before its scheduled frame runs.
   if (navigate && isDraggingImage.value && latestMouseEvent.value) updateDragPosition();
   latestMouseEvent.value = null;
+  endLoupe(); // after the final pan flush, so the restored view is not nudged
   if (navigate && mouseDragNavTriggered.value && Math.abs(mouseDragNavDeltaX.value) >= MOUSE_DRAG_NAV_THRESHOLD) {
     const direction = mouseDragNavDeltaX.value > 0 ? 'prev' : 'next';
     navDirection.value = direction;
@@ -2218,33 +2279,26 @@ function wheelZoom(event: WheelEvent, zoomFactor: number) {
   zoomImage(event.clientX - containerPosVal.x, event.clientY - containerPosVal.y, newScale);
 }
 
+// Discrete zoom levels (in real screen pixels per image pixel) used by the
+// zoom in/out commands: 10, 20, 30, 50, 70, 100, 200 %, then larger steps.
+const ZOOM_STEPS = [0.1, 0.2, 0.3, 0.5, 0.7, 1, 2, 3, 4, 5, 7, 10];
+
 const zoomIn = () => {
-  const newScale = Math.min(scale.value[activeImage.value] * 2, maxScale.value);
+  const dpr = window.devicePixelRatio || 1;
+  const current = scale.value[activeImage.value] * dpr;
+  const next = ZOOM_STEPS.find(step => step > current * 1.005);
+  const newScale = Math.min(next !== undefined ? next / dpr : scale.value[activeImage.value], maxScale.value);
   const container = containerSize.value;
   zoomImage(container.width / 2, container.height / 2, newScale);
 };
 
 const zoomOut = () => {
   const container = containerSize.value;
-  const imgRotatedSize = imageSizeRotated.value[activeImage.value];
-  
-  // Calculate potential min scale based on fit, but respect hard floor of 0.1 if desired?
-  // User asked for "lowest scale 10%". 
-  // We'll prioritize 0.1, but if fitting requires less, we might have a conflict.
-  // Assuming 0.1 is the hard floor relevant to the user's request.
-  
-  const fitScale = Math.min(
-    container.width / imgRotatedSize.width, 
-    container.height / imgRotatedSize.height
-  );
-  
-  // Update minScale to be at least 0.1. 
-  // If we want to allow "Overview mode" smaller than 0.1 we can adjust.
-  // But given the "bug report" of 0%, we stick to 0.1.
   minScale.value = 0.1;
-
-  const newScale = Math.max(scale.value[activeImage.value] / 2, minScale.value);
-  const containerPosVal = containerPos.value;
+  const dpr = window.devicePixelRatio || 1;
+  const current = scale.value[activeImage.value] * dpr;
+  const previous = [...ZOOM_STEPS].reverse().find(step => step < current * 0.995);
+  const newScale = Math.max(previous !== undefined ? previous / dpr : minScale.value, minScale.value);
   zoomImage(container.width / 2, container.height / 2, newScale);
 };
 
