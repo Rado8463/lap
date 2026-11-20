@@ -92,6 +92,15 @@
           @click="$emit('update:isZoomFit', !isZoomFit)"
         />
         <TButton
+          v-if="file?.file_type !== 2"
+          :icon="IconBookmark"
+          :disabled="fileIndex < 0 || isSlideShow || !canInteract"
+          :selected="hasSavedViewport && !isSlideShow"
+          :tooltip="hasSavedViewport ? $t('image_viewer.toolbar.viewport_clear') : $t('image_viewer.toolbar.viewport_save')"
+          :shortcut="shortcut(hasSavedViewport ? 'view.clearViewport' : 'view.saveViewport')"
+          @click="toggleSavedViewport"
+        />
+        <TButton
           :icon="IconRotate"
           :disabled="fileIndex < 0 || isSlideShow || !canInteract"
           :iconStyle="{ transform: `rotate(${file?.rotate ?? 0}deg)`, transition: 'transform 0.3s' }"
@@ -381,6 +390,7 @@
           @update:isZoomFit="(val: boolean) => $emit('update:isZoomFit', val)"
           @scale="(e) => $emit('scale', e)"
           @viewport-change="(e) => $emit('viewport-change', e)"
+          @saved-viewport-change="(v: boolean) => hasSavedViewport = v"
           @message-from-image-viewer="handleMessageFromImageViewer"
           @context-menu="handleContextMenu"
           @pointerdown.capture="handleOverlayPointerDown"
@@ -472,6 +482,7 @@ import {
   IconZoomOut,
   IconZoomFit,
   IconZoomActual,
+  IconBookmark,
   IconFullScreen,
   IconRestoreScreen,
   IconPin,
@@ -624,6 +635,7 @@ const livePhotoVideoPath = computed(() =>
   isLivePhoto.value ? props.file?.live_photo_video_path : motionPhotoVideoPath.value,
 );
 const livePhotoViewport = ref<Record<string, number | boolean> | null>(null);
+const hasSavedViewport = ref(false);   // current image has a saved viewport (zoom + position)
 let motionPhotoVideoRequestSeq = 0;
 
 function startLivePhotoPreview() {
@@ -1282,6 +1294,9 @@ const rotateView = (delta = 90) => mediaRef.value?.rotateView(delta);
 const togglePlay = () => mediaRef.value?.togglePlay?.();
 const getViewportState = () => mediaRef.value?.getViewportState?.();
 const applyViewportState = (viewport: any, silent = false) => mediaRef.value?.applyViewportState?.(viewport, silent);
+const saveViewport = () => mediaRef.value?.saveViewport?.();
+const clearSavedViewport = () => mediaRef.value?.clearSavedViewport?.();
+const toggleSavedViewport = () => mediaRef.value?.toggleSavedViewport?.();
 const getCurrentImageSrc = () => mediaRef.value?.getCurrentImageSrc?.() || '';
 const clearPreloadCache = (filePath?: string) => mediaRef.value?.clearPreloadCache?.(filePath);
 const showMessage = (message: string, isWarning: boolean = false) => {
@@ -1417,6 +1432,9 @@ defineExpose({
   cycleRawPreview: () => !isLivePhotoPlaying.value && mediaRef.value?.cycleRawPreview?.(),
   getViewportState,
   applyViewportState,
+  saveViewport,
+  clearSavedViewport,
+  toggleSavedViewport,
   navigateImage: (point: { normX: number; normY: number }) => mediaRef.value?.navigateImage?.(point),
   zoomNavigator: (factor: number) => mediaRef.value?.zoomNavigator?.(factor),
   toggleZoomFit: () => mediaRef.value?.toggleZoomFit?.(),

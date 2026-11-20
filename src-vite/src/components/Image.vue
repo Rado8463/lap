@@ -224,6 +224,7 @@ import { rawDisplayKey, getRawDisplayOptions, appendRawDisplayParams, type RawPr
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
 import { createDragPreview, isWindowDragEdge, startNativeFileDrag } from '@/common/nativeDrag';
+import { getSavedViewport, setSavedViewport, removeSavedViewport, type SavedViewport } from '@/common/savedViewports';
 
 import { checkFileAccessibility, isCloudOnlyFile } from '@/common/api';
 import { setFileAccessibility } from '@/common/availability';
@@ -300,7 +301,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['message-from-image-viewer', 'scale', 'update:isZoomFit', 'viewport-change', 'context-menu']);
+const emit = defineEmits(['message-from-image-viewer', 'scale', 'update:isZoomFit', 'viewport-change', 'context-menu', 'saved-viewport-change']);
 
 type AfArea = { x: number; y: number; width: number; height: number; focused: boolean | null };
 const afAreas = ref<AfArea[]>([]);
@@ -375,6 +376,14 @@ const imageSize = ref([{ width: 0, height: 0 }, { width: 0, height: 0 }]);      
 const imageSizeRotated = ref([{ width: 0, height: 0 }, { width: 0, height: 0 }]); // image size after rotation
 
 const isDraggingImage = ref(false);         // Dragging state
+
+// Saved viewport (per-file zoom + position) state; see savedViewports.ts
+const hasSavedViewport = ref(false);
+let skipNextZoomFitWatch = false;
+// Non-null while the displayed image comes from a saved viewport; holds the
+// zoom-fit mode that was active before the restore.
+let zoomFitBeforeRestore: boolean | null = null;
+
 const isGrabbing = ref(false);              // Grabbing state
 const navigatorAutoVisible = ref(true);
 const showNavigator = computed(() =>
@@ -1703,6 +1712,13 @@ watch(
 // watch zoom fit changes
 watch(() => props.isZoomFit, (newValue) => {
   isZoomFit.value = newValue;
+  if (skipNextZoomFitWatch) {
+    // The change was caused by restoring a saved viewport; keep that viewport.
+    skipNextZoomFitWatch = false;
+    return;
+  }
+  // The user took manual control of zoom: forget the pre-restore state.
+  zoomFitBeforeRestore = null;
   updateZoomFit();
 });
 
@@ -1762,12 +1778,34 @@ const onImageReady = (nextIndex: number, preserveLoading: boolean = false) => {
   activeImage.value = nextIndex;
 
   const applyZoom = () => {
+    // A viewport saved for this file (zoom + position) wins over the current
+    // zoom mode and over carrying the previous image's viewport across.
+    const savedViewport = getSavedViewport(imageFilePath.value[activeImage.value]);
+    setHasSavedViewport(!!savedViewport);
+    let leavingSavedViewport = false;
+    if (savedViewport && restoreSavedViewport(savedViewport)) {
+      setTimeout(() => {
+        noTransition.value = false;
+      }, 500);
+      return;
+    }
+    if (!savedViewport && zoomFitBeforeRestore !== null) {
+      // The previous image was shown from a saved viewport and this one has
+      // none: go back to the zoom mode that was active before the restore.
+      leavingSavedViewport = true;
+      const wasFit = zoomFitBeforeRestore;
+      zoomFitBeforeRestore = null;
+      if (wasFit) {
+        isZoomFit.value = true;
+        if (!props.isZoomFit) emit('update:isZoomFit', true);
+      }
+    }
     // If not in "zoom to fit" mode, perform a calculated zoom to the cursor position.
     if (!isZoomFit.value) {
       const imgIndex = activeImage.value;
       const imgSize = imageSize.value[imgIndex];
       const container = containerSize.value;
-      if (hasPreviousImage) {
+      if (hasPreviousImage && !leavingSavedViewport) {
         // Never carry over absolute x/y offsets: they describe the previous
         // image's dimensions. Rebuild the position from normalized viewport
         // coordinates so image navigation and thumbnail replacement retain
@@ -2232,6 +2270,73 @@ function zoomImage(cursorX: number, cursorY: number, newScale: number, force: bo
   clampPosition(force);
 }
 
+// ---- Saved viewport (per-file zoom + position) ----------------------------
+function setHasSavedViewport(value: boolean) {
+  hasSavedViewport.value = value;
+  // Always emit: a freshly mounted Image must resync the parent's flag.
+  emit('saved-viewport-change', value);
+}
+
+function restoreSavedViewport(saved: SavedViewport): boolean {
+  const imgIndex = activeImage.value;
+  const imgSize = imageSize.value[imgIndex];
+  if (!(imgSize.width > 0) || !(containerSize.value.width > 0)) return false;
+
+  const dpr = window.devicePixelRatio || 1;
+  // Keep the same real zoom even if the layout width differs from the save time.
+  const widthRatio = saved.sourceWidth > 0 ? saved.sourceWidth / imgSize.width : 1;
+  const scaleValue = (saved.displayScale * widthRatio) / dpr;
+
+  if (zoomFitBeforeRestore === null) zoomFitBeforeRestore = props.isZoomFit;
+  isZoomFit.value = false;
+  if (props.isZoomFit) {
+    skipNextZoomFitWatch = true;
+    emit('update:isZoomFit', false);
+  }
+
+  applyViewportState({ scale: scaleValue, normX: saved.normX, normY: saved.normY }, true);
+  emit('viewport-change', getViewportState());
+  return true;
+}
+
+function saveViewport(): boolean {
+  const path = imageFilePath.value[activeImage.value];
+  const imgSize = imageSize.value[activeImage.value];
+  if (!path || path !== props.filePath || !(imgSize.width > 0)) return false;
+  if (isZoomFit.value) {
+    toast.info(t('image_viewer.viewport_fit_hint'));
+    return false;
+  }
+  const viewport = getViewportState();
+  const displayScale = viewport.scale * (window.devicePixelRatio || 1);
+  setSavedViewport(path, {
+    displayScale,
+    normX: viewport.normX,
+    normY: viewport.normY,
+    sourceWidth: imgSize.width,
+  });
+  // The displayed image is now "pinned"; keep the mode that preceded it.
+  setHasSavedViewport(true);
+  toast.success(t('image_viewer.viewport_saved', { zoom: Math.round(displayScale * 100) }));
+  return true;
+}
+
+function clearSavedViewport(): boolean {
+  const path = imageFilePath.value[activeImage.value];
+  if (!path || !removeSavedViewport(path)) {
+    if (path) toast.info(t('image_viewer.viewport_none'));
+    return false;
+  }
+  setHasSavedViewport(false);
+  toast.success(t('image_viewer.viewport_cleared'));
+  return true;
+}
+
+function toggleSavedViewport() {
+  if (hasSavedViewport.value) clearSavedViewport();
+  else saveViewport();
+}
+
 function getViewportState() {
   const imgIndex = activeImage.value;
   const imgSize = imageSize.value[imgIndex];
@@ -2348,6 +2453,9 @@ defineExpose({
   rotateView,
   getViewportState,
   applyViewportState,
+  saveViewport,
+  clearSavedViewport,
+  toggleSavedViewport,
   zoomNavigator,
   navigateImage,
   toggleZoomFit,

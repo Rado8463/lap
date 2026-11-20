@@ -63,6 +63,8 @@ export type ShortcutActionId =
   | 'view.zoomInDirectional'
   | 'view.zoomOutDirectional'
   | 'view.zoomFit'
+  | 'view.saveViewport'
+  | 'view.clearViewport'
   | 'view.cycleRawPreview'
   | 'view.toggleAfAreas'
   | 'view.toggleFullscreen'
@@ -454,6 +456,16 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.zoomFit',
     contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ code: 'KeyZ', label: 'Z' }],
+  },
+  {
+    id: 'view.saveViewport',
+    contexts: ['content', 'media-viewer', 'image-viewer'],
+    defaultBindings: [{ code: 'KeyV', label: 'V' }],
+  },
+  {
+    id: 'view.clearViewport',
+    contexts: ['content', 'media-viewer', 'image-viewer'],
+    defaultBindings: [{ code: 'KeyV', modifiers: ['shift'], label: { mac: '⇧V', windows: 'Shift+V', linux: 'Shift+V' } }],
   },
   {
     id: 'view.cycleRawPreview',

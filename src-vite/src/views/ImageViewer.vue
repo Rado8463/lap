@@ -813,6 +813,8 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.zoomInDirectional': () => clickZoomIn(getActivePane()),
   'view.zoomOutDirectional': () => clickZoomOut(getActivePane()),
   'view.zoomFit': () => toggleZoomFit(getActivePane()),
+  'view.saveViewport': () => getViewerRef(getActivePane())?.saveViewport?.(),
+  'view.clearViewport': () => getViewerRef(getActivePane())?.clearSavedViewport?.(),
   'view.close': () => closeWindow(),
 };
 
@@ -826,6 +828,8 @@ const viewActionOrder: ShortcutActionId[] = [
   'view.zoomInDirectional',
   'view.zoomOutDirectional',
   'view.zoomFit',
+  'view.saveViewport',
+  'view.clearViewport',
   'view.close',
 ];
 

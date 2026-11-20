@@ -1338,6 +1338,10 @@
     "loading_original": "Loading original photo...",
     "media_server_unavailable": "Original photos and videos could not be loaded. Restart Lap to try again.",
     "failed": "Failed to load photo. The file is missing or corrupted.",
+    "viewport_saved": "Viewport saved ({zoom}%)",
+    "viewport_cleared": "Saved viewport cleared",
+    "viewport_none": "No saved viewport for this photo",
+    "viewport_fit_hint": "Zoom in first, then save the viewport",
     "raw_render_unavailable": "Can't render this RAW; showing embedded preview.",
     "af_unavailable": "No supported AF data for this image",
     "toolbar": {
@@ -1356,7 +1360,9 @@
       "unpin": "Unpin toolbar",
       "close": "Close",
       "sync_viewport_on": "Link zoom and pan",
-      "sync_viewport_off": "Unlink zoom and pan"
+      "sync_viewport_off": "Unlink zoom and pan",
+      "viewport_save": "Save zoom and position for this photo",
+      "viewport_clear": "Clear saved zoom and position"
     }
   },
   "video": {
@@ -1671,6 +1677,8 @@
         "zoom_in": "Zoom in",
         "zoom_out": "Zoom out",
         "zoom_fit": "Toggle actual size / fit to window",
+        "save_viewport": "Save viewport (zoom and position)",
+        "clear_viewport": "Clear saved viewport",
         "cycle_raw_preview": "Cycle RAW Preview Mode",
         "toggle_af_areas": "Toggle AF areas",
         "cycle_background": "Cycle background",

@@ -1318,6 +1318,8 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'view.zoomIn', labelKey: 'zoom_in' },
       { actionId: 'view.zoomOut', labelKey: 'zoom_out' },
       { actionId: 'view.zoomFit', labelKey: 'zoom_fit' },
+      { actionId: 'view.saveViewport', labelKey: 'save_viewport' },
+      { actionId: 'view.clearViewport', labelKey: 'clear_viewport' },
       { actionId: 'meta.rotate', labelKey: 'rotate' },
       { actionId: 'meta.rotateCounterclockwise', labelKey: 'rotate_counterclockwise' },
       { actionId: 'view.toggleAfAreas', labelKey: 'toggle_af_areas' },

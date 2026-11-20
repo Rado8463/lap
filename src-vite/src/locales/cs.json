@@ -1337,6 +1337,10 @@
     "loading_original": "Načítá se původní fotografie…",
     "media_server_unavailable": "Původní fotografie a videa se nepodařilo načíst. Restartujte Lap a zkuste to znovu.",
     "failed": "Fotografii se nepodařilo načíst. Soubor chybí nebo je poškozený.",
+    "viewport_saved": "Zobrazení uloženo ({zoom} %)",
+    "viewport_cleared": "Uložené zobrazení smazáno",
+    "viewport_none": "Tato fotka nemá uložené zobrazení",
+    "viewport_fit_hint": "Nejprve přibližte, poté zobrazení uložte",
     "raw_render_unavailable": "Tento soubor RAW nelze vykreslit; zobrazuje se vložený náhled.",
     "af_unavailable": "Tento obrázek nemá podporovaná data AF",
     "toolbar": {
@@ -1355,7 +1359,9 @@
       "unpin": "Odepnout panel nástrojů",
       "close": "Zavřít",
       "sync_viewport_on": "Propojit přiblížení a posun",
-      "sync_viewport_off": "Zrušit propojení přiblížení a posunu"
+      "sync_viewport_off": "Zrušit propojení přiblížení a posunu",
+      "viewport_save": "Uložit přiblížení a polohu této fotky",
+      "viewport_clear": "Smazat uložené přiblížení a polohu"
     }
   },
   "video": {
@@ -1670,6 +1676,8 @@
         "zoom_in": "Přiblížit",
         "zoom_out": "Oddálit",
         "zoom_fit": "Přepnout mezi skutečnou velikostí a přizpůsobením oknu",
+        "save_viewport": "Uložit zobrazení (přiblížení a poloha)",
+        "clear_viewport": "Smazat uložené zobrazení",
         "cycle_raw_preview": "Přepnout režim náhledu RAW",
         "toggle_af_areas": "Zobrazit / skrýt body ostření AF",
         "cycle_background": "Přepínat cyklicky pozadí",

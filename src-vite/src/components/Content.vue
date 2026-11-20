@@ -5305,6 +5305,19 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  if (getActivePreviewMode() !== 'none' && matchesShortcut('view.saveViewport', event, shortcutPlatform)) {
+    if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    if (!event.repeat) getActivePreviewMediaRef()?.saveViewport?.();
+    return;
+  }
+  if (getActivePreviewMode() !== 'none' && matchesShortcut('view.clearViewport', event, shortcutPlatform)) {
+    if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    if (!event.repeat) getActivePreviewMediaRef()?.clearSavedViewport?.();
+    return;
+  }
+
   if (getActivePreviewMode() !== 'none' && matchesShortcut('view.zoomFit', event, shortcutPlatform)) {
     event.preventDefault();
     if (!event.repeat) {
