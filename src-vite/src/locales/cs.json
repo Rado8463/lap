@@ -3,7 +3,9 @@
     "no_drives": "Nenalezeny žádné disky",
     "overlap": "Tato složka obsahuje existující album „{name}“. Alba se nesmí překrývat; nejprve toto album odeberte nebo upravte.",
     "add_failed": "Složku se nepodařilo přidat jako album.",
-    "added": "Složka „{name}“ byla přidána jako album a indexuje se"
+    "added": "Složka „{name}“ byla přidána jako album a indexuje se",
+    "add_to_albums": "Přidat do Albums",
+    "added_to_albums": "Složka „{name}“ byla přidána do Albums"
   },
   "sidebar": {
     "home": "Domů",
@@ -465,6 +467,7 @@
     },
     "filter": {
       "favorites_only": "Jen oblíbené",
+      "rated_only": "Jen s hodnocením",
       "show_selection_panel": "Otevřít panel výběru",
       "exit_selection_mode": "Ukončit režim výběru",
       "select_count": "Vybráno: {count}",
@@ -1348,6 +1351,9 @@
     "viewport_cleared": "Uložené zobrazení smazáno",
     "viewport_none": "Tato fotka nemá uložené zobrazení",
     "viewport_fit_hint": "Nejprve přibližte, poté zobrazení uložte",
+    "zoom_set": "Přiblížení {zoom} %",
+    "zoom_lock_on": "Přiblížení zamknuto",
+    "zoom_lock_off": "Přiblížení odemknuto",
     "raw_render_unavailable": "Tento soubor RAW nelze vykreslit; zobrazuje se vložený náhled.",
     "af_unavailable": "Tento obrázek nemá podporovaná data AF",
     "toolbar": {
@@ -1684,6 +1690,7 @@
         "zoom_out": "Oddálit",
         "zoom_fit": "Přepnout mezi skutečnou velikostí a přizpůsobením oknu",
         "save_viewport": "Uložit zobrazení (přiblížení a poloha)",
+        "zoom_lock": "Zamknout přiblížení (zachovat při změně obrázku)",
         "clear_viewport": "Smazat uložené zobrazení",
         "cycle_raw_preview": "Přepnout režim náhledu RAW",
         "toggle_af_areas": "Zobrazit / skrýt body ostření AF",

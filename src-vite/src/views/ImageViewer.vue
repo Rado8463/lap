@@ -767,6 +767,15 @@ function handleKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  // Typed zoom: digits on the numpad (or the plain top row) set that zoom in
+  // percent, e.g. 5 then 5 -> 55 %. Shift+digit stays reserved for ratings.
+  if (!isEditingText && !event.ctrlKey && !event.altKey && !event.metaKey
+    && /^[0-9]$/.test(event.key) && (event.code.startsWith('Numpad') || !event.shiftKey)
+    && getViewerRef(getActivePane())?.typeZoomDigit?.(event.key)) {
+    event.preventDefault();
+    return;
+  }
+
   const matchedAction = getMatchedViewAction(event);
   if (matchedAction) {
     event.preventDefault();
@@ -806,6 +815,9 @@ function getMatchedViewBackground(event: KeyboardEvent): number | null {
 const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.previous': () => clickPrev(getActivePane()),
   'view.next': () => clickNext(getActivePane()),
+  'view.pageUp': () => clickPrev(getActivePane()),
+  'view.pageDown': () => clickNext(getActivePane()),
+  'view.zoomLock': () => getViewerRef(getActivePane())?.toggleZoomLock?.(),
   'view.first': () => clickHome(getActivePane()),
   'view.last': () => clickEnd(getActivePane()),
   'view.zoomIn': () => clickZoomIn(getActivePane()),
@@ -821,6 +833,9 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
 const viewActionOrder: ShortcutActionId[] = [
   'view.previous',
   'view.next',
+  'view.pageUp',
+  'view.pageDown',
+  'view.zoomLock',
   'view.first',
   'view.last',
   'view.zoomIn',

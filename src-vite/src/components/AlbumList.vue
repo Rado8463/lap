@@ -992,7 +992,7 @@ onMounted( async () => {
     // Startup defers the full filesystem probe until the first content paint.
     const loadedAlbums = await getAllAlbums(uiStore.startupReady || !isMainPane.value);
     if (disposed) return;
-    albums.value = loadedAlbums;
+    albums.value = withoutDiskAlbums(loadedAlbums);
     void refreshAlbumVisibleCounts();
     await loadAlbumCovers();
     if (disposed) return;
@@ -1218,11 +1218,18 @@ const clickNewAlbum = async () => {
   isNewAlbum.value = true;
 };
 
+// Albums created only for browsing a folder from the disk tree are not listed.
+function withoutDiskAlbums(list: any) {
+  if (!Array.isArray(list)) return list;
+  const hidden = new Set<number>(((config.main as any).diskAlbumIds || []).map(Number));
+  return hidden.size ? list.filter((album: any) => !hidden.has(Number(album.id))) : list;
+}
+
 // Refresh albums function
 const refreshAlbums = async () => {
   isLoading.value = true;
   try {
-    albums.value = await getAllAlbums();
+    albums.value = withoutDiskAlbums(await getAllAlbums());
     refreshFolderSearchFolders();
   } catch (error) {
     console.error('Failed to refresh albums:', error);
@@ -1629,7 +1636,7 @@ const onDragEnd = async ({ oldIndex, newIndex }: DraggableEvent) => {
     console.error('Failed to reorder albums:', error);
     const restoredAlbums = await getAllAlbums();
     if (Array.isArray(restoredAlbums)) {
-      albums.value = restoredAlbums;
+      albums.value = withoutDiskAlbums(restoredAlbums);
       await loadAlbumCovers();
     }
   }

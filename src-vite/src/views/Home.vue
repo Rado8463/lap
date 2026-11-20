@@ -380,15 +380,15 @@ const {
 
 // buttons
 const buttons = computed(() =>  [
-  { index: SIDEBAR.LIBRARY, icon: IconPhotoAll, component: Library, text: localeMsg.value.sidebar.library },
+  { index: SIDEBAR.LIBRARY, icon: IconPhotoAll, component: Library, text: localeMsg.value.sidebar.library, hidden: true },
   { index: SIDEBAR.ALBUM, icon: IconFolders, component: AlbumList, text: localeMsg.value.sidebar.album, props: { selectionSource: 'album' } },
-  { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list },
+  { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list, hidden: true },
   { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search },
   { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },
   { index: SIDEBAR.TAG, icon: IconTag, component: Tag, text: localeMsg.value.sidebar.tag },
   { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },
-  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location },
-  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera },
+  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location, hidden: true },
+  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera, hidden: true },
   { index: SIDEBAR.DISK, icon: IconFolderExpanded, component: DiskTree, text: localeMsg.value.sidebar.disk || 'Disk' },
 ]);
 
@@ -399,13 +399,13 @@ const isDiskTreeShown = computed(() =>
 const activeSidebarButton = computed(() =>
   (isDiskTreeShown.value && buttons.value.find(item => item.index === SIDEBAR.DISK))
   || buttons.value.find(item => item.index === config.main.sidebarIndex)
-  || buttons.value[SIDEBAR.LIBRARY]
+  || buttons.value.find(item => item.index === SIDEBAR.ALBUM)
 );
 
 // The content pane always follows the real sidebar source (the disk tree is a
 // different left-panel view of the ALBUM source).
 const contentTitle = computed(() =>
-  (buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]).text
+  (buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value.find(item => item.index === SIDEBAR.ALBUM)).text
 );
 
 function isSidebarSelected(index: number) {
@@ -428,6 +428,13 @@ const visibleButtons = computed(() =>
 watch(() => config.main.sidebarIndex, (index) => {
   if (index !== SIDEBAR.ALBUM) config.main.diskTreeActive = false;
 });
+
+// Library, Smart albums, Locations and Cameras are hidden in this build; a
+// persisted selection of one of them falls back to Albums.
+const HIDDEN_SIDEBAR_INDEXES: number[] = [SIDEBAR.LIBRARY, SIDEBAR.SMART_ALBUM, SIDEBAR.LOCATION, SIDEBAR.CAMERA];
+watch(() => config.main.sidebarIndex, (index) => {
+  if (HIDDEN_SIDEBAR_INDEXES.includes(index)) config.main.sidebarIndex = SIDEBAR.ALBUM;
+}, { immediate: true });
 
 watch(() => config.settings.face.enabled, (enabled) => {
   if (!enabled && config.main.sidebarIndex === SIDEBAR.PERSON) {

@@ -62,12 +62,13 @@
           :defaultIndex="fileTypeSelectedIndex"
           :disabled="isFavoritesFilterDisabled"
           :optionsDisabled="tempViewMode === 'person' || tempViewMode === 'similar'"
-          :selected="activeFileTypeMask !== 0 || activeFavoritesOnly"
-          :title="activeFavoritesOnly ? $t('toolbar.filter.favorites_only') : ''"
+          :selected="activeFileTypeMask !== 0 || activeFavoritesOnly || activeRatedOnly"
+          :title="activeFavoritesOnly ? $t('toolbar.filter.favorites_only') : (activeRatedOnly ? $t('toolbar.filter.rated_only') : '')"
           @select="handleFileTypeSelect"
         >
           <template #trigger-suffix>
             <IconHeartFilled v-if="activeFavoritesOnly" class="w-4 h-4 shrink-0" />
+            <IconStarFilled v-if="activeRatedOnly" class="w-4 h-4 shrink-0" />
           </template>
           <template #menu-after>
             <div class="mx-2 my-1 border-t border-base-content/10"></div>
@@ -75,6 +76,11 @@
               role="menuitemcheckbox" :aria-checked="activeFavoritesOnly" @click="toggleFavoritesFilter">
               <span class="w-5"><IconOk v-if="activeFavoritesOnly" class="w-4 h-4" /></span>
               <span class="mr-4">{{ $t('toolbar.filter.favorites_only') }}</span>
+            </button>
+            <button class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
+              role="menuitemcheckbox" :aria-checked="activeRatedOnly" @click="toggleRatedFilter">
+              <span class="w-5"><IconOk v-if="activeRatedOnly" class="w-4 h-4" /></span>
+              <span class="mr-4">{{ $t('toolbar.filter.rated_only') }}</span>
             </button>
           </template>
         </DropDownSelect>
@@ -3997,7 +4003,7 @@ watch(
     if (countedFolderRequestId.value !== currentContentRequestId || currentQuerySource.value !== 'query' || !path
       || !contentReady.value || isLoading.value || contentQueryRefreshPending
       || !contentCountIsAuthoritative.value || tempViewMode.value !== 'none'
-      || config.search.favoritesOnly || Number(currentQueryParams.value.searchFileType || 0) !== 0
+      || config.search.favoritesOnly || activeRatedOnly.value || Number(currentQueryParams.value.searchFileType || 0) !== 0
       || !matchesRequestedSidebarCount({ source: 'album-folder', path })) return;
     setFolderFileCount(path, Math.max(0, Number(totalFileCount.value || 0)));
   },
@@ -4040,7 +4046,7 @@ function matchesRequestedSidebarCount(request: any) {
 
 function commitRequestedSidebarCount(count: number, request = uiStore.countUpdateRequest) {
   if (!request || uiStore.countUpdateRequest !== request) return;
-  if (config.search.favoritesOnly) {
+  if (config.search.favoritesOnly || activeRatedOnly.value) {
     uiStore.clearCountUpdateRequest();
     return;
   }
@@ -5342,6 +5348,24 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  if (getActivePreviewMode() !== 'none' && matchesShortcut('view.zoomLock', event, shortcutPlatform)) {
+    if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    if (!event.repeat) getActivePreviewMediaRef()?.toggleZoomLock?.();
+    return;
+  }
+
+  // Typed zoom: digits on the numpad (or the plain top row) set that zoom in percent,
+  // e.g. 5 then 5 -> 55 %. Shift+digit stays reserved for ratings.
+  if (getActivePreviewMode() !== 'none' && !event.ctrlKey && !event.altKey && !event.metaKey
+    && /^[0-9]$/.test(event.key) && (event.code.startsWith('Numpad') || !event.shiftKey)
+    && target.tagName !== 'SELECT' && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+    if (getActivePreviewMediaRef()?.typeZoomDigit?.(event.key)) {
+      event.preventDefault();
+      return;
+    }
+  }
+
   if (getActivePreviewMode() !== 'none' && matchesShortcut('view.zoomFit', event, shortcutPlatform)) {
     event.preventDefault();
     if (!event.repeat) {
@@ -5449,8 +5473,14 @@ function handleLocalKeyDown(event: KeyboardEvent) {
   }
 
   if (matchesShortcut('view.pageUp', event, shortcutPlatform) || matchesShortcut('view.pageDown', event, shortcutPlatform)) {
-    if (getActivePreviewMode() === 'none') event.preventDefault();
-    return; // Navigation is dispatched once through global-keydown below.
+    if (getActivePreviewMode() === 'none') {
+      event.preventDefault();
+      return; // Navigation is dispatched once through global-keydown below.
+    }
+    // Viewer: Page Up / Page Down step to the previous / next photo.
+    event.preventDefault();
+    requestNavigate(matchesShortcut('view.pageUp', event, shortcutPlatform) ? 'prev' : 'next');
+    return;
   }
 
   const handledKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', 'Space', ' '];
@@ -6916,7 +6946,7 @@ watch(
     libConfig.search.searchText,
     libConfig.rating.item, // rating
     libConfig.culling.item, // culling
-    config.search.fileType, config.search.favoritesOnly, config.search.sortType, config.search.sortOrder, // search and sort
+    config.search.fileType, config.search.favoritesOnly, config.search.ratedOnly, config.search.sortType, config.search.sortOrder, // search and sort
     config.settings.showSubfolderFiles,                                            // album folder view
     config.settings.folderSort, config.settings.calendarSort, config.settings.locationSort, config.settings.cameraSort, config.search.groupBy, // group sorting and filtering (tag/person sorts only affect their sidebars, not content grouping)
     libConfig.person.id,                                                              // person
@@ -7893,7 +7923,7 @@ async function getFileList(
     locationAdmin1 = '', 
     locationName = '', 
     isFavorite = activeFavoritesOnly.value,
-    rating = -1,
+    rating = activeRatedOnly.value ? RATE.ALL : -1,
     cullingFlag = -1,
     tagId = 0,
     personId = 0,
@@ -10935,6 +10965,17 @@ const activeFileTypeMask = computed(() =>
 const isFavoritesFilterDisabled = computed(() => tempViewMode.value === 'person'
   || tempViewMode.value === 'similar' || tempViewMode.value === 'album' || isScanStreamingMode.value);
 const activeFavoritesOnly = computed(() => Boolean(config.search.favoritesOnly) && !isFavoritesFilterDisabled.value);
+
+// "Rated only": in the Albums view show just files with any star rating (1-5).
+const activeRatedOnly = computed(() => Boolean(config.search.ratedOnly)
+  && !isFavoritesFilterDisabled.value
+  && config.main.sidebarIndex === SIDEBAR.ALBUM);
+
+function toggleRatedFilter() {
+  if (isFavoritesFilterDisabled.value) return;
+  rememberFocusedFileForPresentationRefresh();
+  config.search.ratedOnly = !config.search.ratedOnly;
+}
 
 function toggleFavoritesFilter() {
   if (isFavoritesFilterDisabled.value) return;

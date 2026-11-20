@@ -1320,6 +1320,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'view.zoomFit', labelKey: 'zoom_fit' },
       { actionId: 'view.saveViewport', labelKey: 'save_viewport' },
       { actionId: 'view.clearViewport', labelKey: 'clear_viewport' },
+      { actionId: 'view.zoomLock', labelKey: 'zoom_lock' },
       { actionId: 'meta.rotate', labelKey: 'rotate' },
       { actionId: 'meta.rotateCounterclockwise', labelKey: 'rotate_counterclockwise' },
       { actionId: 'view.toggleAfAreas', labelKey: 'toggle_af_areas' },

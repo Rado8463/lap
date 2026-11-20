@@ -1297,6 +1297,8 @@ const applyViewportState = (viewport: any, silent = false) => mediaRef.value?.ap
 const saveViewport = () => mediaRef.value?.saveViewport?.();
 const clearSavedViewport = () => mediaRef.value?.clearSavedViewport?.();
 const toggleSavedViewport = () => mediaRef.value?.toggleSavedViewport?.();
+const typeZoomDigit = (digit: string) => mediaRef.value?.typeZoomDigit?.(digit);
+const toggleZoomLock = () => mediaRef.value?.toggleZoomLock?.();
 const getCurrentImageSrc = () => mediaRef.value?.getCurrentImageSrc?.() || '';
 const clearPreloadCache = (filePath?: string) => mediaRef.value?.clearPreloadCache?.(filePath);
 const showMessage = (message: string, isWarning: boolean = false) => {
@@ -1435,6 +1437,8 @@ defineExpose({
   saveViewport,
   clearSavedViewport,
   toggleSavedViewport,
+  typeZoomDigit,
+  toggleZoomLock,
   navigateImage: (point: { normX: number; normY: number }) => mediaRef.value?.navigateImage?.(point),
   zoomNavigator: (factor: number) => mediaRef.value?.zoomNavigator?.(factor),
   toggleZoomFit: () => mediaRef.value?.toggleZoomFit?.(),

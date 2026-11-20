@@ -25,7 +25,7 @@ function setup(deferred = false, saved = null) {
     noTransition: ref(false), suppressViewportEmit: ref(false), minScale: ref(0.1), maxScale: ref(10),
     gestureType: ref('none'), props: { fileId: 42, filePath: '/photos/a.jpg', isZoomFit: false }, loadingTimeout: null,
     imageFilePath: ref(['/photos/old.jpg', '/photos/a.jpg']), hasSavedViewport: ref(false),
-    skipNextZoomFitWatch: false, zoomFitBeforeRestore: null,
+    skipNextZoomFitWatch: false, zoomFitBeforeRestore: null, zoomLocked: ref(false),
   };
   const events = [];
   const toasts = [];
@@ -102,9 +102,10 @@ test('saved viewport keeps real zoom when layout width differs from save time', 
   assert.equal(t.state.scale.value[0], 2);
 });
 
-test('saving while zoom-fit is active does not store anything', () => {
+test('saving while the image is shown at fit scale does not store anything', () => {
   const t = setup();
   t.state.isZoomFit.value = true;
+  t.state.scale.value = [0.25, 1];
   t.state.imageFilePath.value = ['/photos/a.jpg', '/photos/a.jpg'];
   assert.equal(t.api.saveViewport(), false);
   assert.equal(t.getSaved(), null);
@@ -120,4 +121,32 @@ test('opening a file with a saved viewport restores it even in zoom-fit mode', (
   assert.ok(t.events.some(e => e.event === 'update:isZoomFit' && e.value === false));
   const vp = t.events.find(e => e.event === 'viewport-change').value;
   assert.ok(Math.abs(vp.normX - 0.25) < 1e-9 && Math.abs(vp.normY - 0.75) < 1e-9);
+});
+
+test('save viewport works after zoom-by-wheel even though the fit mode flag is still on', () => {
+  const t = setup();
+  t.state.isZoomFit.value = true;          // mode flag untouched by wheel zoom
+  t.state.props.isZoomFit = true;
+  t.state.imageFilePath.value = ['/photos/a.jpg', '/photos/a.jpg'];
+  t.state.scale.value = [2, 1];            // fit scale is 0.25 for 4000x2000 in 1000x800
+  assert.equal(t.api.saveViewport(), true);
+  assert.ok(t.getSaved());
+});
+
+test('save viewport refuses when the image is displayed at fit scale', () => {
+  const t = setup();
+  t.state.imageFilePath.value = ['/photos/a.jpg', '/photos/a.jpg'];
+  t.state.scale.value = [0.25, 1];
+  assert.equal(t.api.saveViewport(), false);
+  assert.deepEqual(t.toasts, ['image_viewer.viewport_fit_hint']);
+});
+
+test('zoom lock carries the previous zoom to the next image even in fit mode', () => {
+  const t = setup();
+  t.state.isZoomFit.value = true;
+  t.state.props.isZoomFit = true;
+  t.state.zoomLocked.value = true;
+  t.state.scale.value = [1, 1];
+  t.readyImage(1);
+  assert.equal(t.state.scale.value[1], 1);
 });

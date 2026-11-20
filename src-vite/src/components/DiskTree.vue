@@ -24,6 +24,7 @@
         :style="{ paddingLeft: `${row.depth * 1}rem` }"
         @click="clickNode(row.node)"
         @dblclick="toggleNode(row.node)"
+        @contextmenu.prevent.stop="openRowMenu(row.node, $event)"
       >
         <IconRight
           class="album-tree-chevron shrink-0"
@@ -40,20 +41,23 @@
         <span v-if="row.node.albumId" class="ml-2 text-xs opacity-40 shrink-0">●</span>
       </div>
     </div>
+    <ContextMenu ref="contextMenuRef" class="hidden" :menuItems="menuItems" />
   </div>
 </template>
 
 <script setup lang="ts">
 // File-system browser for the left panel: drives and folders as they exist on
 // disk. Choosing a folder shows its photos. Lap works on indexed albums, so a
-// folder that is not part of any album yet is added as an album automatically.
-// Albums cannot nest, so a folder that contains existing albums cannot be added.
-import { ref, computed, onMounted, reactive } from 'vue';
+// folder that is not part of any album yet gets a browse-only album (not listed
+// under Albums; right-click "Add to Albums" promotes it).
+// Albums cannot nest, so a folder that contains regular albums cannot be opened.
+import { ref, computed, onMounted, reactive, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { emit as tauriEmit } from '@tauri-apps/api/event';
-import { libConfig } from '@/common/config';
+import { config, libConfig } from '@/common/config';
 import { isWin } from '@/common/utils';
-import { getAllAlbums, addAlbum, listAlbumSubfolders } from '@/common/api';
+import { getAllAlbums, addAlbum, removeAlbum, listAlbumSubfolders } from '@/common/api';
+import ContextMenu from '@/components/ContextMenu.vue';
 import { useAlbumSelectionProvider } from '@/composables/useAlbumSelection';
 import { useToast } from '@/common/toast';
 import { IconRight, IconFolder, IconFolderExpanded } from '@/common/icons';
@@ -82,6 +86,7 @@ const nodes = reactive(new Map<string, DiskNode>());
 const rootPaths = ref<string[]>([]);
 const isLoadingRoots = ref(true);
 const albums = ref<any[]>([]);
+const contextMenuRef = ref<any>(null);
 const listRef = ref<HTMLElement | null>(null);
 
 const normalize = (p: string) => (isWin ? p.toLowerCase() : p).replace(/[\\/]+$/, '');
@@ -111,9 +116,13 @@ function getNode(path: string, name?: string, isRoot = false): DiskNode {
   return node;
 }
 
+// Albums created only to browse a folder are kept in config.main.diskAlbumIds
+// and not listed under Albums until the user adds them explicitly.
+const isDiskAlbum = (id: number) => ((config.main as any).diskAlbumIds || []).map(Number).includes(Number(id));
+
 function refreshAlbumMarks() {
   for (const node of nodes.values()) {
-    const album = albums.value.find((a) => isInside(node.path, a.path));
+    const album = albums.value.find((a) => isInside(node.path, a.path) && !isDiskAlbum(a.id));
     node.albumId = album && !node.isRoot ? album.id : 0;
   }
 }
@@ -210,32 +219,76 @@ async function clickNode(node: DiskNode) {
   await openFolder(node);
 }
 
+// ---- context menu: promote a browse-only folder to a regular album --------
+const menuNode = ref<DiskNode | null>(null);
+const menuItems = computed(() => {
+  const node = menuNode.value;
+  if (!node || node.isRoot) return [];
+  const album = albums.value.find((a) => isInside(node.path, a.path));
+  if (album && !isDiskAlbum(album.id)) return [];   // already in Albums
+  return [{
+    label: t('disk_tree.add_to_albums'),
+    action: () => addToAlbums(node),
+  }];
+});
+
+async function openRowMenu(node: DiskNode, event: MouseEvent) {
+  albums.value = (await getAllAlbums()) || [];
+  menuNode.value = node;
+  await nextTick();
+  if (menuItems.value.length === 0) return;
+  contextMenuRef.value?.open?.(event.clientX, event.clientY);
+}
+
+async function addToAlbums(node: DiskNode) {
+  albums.value = (await getAllAlbums()) || [];
+  let album = albums.value.find((a) => isInside(node.path, a.path));
+  if (!album) {
+    await openFolder(node);                          // creates the browse-only album
+    albums.value = (await getAllAlbums()) || [];
+    album = albums.value.find((a) => isInside(node.path, a.path));
+  }
+  if (!album) return;
+  config.main.diskAlbumIds = ((config.main as any).diskAlbumIds || []).filter((id: number) => Number(id) !== Number(album.id));
+  await tauriEmit('albums-refreshed');
+  refreshAlbumMarks();
+  toast.success(t('disk_tree.added_to_albums', { name: album.name }));
+}
+
 async function openFolder(node: DiskNode) {
   albums.value = (await getAllAlbums()) || [];
 
   // 1. already inside an album: just select it there
   let album = albums.value.find((a) => isInside(node.path, a.path));
 
-  // 2. not covered by an album: add it (unless it would overlap existing albums)
+  // 2. not covered by an album: add it as a *browse-only* album (not listed
+  //    under Albums). Albums cannot nest, so browse-only albums inside the new
+  //    folder are merged into it; real albums inside it block the action.
   if (!album) {
     const contained = albums.value.filter((a) => isInside(a.path, node.path));
-    if (contained.length > 0) {
-      toast.error(t('disk_tree.overlap', { name: contained[0].name }));
+    const real = contained.find((a) => !isDiskAlbum(a.id));
+    if (real) {
+      toast.error(t('disk_tree.overlap', { name: real.name }));
       return;
     }
+    for (const old of contained) {
+      await removeAlbum(old.id);
+      config.main.diskAlbumIds = ((config.main as any).diskAlbumIds || []).filter((id: number) => Number(id) !== Number(old.id));
+    }
+    if (contained.length > 0) albums.value = albums.value.filter((a) => !contained.some((c) => c.id === a.id));
     const name = node.name || node.path;
     album = await addAlbum(node.path, name, '', { fileTypes: 7, smallImageFilter: 0, excludedFolders: [] });
     if (!album) {
       toast.error(t('disk_tree.add_failed'));
       return;
     }
+    (config.main as any).diskAlbumIds = [...((config.main as any).diskAlbumIds || []), album.id];
     albums.value.push(album);
     await tauriEmit('albums-refreshed');
     await tauriEmit('library-total-refreshed');
     // queue indexing, same as the album list does after adding an album
     if (libConfig.index.albumQueue.indexOf(album.id) === -1) libConfig.index.albumQueue.push(album.id);
     libConfig.index.status = 1;
-    toast.success(t('disk_tree.added', { name }));
   }
   refreshAlbumMarks();
 

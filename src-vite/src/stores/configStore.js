@@ -13,6 +13,7 @@ export const useConfigStore = defineStore('configStore', {
     main: {
       sidebarIndex: SIDEBAR.ALBUM, // toolbar index
       diskTreeActive: false,       // left panel shows the disk tree instead of the album list
+      diskAlbumIds: [],            // albums created only to browse a folder from the disk tree (hidden in the album list)
       maxLibraryCount: 20,        // max library count
       maxCollectionCount: 100,    // max collection count
       selectionChunkSize: 200,    // virtual list fetch chunk size
@@ -62,6 +63,7 @@ export const useConfigStore = defineStore('configStore', {
     search: {
       maxSearchHistory: 20,     // max search history
       favoritesOnly: false,    // limit the current view to favorite files
+      ratedOnly: false,        // Albums view: only files with any star rating
       fileType: 0,              // filter file type bitmask (0: all, 1: image, 2: video, 4: raw)
       sortType: 0,              // sort type (default to time)
       sortOrder: 0,             // sort order(0: ascending, 1: descending)

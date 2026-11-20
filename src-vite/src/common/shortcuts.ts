@@ -65,6 +65,7 @@ export type ShortcutActionId =
   | 'view.zoomFit'
   | 'view.saveViewport'
   | 'view.clearViewport'
+  | 'view.zoomLock'
   | 'view.cycleRawPreview'
   | 'view.toggleAfAreas'
   | 'view.toggleFullscreen'
@@ -424,12 +425,12 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   },
   {
     id: 'view.pageUp',
-    contexts: ['content'],
+    contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ key: 'PageUp', label: { mac: 'Fn↑', windows: 'PgUp', linux: 'PgUp' } }],
   },
   {
     id: 'view.pageDown',
-    contexts: ['content'],
+    contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ key: 'PageDown', label: { mac: 'Fn↓', windows: 'PgDn', linux: 'PgDn' } }],
   },
   {
@@ -466,6 +467,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.clearViewport',
     contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ code: 'KeyV', modifiers: ['shift'], label: { mac: '⇧V', windows: 'Shift+V', linux: 'Shift+V' } }],
+  },
+  {
+    id: 'view.zoomLock',
+    contexts: ['content', 'media-viewer', 'image-viewer'],
+    defaultBindings: [{ code: 'KeyK', modifiers: ['ctrl'], label: 'Ctrl+K' }],
   },
   {
     id: 'view.cycleRawPreview',

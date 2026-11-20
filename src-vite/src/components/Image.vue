@@ -206,6 +206,7 @@ import { ref, shallowRef, triggerRef, watch, onMounted, onBeforeUnmount, compute
 import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
+import { zoomLocked } from '@/common/zoomLock';
 import { SIDEBAR, GESTURE_LOCK_THRESHOLD, HORIZONTAL_NAV_THRESHOLD, MOUSE_DRAG_NAV_THRESHOLD } from '@/common/constants';
 import {
   getAssetSrc,
@@ -1801,12 +1802,14 @@ const onImageReady = (nextIndex: number, preserveLoading: boolean = false) => {
         if (!props.isZoomFit) emit('update:isZoomFit', true);
       }
     }
-    // If not in "zoom to fit" mode, perform a calculated zoom to the cursor position.
-    if (!isZoomFit.value) {
+    // If not in "zoom to fit" mode (or zoom is locked), perform a calculated
+    // zoom to the cursor position / carry the previous viewport over.
+    const zoomLockCarry = zoomLocked.value && hasPreviousImage;
+    if (!isZoomFit.value || zoomLockCarry) {
       const imgIndex = activeImage.value;
       const imgSize = imageSize.value[imgIndex];
       const container = containerSize.value;
-      if (hasPreviousImage && !leavingSavedViewport) {
+      if (hasPreviousImage && (zoomLockCarry || !leavingSavedViewport)) {
         // Never carry over absolute x/y offsets: they describe the previous
         // image's dimensions. Rebuild the position from normalized viewport
         // coordinates so image navigation and thumbnail replacement retain
@@ -1872,6 +1875,48 @@ const onImageReady = (nextIndex: number, preserveLoading: boolean = false) => {
 const rotateView = (delta = 90) => {
   imageRotate.value[activeImage.value] += delta;
 };
+
+// ---- Typed zoom: type digits (e.g. 5 5) to set that zoom in percent ---------
+let zoomDigits = '';
+let zoomDigitsTimer: number | null = null;
+const ZOOM_DIGITS_DELAY_MS = 700;
+
+function setZoomPercent(percent: number): boolean {
+  const imgIndex = activeImage.value;
+  const imgSize = imageSize.value[imgIndex];
+  const container = containerSize.value;
+  if (!(imgSize.width > 0) || !(container.width > 0) || !(percent > 0)) return false;
+  const dpr = window.devicePixelRatio || 1;
+  const target = Math.min(Math.max(percent / 100 / dpr, minScale.value), maxScale.value);
+  zoomImage(container.width / 2, container.height / 2, target);
+  toast.info(t('image_viewer.zoom_set', { zoom: Math.round(target * dpr * 100) }));
+  return true;
+}
+
+function commitZoomDigits() {
+  zoomDigitsTimer = null;
+  const percent = Number(zoomDigits);
+  zoomDigits = '';
+  if (percent > 0) setZoomPercent(percent);
+}
+
+function typeZoomDigit(digit: string): boolean {
+  if (!/^[0-9]$/.test(digit) || props.isSlideShow) return false;
+  zoomDigits = (zoomDigits + digit).slice(-4);
+  if (zoomDigitsTimer !== null) clearTimeout(zoomDigitsTimer);
+  zoomDigitsTimer = window.setTimeout(commitZoomDigits, ZOOM_DIGITS_DELAY_MS);
+  return true;
+}
+
+onBeforeUnmount(() => {
+  if (zoomDigitsTimer !== null) clearTimeout(zoomDigitsTimer);
+});
+
+function toggleZoomLock(): boolean {
+  zoomLocked.value = !zoomLocked.value;
+  toast.info(t(zoomLocked.value ? 'image_viewer.zoom_lock_on' : 'image_viewer.zoom_lock_off'));
+  return zoomLocked.value;
+}
 
 const toggleZoomFit = () => {
   if (props.isSlideShow) return;
@@ -2369,11 +2414,26 @@ function restoreSavedViewport(saved: SavedViewport): boolean {
   return true;
 }
 
+function getFitScale(): number {
+  const container = containerSize.value;
+  const rotated = imageSizeRotated.value[activeImage.value];
+  if (!(container.width > 0) || !(container.height > 0) || !(rotated.width > 0) || !(rotated.height > 0)) return 0;
+  return Math.min(container.width / rotated.width, container.height / rotated.height);
+}
+
+function isAtFitScale(): boolean {
+  const fit = getFitScale();
+  if (!(fit > 0)) return true;
+  return Math.abs(scale.value[activeImage.value] / fit - 1) < 0.005;
+}
+
 function saveViewport(): boolean {
   const path = imageFilePath.value[activeImage.value];
   const imgSize = imageSize.value[activeImage.value];
   if (!path || path !== props.filePath || !(imgSize.width > 0)) return false;
-  if (isZoomFit.value) {
+  // isZoomFit is only the fit/actual *mode*; wheel and step zooming leave it
+  // untouched. Compare the real scale with the fit scale instead.
+  if (isAtFitScale()) {
     toast.info(t('image_viewer.viewport_fit_hint'));
     return false;
   }
@@ -2526,6 +2586,9 @@ defineExpose({
   saveViewport,
   clearSavedViewport,
   toggleSavedViewport,
+  setZoomPercent,
+  typeZoomDigit,
+  toggleZoomLock,
   zoomNavigator,
   navigateImage,
   toggleZoomFit,
