@@ -9,6 +9,9 @@ export const SIDEBAR = {
   PERSON: 6,
   LOCATION: 7,
   CAMERA: 8,
+  // Pseudo-entry: shows the disk tree in the left panel while the content
+  // pane keeps behaving as the ALBUM view (see config.main.diskTreeActive).
+  DISK: 9,
 } as const;
 
 export type Sidebar = (typeof SIDEBAR)[keyof typeof SIDEBAR];

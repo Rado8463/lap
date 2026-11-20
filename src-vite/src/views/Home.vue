@@ -47,7 +47,7 @@
                 text=""
                 :tooltip="(item as any).tooltip || item.text"
                 tooltipPlacement="right"
-                :selected="config.main.sidebarIndex === item.index"
+                :selected="isSidebarSelected(item.index)"
                 :disabled="item.disabled"
                 @click="clickSidebar(item.index)"
               />
@@ -161,7 +161,7 @@
           <h2 class="text-lg font-medium">{{ $t('library.database_corrupted') }}</h2>
           <p class="text-sm text-base-content/60">{{ $t('library.database_corrupted_hint') }}</p>
         </div>
-        <Content v-else-if="databaseCorrupted === false" ref="contentRef" :key="libraryVersion" :titlebar="activeSidebarButton.text" :libraryEmpty="libraryEmpty" @startup-ready="finishStartup"/>
+        <Content v-else-if="databaseCorrupted === false" ref="contentRef" :key="libraryVersion" :titlebar="contentTitle" :libraryEmpty="libraryEmpty" @startup-ready="finishStartup"/>
       </div>
     </div>
 
@@ -200,6 +200,7 @@ import { getAppConfig, getLibraryVisibleCounts, switchLibrary, cancelIndexing, c
 // vue components
 import Library from '@/components/Library.vue';
 import AlbumList from '@/components/AlbumList.vue';
+import DiskTree from '@/components/DiskTree.vue';
 const SmartAlbumList = defineAsyncComponent(() => import('@/components/SmartAlbumList.vue'));
 const ImageSearch = defineAsyncComponent(() => import('@/components/ImageSearch.vue'));
 const Tag = defineAsyncComponent(() => import('@/components/Tag.vue'));
@@ -228,6 +229,7 @@ import {
   IconArrowDown,
   IconCalendarDay,
   IconFolders,
+  IconFolderExpanded,
   IconFolderCog
 } from '@/common/icons';
 
@@ -387,11 +389,30 @@ const buttons = computed(() =>  [
   { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },
   { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location },
   { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera },
+  { index: SIDEBAR.DISK, icon: IconFolderExpanded, component: DiskTree, text: localeMsg.value.sidebar.disk || 'Disk' },
 ]);
 
-const activeSidebarButton = computed(() =>
-  buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]
+const isDiskTreeShown = computed(() =>
+  !!config.main.diskTreeActive && config.main.sidebarIndex === SIDEBAR.ALBUM
 );
+
+const activeSidebarButton = computed(() =>
+  (isDiskTreeShown.value && buttons.value.find(item => item.index === SIDEBAR.DISK))
+  || buttons.value.find(item => item.index === config.main.sidebarIndex)
+  || buttons.value[SIDEBAR.LIBRARY]
+);
+
+// The content pane always follows the real sidebar source (the disk tree is a
+// different left-panel view of the ALBUM source).
+const contentTitle = computed(() =>
+  (buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]).text
+);
+
+function isSidebarSelected(index: number) {
+  if (index === SIDEBAR.DISK) return isDiskTreeShown.value;
+  if (index === SIDEBAR.ALBUM) return config.main.sidebarIndex === index && !isDiskTreeShown.value;
+  return config.main.sidebarIndex === index;
+}
 
 const leftPanelWidth = computed(() =>
   `${(Number(config.leftPanel.width || 260) / 16).toFixed(2)}rem`
@@ -399,10 +420,14 @@ const leftPanelWidth = computed(() =>
 
 const visibleButtons = computed(() =>
   buttons.value
-    .map((item) => ({ ...item, disabled: libraryEmpty.value && item.index !== SIDEBAR.ALBUM }))
+    .map((item) => ({ ...item, disabled: libraryEmpty.value && item.index !== SIDEBAR.ALBUM && item.index !== SIDEBAR.DISK }))
     .filter(item => !item.hidden)
     .sort((a, b) => a.index - b.index)
 );
+
+watch(() => config.main.sidebarIndex, (index) => {
+  if (index !== SIDEBAR.ALBUM) config.main.diskTreeActive = false;
+});
 
 watch(() => config.settings.face.enabled, (enabled) => {
   if (!enabled && config.main.sidebarIndex === SIDEBAR.PERSON) {
@@ -672,7 +697,25 @@ function clickSidebar(index: number) {
   // silently mutate the persisted sidebarIndex and dead-end in a blank pane.
   if (databaseCorrupted.value) return;
   activateMainPanel();
-  if (libraryEmpty.value && index !== SIDEBAR.ALBUM) return;
+  if (libraryEmpty.value && index !== SIDEBAR.ALBUM && index !== SIDEBAR.DISK) return;
+  if (index === SIDEBAR.DISK) {
+    // Disk tree is a different left-panel view of the ALBUM source.
+    if (isDiskTreeShown.value) {
+      showPanel.value = !showPanel.value;
+    } else {
+      showPanel.value = true;
+      config.main.diskTreeActive = true;
+      config.main.sidebarIndex = SIDEBAR.ALBUM;
+    }
+    return;
+  }
+  if (index === SIDEBAR.ALBUM && isDiskTreeShown.value) {
+    // Back from the disk tree to the album list.
+    showPanel.value = true;
+    config.main.diskTreeActive = false;
+    return;
+  }
+  config.main.diskTreeActive = false;
   if (config.main.sidebarIndex === index) {
     showPanel.value = !showPanel.value;
   } else {

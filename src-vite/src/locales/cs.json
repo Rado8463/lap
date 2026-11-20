@@ -1,4 +1,10 @@
 {
+  "disk_tree": {
+    "no_drives": "Nenalezeny žádné disky",
+    "overlap": "Tato složka obsahuje existující album „{name}“. Alba se nesmí překrývat; nejprve toto album odeberte nebo upravte.",
+    "add_failed": "Složku se nepodařilo přidat jako album.",
+    "added": "Složka „{name}“ byla přidána jako album a indexuje se"
+  },
   "sidebar": {
     "home": "Domů",
     "library": "Knihovna",
@@ -10,6 +16,7 @@
     "location": "Místa",
     "people": "Lidé",
     "camera": "Fotoaparáty",
+    "disk": "Disk",
     "map": "Mapa",
     "settings": "Nastavení"
   },

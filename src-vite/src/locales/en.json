@@ -1,4 +1,10 @@
 {
+  "disk_tree": {
+    "no_drives": "No drives found",
+    "overlap": "This folder contains the existing album “{name}”. Albums cannot overlap; remove or edit that album first.",
+    "add_failed": "The folder could not be added as an album.",
+    "added": "Folder “{name}” added as an album and is being indexed"
+  },
   "sidebar": {
     "home": "Home",
     "library": "Library",
@@ -10,6 +16,7 @@
     "location": "Locations",
     "people": "People",
     "camera": "Cameras",
+    "disk": "Disk",
     "map": "Map",
     "settings": "Settings"
   },

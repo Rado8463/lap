@@ -12,6 +12,7 @@ export const useConfigStore = defineStore('configStore', {
   state: () => ({
     main: {
       sidebarIndex: SIDEBAR.ALBUM, // toolbar index
+      diskTreeActive: false,       // left panel shows the disk tree instead of the album list
       maxLibraryCount: 20,        // max library count
       maxCollectionCount: 100,    // max collection count
       selectionChunkSize: 200,    // virtual list fetch chunk size
