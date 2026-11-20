@@ -1943,8 +1943,8 @@ function cancelLoupeTimer() {
 
 function startLoupeTimer(event: MouseEvent) {
   cancelLoupeTimer();
-  if (props.isSlideShow || loadError.value || isLoading.value) return;
   loupeStart = { x: event.clientX, y: event.clientY };
+  if (props.isSlideShow || loadError.value || isLoading.value) return;
   loupeTimer = setTimeout(() => {
     loupeTimer = null;
     beginLoupe();
@@ -2090,9 +2090,25 @@ const updateDragPosition = () => {
 
   // In zoom-fit mode, horizontal drag acts like touchpad swipe navigation
   // only when the image cannot be panned in current viewport.
-  if (isZoomFit.value && !props.isSlideShow && !canPan) {
+  if (isZoomFit.value && !props.isSlideShow && !canPan && !loupeSaved) {
     mouseDragNavDeltaX.value += rawDeltaX;
     mouseDragNavDeltaY.value += rawDeltaY;
+
+    // Pen/mouse drag on a fit-to-window image: jump to 100% under the press
+    // point and keep dragging to pan (released -> back to fit). Dragging an
+    // already zoomed image pans it as usual.
+    if (config.settings.fitDragLoupe !== false
+      && Math.hypot(mouseDragNavDeltaX.value, mouseDragNavDeltaY.value) >= LOUPE_MOVE_TOLERANCE) {
+      cancelLoupeTimer();
+      beginLoupe();
+      if (loupeSaved) {
+        mouseDragNavDeltaX.value = 0;
+        mouseDragNavDeltaY.value = 0;
+        lastMousePosition.value = { x: event.clientX, y: event.clientY };
+        animationFrameId = null;
+        return;
+      }
+    }
 
     if (!mouseDragNavTriggered.value) {
       const absX = Math.abs(mouseDragNavDeltaX.value);

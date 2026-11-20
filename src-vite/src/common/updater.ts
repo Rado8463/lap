@@ -6,6 +6,9 @@ import { useToast, type ToastPlacement } from '@/common/toast';
 
 const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 const UPDATE_CHECK_KEY = 'lap_last_update_check';
+// Personal build: never check for or install upstream updates, they would
+// replace this customised build with the original application.
+const UPDATES_DISABLED = true;
 const UPDATE_RELEASE_NOTE_KEY = 'lap_update_release_note_version';
 const UPDATE_CHECK_TIMEOUT_MS = 8_000;
 
@@ -191,6 +194,7 @@ export function useAppUpdater(localeMsg: Ref<any>, options: AppUpdaterOptions = 
   }
 
   async function checkForUpdates(manual = false) {
+    if (UPDATES_DISABLED) return;
     if (isCheckingUpdate.value || isInstallingUpdate.value) return;
 
     if (!manual) {

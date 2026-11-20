@@ -2261,6 +2261,30 @@ const onScale = (event: any) => {
   imageMaxScale.value = event.maxScale;
 };
 
+// Native window title for external tools (e.g. AutoHotkey WinGetTitle).
+//   list only : "Lap | List"
+//   preview   : "Lap | Viewer | <zoom %> | <width>x<height> | <size MB> | <file name>"
+function buildWindowTitle(): string {
+  if (getActivePreviewMode() === 'none') return 'Lap | List';
+  const file: any = fileList.value[selectedItemIndex.value];
+  if (!file) return 'Lap | Viewer';
+  const zoom = Math.round(imageScale.value * (window.devicePixelRatio || 1) * 100);
+  const resolution = file.width && file.height ? `${file.width}x${file.height}` : '-';
+  const sizeMb = file.size > 0 ? (file.size / (1024 * 1024)).toFixed(2) : '-';
+  return `Lap | Viewer | ${zoom}% | ${resolution} | ${sizeMb} MB | ${file.name ?? ''}`;
+}
+function updateWindowTitle() {
+  const title = buildWindowTitle();
+  if (document.title === title) return;
+  document.title = title;
+  void getCurrentWebviewWindow().setTitle(title).catch(() => {});
+}
+watch(
+  () => [getActivePreviewMode(), selectedItemIndex.value, imageScale.value, fileList.value[selectedItemIndex.value]?.id],
+  updateWindowTitle,
+);
+onMounted(updateWindowTitle);
+
 const videoRef = ref<HTMLVideoElement | null>(null);             // preview video reference
 
 // info panel splitter
