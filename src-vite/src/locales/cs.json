@@ -1607,6 +1607,8 @@
       "transparency_color_reset": "Obnovit (90, 90, 90)",
       "dbl_click_new_window": "Dvojklik otevře nové okno",
       "dbl_click_new_window_hint": "Dvojklik na náhled otevře Image Viewer v samostatném okně (s Shift/Ctrl náhled v okně)",
+      "show_load_timing": "Zobrazit časy načítání obrázku",
+      "show_load_timing_hint": "Zobrazí ve vieweru malý přehled, jak dlouho trvalo načtení, dekódování a zobrazení každé fotky (diagnostika)",
       "view_background_options": [
         "Podle motivu",
         "Černá",

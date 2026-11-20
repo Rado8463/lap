@@ -6,6 +6,11 @@
     @wheel="handleImageWheel"
   >
 
+    <div
+      v-if="loadTimingText"
+      class="absolute left-2 bottom-2 z-[60] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono pointer-events-none select-none"
+    >{{ loadTimingText }}</div>
+
     <!-- Loading overlay -->
     <transition name="fade">
       <div
@@ -508,7 +513,7 @@ watch([isLoading, currentLoadingId], ([loading]) => {
 });
 
 const activeImageEl = ref<HTMLImageElement | null>(null);
-type LoadedImage = { src: string; naturalWidth: number; naturalHeight: number; img?: HTMLImageElement; raw?: { source: RawPreviewSource; unavailable: boolean; pair: string | null } };
+type LoadedImage = { src: string; naturalWidth: number; naturalHeight: number; img?: HTMLImageElement; perf?: { start: number; loaded: number; decoded: number }; raw?: { source: RawPreviewSource; unavailable: boolean; pair: string | null } };
 const preloadCache = new Map<string, Promise<LoadedImage>>();
 const rawOverride = ref<RawDisplayOptions | null>(null);
 const rawSource = ref<RawPreviewSource>('');
@@ -806,6 +811,24 @@ const adjustmentStyle = computed(() => (src: string) => {
   return '';
 });
 
+// ---- Load timing (diagnostics, enabled by settings.showLoadTiming) ----------
+const loadTimingText = ref('');
+function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean) {
+  if (!config.settings.showLoadTiming) { loadTimingText.value = ''; return; }
+  const r = (n: number) => Math.round(n);
+  const p = loaded.perf;
+  const parts = [
+    `cloud-check ${r(tCloud - t0)} ms`,
+    p && !fromCache ? `fetch+header ${r(p.loaded - p.start)} ms` : 'preloaded (cache)',
+    p && !fromCache ? `decode ${r(p.decoded - p.loaded)} ms` : '',
+    `show ${r(tPaint - tSlot)} ms`,
+    `TOTAL ${r(tPaint - t0)} ms`,
+    `${loaded.naturalWidth}x${loaded.naturalHeight}`,
+  ].filter(Boolean);
+  loadTimingText.value = parts.join(' | ');
+  console.info('[lap-load]', path, loadTimingText.value);
+}
+
 function loadImageResource(filePath?: string) {
   if (!filePath) {
     return Promise.reject(new Error('Missing file path'));
@@ -820,12 +843,15 @@ function loadImageResource(filePath?: string) {
 
   const loadPromise = new Promise<LoadedImage>((resolve, reject) => {
     let src = '';
+    const perfStart = performance.now();
+    let perfLoaded = 0;
 
     const img = new Image();
     img.decoding = 'async';
 
     // The element is kept in the result so a decoded neighbour stays in memory.
     img.onload = () => {
+      perfLoaded = performance.now();
       img.decode()
         .then(() => {
           resolve({
@@ -833,6 +859,7 @@ function loadImageResource(filePath?: string) {
             naturalWidth: img.naturalWidth,
             naturalHeight: img.naturalHeight,
             img,
+            perf: { start: perfStart, loaded: perfLoaded, decoded: performance.now() },
           });
         })
         .catch(() => {
@@ -1366,6 +1393,9 @@ watch([
     isLoading.value = true;
   }, 500);
 
+  const perfT0 = performance.now();
+  const wasPreloaded = preloadCache.has(String(newFilePath));
+  let perfCloud = perfT0;
   const usesBackendPreview = shouldUseBackendPreview(newFilePath, Number(props.fileType || 0));
   const ffmpegExtensionsPromise = getFfmpegBackedPreviewExtensions();
   const isRawPreview = Number(props.fileType || 0) === 3;
@@ -1378,6 +1408,7 @@ watch([
     const usesRealtimePreview = (await ffmpegExtensionsPromise).has(getFileExtension(newFilePath).toLowerCase());
     if (loadingId !== currentLoadingId.value) return;
     const cloudOnly = await isCloudOnlyFile(newFilePath);
+    perfCloud = performance.now();
     if (loadingId !== currentLoadingId.value) return;
     if (cloudOnly) {
       clearTimeout(loadingTimeout);
@@ -1513,6 +1544,12 @@ watch([
         );
         onImageReady(nextImageIndex);
       }
+      const perfSlot = performance.now();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (loadingId === currentLoadingId.value) {
+          reportLoadTiming(String(newFilePath), perfT0, perfCloud, loaded, perfSlot, performance.now(), wasPreloaded);
+        }
+      }));
       for (const url of rawObjectUrls) {
         if (!imageSrc.value.includes(url)) { URL.revokeObjectURL(url); rawObjectUrls.delete(url); }
       }
