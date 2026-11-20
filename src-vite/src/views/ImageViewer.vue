@@ -1051,6 +1051,7 @@ const windowTitleInfo = computed(() => {
   return `Image Viewer | ${zoom}% | ${resolution} | ${sizeMb} MB | ${file.name ?? ''}`;
 });
 watch(windowTitleInfo, (title) => {
+  document.title = title; // WebView2 may mirror the page title; keep both in sync
   void appWindow.setTitle(title).catch(() => {});
 }, { immediate: true });
 
