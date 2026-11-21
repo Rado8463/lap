@@ -1249,7 +1249,7 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
 // Up to PRELOAD_AHEAD following and PRELOAD_BEHIND previous images are decoded
 // and kept in memory (via preloadCache) so stepping through a folder is instant.
 // A pixel budget keeps very large photos from using too much RAM.
-const PRELOAD_PIXEL_BUDGET = 250_000_000;   // ~1 GB of decoded RGBA
+const PRELOAD_PIXEL_BUDGET = 350_000_000;   // ~1.4 GB of decoded RGBA
 let warmImageRequest = 0;
 
 const neighborMeta = new Map<string, { id?: number; version?: number; width?: number; height?: number; albumId?: number }>();
@@ -1275,9 +1275,9 @@ function getNeighborPaths(): string[] {
 // zoom to 100 %). Invisible, almost transparent copies of the image force that
 // work to happen early: neighbours at fit size (instant navigation) and the
 // current image at 1:1 (instant first zoom to 100 %).
-const PRELOAD_BACKEND_COUNT = 3;
+const PRELOAD_BACKEND_COUNT = 6;
 const RASTER_WARM_MIN_PIXELS = 4_000_000;
-const RASTER_WARM_NEIGHBORS = 3;
+const RASTER_WARM_NEIGHBORS = 4;
 let rasterWarmHost: HTMLDivElement | null = null;
 const rasterWarmFit = new Map<string, HTMLImageElement>();
 let rasterWarmZoom: HTMLImageElement | null = null;

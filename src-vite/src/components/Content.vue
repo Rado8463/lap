@@ -2256,8 +2256,7 @@ const imageMinScale = ref(0);
 const imageMaxScale = ref(10);
 const isSlideShow = ref(false);
 
-// Nearby image paths for preloading, in priority order: the next PRELOAD_AHEAD
-// images, then the previous PRELOAD_BEHIND ones.
+// Nearby image paths for preloading, in priority order: alternating next and previous images.
 const PRELOAD_AHEAD = 5;
 const PRELOAD_BEHIND = 5;
 function getNeighborImagePaths(index: number, files: any[] = fileList.value): Array<{ path: string; id: number; version: number; width: number; height: number; album_id: number }> {
@@ -2267,8 +2266,12 @@ function getNeighborImagePaths(index: number, files: any[] = fileList.value): Ar
       paths.push({ path: target.file_path, id: target.id, version: target.modified_at || 0, width: target.width || 0, height: target.height || 0, album_id: target.album_id || 0 });
     }
   };
-  for (let i = 1; i <= PRELOAD_AHEAD; i++) add(files[index + i]);
-  for (let i = 1; i <= PRELOAD_BEHIND; i++) add(files[index - i]);
+  // Alternate next / previous so both directions get prepared (4 -> 5, 3, 6, 2, 7, 1 ...) and a
+  // size budget spent on the following photos does not starve the preceding ones.
+  for (let i = 1; i <= Math.max(PRELOAD_AHEAD, PRELOAD_BEHIND); i++) {
+    if (i <= PRELOAD_AHEAD) add(files[index + i]);
+    if (i <= PRELOAD_BEHIND) add(files[index - i]);
+  }
   return paths;
 }
 

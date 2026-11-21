@@ -1332,7 +1332,7 @@ fn psd_composite_jpeg(file_path: &str, max_dimension: u32) -> Result<Vec<u8>, St
 /// background preload) does not decode a multi-hundred-megapixel composite again.
 static PSD_PREVIEW_CACHE: Lazy<std::sync::Mutex<Vec<(String, u64, u64, std::sync::Arc<Vec<u8>>)>>> =
     Lazy::new(|| std::sync::Mutex::new(Vec::new()));
-const PSD_PREVIEW_CACHE_ENTRIES: usize = 10;
+const PSD_PREVIEW_CACHE_ENTRIES: usize = 14;
 
 fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
     let meta = std::fs::metadata(file_path).ok()?;
