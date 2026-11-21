@@ -210,7 +210,7 @@
       @reset="renameErrorMessage = ''"
     />
 
-    <EditMetadataDialog v-if="showCommentMsgbox" && metadataFiles.length" :files="metadataFiles" :focus-field="metadataFocus"
+    <EditMetadataDialog v-if="showCommentMsgbox && metadataFiles.length" :files="metadataFiles" :focus-field="metadataFocus"
     @saved="onMetadataSaved" @cancel="showCommentMsgbox = false" />
 
   </div>
