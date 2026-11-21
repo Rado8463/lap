@@ -1351,8 +1351,8 @@ fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
 static PSD_RGB_CACHE: Lazy<std::sync::Mutex<Option<(String, u64, u64, std::sync::Arc<RgbImage>)>>> =
     Lazy::new(|| std::sync::Mutex::new(None));
 static PSD_DECODE_LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
-/// Composites above this many bytes of RGB are not kept (about 600 MB).
-const PSD_RGB_CACHE_MAX_BYTES: u64 = 600 * 1024 * 1024;
+/// Composites above this many bytes of RGB are not kept (about 750 MB).
+const PSD_RGB_CACHE_MAX_BYTES: u64 = 750 * 1024 * 1024;
 
 fn psd_decode_shared(file_path: &str) -> Result<std::sync::Arc<RgbImage>, String> {
     let key = psd_cache_key(file_path);
