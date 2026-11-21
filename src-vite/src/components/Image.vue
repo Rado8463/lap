@@ -290,6 +290,10 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  fileAlbumId: {
+    type: Number,
+    default: 0,
+  },
   imageWidth: {
     type: Number,
     default: 0,
@@ -862,7 +866,7 @@ const adjustmentStyle = computed(() => (src: string) => {
 // when the zoom needs more pixels than the preview has, and swapped out again at fit.
 type HybridInfo = {
   path: string;
-  meta?: { id?: number; version?: number; width?: number; height?: number };
+  meta?: { id?: number; version?: number; width?: number; height?: number; albumId?: number };
   layoutWidth: number;
   bitmapWidth: number;
   fitSrc: string;
@@ -898,6 +902,17 @@ function hybridFitEdge(): number {
   const dpr = window.devicePixelRatio || 1;
   const longest = Math.max(window.screen?.width || 1920, window.screen?.height || 1080) * dpr;
   return Math.min(8192, Math.max(2048, Math.ceil(longest / 256) * 256));
+}
+
+// Should the backend keep this photo's fit preview on disk? Optionally not for photos browsed
+// through the Disk tab (browse-only albums), only for photos in real albums.
+function hybridDiskCacheFor(filePath: string, meta?: { albumId?: number }): boolean {
+  if (config.settings.hybridDiskCache === false) return false;
+  if (config.settings.hybridDiskCacheAlbumsOnly === false) return true;
+  const albumId = Number(filePath === props.filePath ? props.fileAlbumId : meta?.albumId) || 0;
+  if (albumId <= 0) return true;
+  const diskAlbums = ((config.main as any).diskAlbumIds || []).map(Number);
+  return !diskAlbums.includes(albumId);
 }
 
 function withQuery(url: string, query: string): string {
@@ -1013,7 +1028,7 @@ function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: Load
   console.info('[lap-load]', path, loadTimingText.value);
 }
 
-function loadImageResource(filePath?: string, meta?: { id?: number; version?: number; width?: number; height?: number }, opts: { full?: boolean } = {}) {
+function loadImageResource(filePath?: string, meta?: { id?: number; version?: number; width?: number; height?: number; albumId?: number }, opts: { full?: boolean } = {}) {
   if (!filePath) {
     return Promise.reject(new Error('Missing file path'));
   }
@@ -1083,7 +1098,7 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
       const base = getPreviewUrl(meta?.id ?? props.fileId, filePath, false, meta?.version ?? props.fileVersion);
       if (base) {
         const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
-        src = withQuery(base, `fit=${hybridFitEdge()}&sharp=${sharp}&filter=${Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)))}`);
+        src = withQuery(base, `fit=${hybridFitEdge()}&sharp=${sharp}&filter=${Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)))}&cache=${hybridDiskCacheFor(filePath, meta) ? 1 : 0}`);
         img.src = src;
         return;
       }
@@ -1133,9 +1148,9 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
 const PRELOAD_PIXEL_BUDGET = 250_000_000;   // ~1 GB of decoded RGBA
 let warmImageRequest = 0;
 
-const neighborMeta = new Map<string, { id?: number; version?: number; width?: number; height?: number }>();
+const neighborMeta = new Map<string, { id?: number; version?: number; width?: number; height?: number; albumId?: number }>();
 function getNeighborPaths(): string[] {
-  const list: Array<string | { path: string; id?: number; version?: number; width?: number; height?: number }> =
+  const list: Array<string | { path: string; id?: number; version?: number; width?: number; height?: number; album_id?: number }> =
     props.neighborFilePaths.length > 0 ? props.neighborFilePaths : [props.nextFilePath];
   const seen = new Set<string>();
   const out: string[] = [];
@@ -1145,7 +1160,7 @@ function getNeighborPaths(): string[] {
     if (!path || path === props.filePath || seen.has(path)) continue;
     seen.add(path);
     out.push(path);
-    if (typeof entry !== 'string') neighborMeta.set(path, { id: entry.id, version: entry.version, width: entry.width, height: entry.height });
+    if (typeof entry !== 'string') neighborMeta.set(path, { id: entry.id, version: entry.version, width: entry.width, height: entry.height, albumId: entry.album_id });
   }
   return out;
 }

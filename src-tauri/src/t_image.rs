@@ -1583,6 +1583,8 @@ fn jpeg_fit_eligible(file_path: &str) -> bool {
 pub struct FitOpts {
     pub sharp: u32,
     pub filter: u32,
+    /// Keep the finished preview on disk (otherwise only in memory).
+    pub disk: bool,
 }
 
 /// Mild unsharp mask (3x1 / 1x3 binomial blur) to bring a Lanczos-downscaled preview closer to the
@@ -1689,8 +1691,16 @@ pub async fn get_fit_preview(file_path: &str, max_edge: u32, opts: FitOpts) -> O
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())?;
     let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
-    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2) };
-    let tag = format!("fit-{}-{}-{}-{}", max_edge, bg, opts.sharp, opts.filter);
+    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: opts.disk };
+    // The "fit-" prefix means the preview is also kept on disk, "fitm-" memory only.
+    let tag = format!(
+        "{}-{}-{}-{}-{}",
+        if opts.disk { "fit" } else { "fitm" },
+        max_edge,
+        bg,
+        opts.sharp,
+        opts.filter
+    );
     match ext.as_str() {
         "jpg" | "jpeg" | "jpe" => {
             if !jpeg_fit_eligible(file_path) {

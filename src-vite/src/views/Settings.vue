@@ -316,6 +316,24 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_disk_cache') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_disk_cache_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridDiskCache !== false" @change="config.settings.hybridDiskCache = $event.target.checked" />
+            </div>
+            <div v-if="config.settings.hybridDiskCache !== false" class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_disk_cache_albums_only') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_disk_cache_albums_only_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridDiskCacheAlbumsOnly !== false" @change="config.settings.hybridDiskCacheAlbumsOnly = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_filter') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.hybrid_filter_hint') }}
@@ -1986,6 +2004,9 @@ watch(() => config.settings.navigatorViewSize, (newValue) => {
 });
 watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
   emit('settings-navigatorSharpnessGrid-changed', newValue);
+});
+watch(() => [config.settings.hybridDiskCache, config.settings.hybridDiskCacheAlbumsOnly], ([enabled, albumsOnly]) => {
+  emit('settings-hybridDiskCache-changed', { enabled: enabled !== false, albumsOnly: albumsOnly !== false });
 });
 watch(() => config.settings.hybridFilter, (newValue) => {
   emit('settings-hybridFilter-changed', newValue);

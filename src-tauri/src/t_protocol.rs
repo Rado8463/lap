@@ -298,7 +298,11 @@ pub fn register_protocols(builder: Builder<Wry>) -> Builder<Wry> {
                     .and_then(|value| value.parse::<u32>().ok())
                     .unwrap_or(0);
                 if let Some(edge) = fit_edge {
-                    let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter };
+                    let fit_disk = request.uri().query().unwrap_or_default().split('&')
+                        .find_map(|param| param.strip_prefix("cache="))
+                        .map(|value| value != "0")
+                        .unwrap_or(true);
+                    let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter, disk: fit_disk };
                     if let Some(data) = t_image::get_fit_preview(&file_path, edge, opts).await {
                         responder.respond(image_response(data));
                         return;

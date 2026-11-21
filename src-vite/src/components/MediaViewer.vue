@@ -372,6 +372,7 @@
           :afAreaFeedbackRequest="afAreaFeedbackRequest"
           :filePath="file?.file_path"
           :fileId="file?.id"
+          :fileAlbumId="file?.album_id"
           :fileType="file?.file_type"
           :originalUnavailable="originalUnavailable"
           :rawPairPath="file?.media_subtype === 'raw_jpeg_pair' ? file?.live_photo_video_path : ''"

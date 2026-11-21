@@ -250,6 +250,10 @@ if (isMainWindow) {
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)
   })
+  listen('settings-hybridDiskCache-changed', (event) => {
+    config.settings.hybridDiskCache = event.payload.enabled
+    config.settings.hybridDiskCacheAlbumsOnly = event.payload.albumsOnly
+  })
   listen('settings-hybridFilter-changed', (event) => {
     config.settings.hybridFilter = event.payload
   })
