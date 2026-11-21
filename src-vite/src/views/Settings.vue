@@ -80,6 +80,15 @@
                 <option v-for="(option, index) in scaleOptions" :key="index" :value="option.value">{{ option.label }}</option>
               </select>
             </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.general.tree_font_size') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.general.tree_font_size_hint') }}</div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" :value="Number(config.settings.treeFontScale || 100)" @change="config.settings.treeFontScale = Number($event.target.value)">
+                <option v-for="pct in [80, 90, 100, 110, 125, 150, 175, 200]" :key="pct" :value="pct">{{ pct }} %</option>
+              </select>
+            </div>
           </div>
 
           <!-- display -->
@@ -2040,6 +2049,9 @@ watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
 });
 watch(() => [config.settings.hybridDiskCache, config.settings.hybridDiskCacheAlbumsOnly], ([enabled, albumsOnly]) => {
   emit('settings-hybridDiskCache-changed', { enabled: enabled !== false, albumsOnly: albumsOnly !== false });
+});
+watch(() => config.settings.treeFontScale, (value) => {
+  emit('settings-treeFontScale-changed', Number(value || 100));
 });
 watch(() => config.settings.titleBarHidden, (hidden) => {
   emit('settings-titleBarHidden-changed', hidden !== false);

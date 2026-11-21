@@ -1458,6 +1458,8 @@
         "Podle jazyka aplikace"
       ],
       "font_size": "Velikost písma",
+      "tree_font_size": "Velikost textu v bočním panelu",
+      "tree_font_size_hint": "Stromy složek a seznamy v levém panelu (Alba, Disk a další).",
       "font_size_options": [
         "Menší",
         "Malé",

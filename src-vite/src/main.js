@@ -259,6 +259,9 @@ if (isMainWindow) {
     config.settings.infoTipLine1 = event.payload.line1
     config.settings.infoTipLine2 = event.payload.line2
   })
+  listen('settings-treeFontScale-changed', (event) => {
+    config.settings.treeFontScale = event.payload
+  })
   listen('settings-titleBarHidden-changed', (event) => {
     config.settings.titleBarHidden = event.payload
   })

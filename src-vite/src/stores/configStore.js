@@ -147,6 +147,7 @@ export const useConfigStore = defineStore('configStore', {
       lightTheme: 0,              // light theme color index
       darkTheme: 0,               // dark theme color index
       scale: 1,                   // root font-size scale
+      treeFontScale: 100,         // text size of the left panel (folder trees, album list ...) in percent
       titleBarHidden: true,       // hide the window title bar; window buttons move to the toolbar (Windows / Linux)
       showToolTip: true,          // show button tooltip
       statusBarFields: null,

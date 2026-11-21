@@ -110,6 +110,7 @@
             <div
               class="min-h-0 flex-1 overflow-hidden"
               :class="libConfig.activePane === 'collection' ? 'sidebar-pane-inactive' : ''"
+              :style="treePanelStyle"
               @mousedown.capture="activateMainPanel"
             >
               <component v-if="databaseCorrupted === false" ref="panelRef" 
@@ -351,6 +352,11 @@ const currentLibrary = computed(() =>
 const showManageLibraries = ref(false);
 // With the title bar hidden (default) the window buttons live in the content toolbar. The title
 // bar stays when there is no toolbar (empty library, damaged database).
+// Text size of the left panel (folder trees, album list ...): the whole panel is zoomed.
+const treePanelStyle = computed(() => {
+  const pct = Number(config.settings.treeFontScale || 100);
+  return pct !== 100 ? { zoom: String(pct / 100) } : {};
+});
 const titleBarHidden = computed(() => config.settings.titleBarHidden !== false);
 const showDesktopTitleBar = computed(() => (isWin || isLinux) && (!titleBarHidden.value || libraryEmpty.value || databaseCorrupted.value !== false));
 

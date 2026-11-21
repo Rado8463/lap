@@ -1459,6 +1459,8 @@
         "Follow app language"
       ],
       "font_size": "Font size",
+      "tree_font_size": "Text size in side panel",
+      "tree_font_size_hint": "Folder trees and lists in the left panel (Albums, Disk and others).",
       "font_size_options": [
         "Smaller",
         "Small",
