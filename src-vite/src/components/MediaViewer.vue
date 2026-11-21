@@ -373,6 +373,8 @@
           :filePath="file?.file_path"
           :fileId="file?.id"
           :fileAlbumId="file?.album_id"
+          :fileSize="Number(file?.size || 0)"
+          :fileBitDepth="Number(file?.bit_depth || 0)"
           :fileType="file?.file_type"
           :originalUnavailable="originalUnavailable"
           :rawPairPath="file?.media_subtype === 'raw_jpeg_pair' ? file?.live_photo_video_path : ''"

@@ -316,6 +316,26 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.info_tip') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.info_tip_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.infoTipEnabled !== false" @change="config.settings.infoTipEnabled = $event.target.checked" />
+            </div>
+            <template v-if="config.settings.infoTipEnabled !== false">
+            <div v-for="line in [1, 2]" :key="`infotip-${line}`" class="flex flex-col gap-1 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="text-sm leading-5">{{ $t(`settings.image_view.info_tip_line${line}`) }}</div>
+              <div class="flex flex-wrap gap-x-4 gap-y-1">
+                <label v-for="field in infoTipFieldList" :key="`${line}-${field}`" class="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" class="checkbox checkbox-xs" :checked="infoTipHas(line as 1 | 2, field)" @change="toggleInfoTipField(line as 1 | 2, field, ($event.target as HTMLInputElement).checked)" />
+                  {{ $t(`settings.image_view.info_tip_field_${field}`) }}
+                </label>
+              </div>
+            </div>
+            </template>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_disk_cache') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.hybrid_disk_cache_hint') }}
@@ -977,6 +997,7 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit } from '@tauri-apps/api/event';
+import { INFO_TIP_FIELDS, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, parseInfoTipFields } from '@/common/infoTip';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
 import { config, libConfig } from '@/common/config';
@@ -1500,6 +1521,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'view.zoomOut', labelKey: 'zoom_out' },
       { actionId: 'view.zoomFit', labelKey: 'zoom_fit' },
       { actionId: 'view.zoomFitWidth', labelKey: 'zoom_fit_width' },
+      { actionId: 'view.infoTip', labelKey: 'info_tip' },
       { actionId: 'view.saveViewport', labelKey: 'save_viewport' },
       { actionId: 'view.clearViewport', labelKey: 'clear_viewport' },
       { actionId: 'view.zoomLock', labelKey: 'zoom_lock' },
@@ -2008,6 +2030,20 @@ watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
 watch(() => [config.settings.hybridDiskCache, config.settings.hybridDiskCacheAlbumsOnly], ([enabled, albumsOnly]) => {
   emit('settings-hybridDiskCache-changed', { enabled: enabled !== false, albumsOnly: albumsOnly !== false });
 });
+watch(() => [config.settings.infoTipEnabled, config.settings.infoTipLine1, config.settings.infoTipLine2], ([enabled, line1, line2]) => {
+  emit('settings-infoTip-changed', { enabled: enabled !== false, line1: String(line1 ?? ''), line2: String(line2 ?? '') });
+});
+const infoTipFieldList = INFO_TIP_FIELDS as readonly string[];
+function infoTipHas(line: 1 | 2, field: string): boolean {
+  const key = line === 1 ? 'infoTipLine1' : 'infoTipLine2';
+  return parseInfoTipFields((config.settings as any)[key], line === 1 ? INFO_TIP_DEFAULT_LINE1 : INFO_TIP_DEFAULT_LINE2).includes(field as any);
+}
+function toggleInfoTipField(line: 1 | 2, field: string, on: boolean) {
+  const key = line === 1 ? 'infoTipLine1' : 'infoTipLine2';
+  const current = new Set<string>(parseInfoTipFields((config.settings as any)[key], line === 1 ? INFO_TIP_DEFAULT_LINE1 : INFO_TIP_DEFAULT_LINE2));
+  if (on) current.add(field); else current.delete(field);
+  (config.settings as any)[key] = infoTipFieldList.filter((f) => current.has(f)).join(',');
+}
 watch(() => config.settings.hybridFilter, (newValue) => {
   emit('settings-hybridFilter-changed', newValue);
 });

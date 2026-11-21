@@ -230,6 +230,7 @@ import { useToast } from '@/common/toast';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { extractFileName, combineFileName, isWin, isMac, isLinux, copyFilePaths, getClipboardItemPaths, getMediaItemSize, getSlideShowInterval, SCALE_VALUES } from '@/common/utils';
+import { toggleInfoTip } from '@/common/infoTip';
 import { matchesShortcut, ShortcutActionId, ShortcutPlatform, VIEW_BACKGROUND_SHORTCUTS } from '@/common/shortcuts';
 import { handleVideoPlaybackShortcut, handleVideoEscapeShortcut } from '@/common/video';
 import {
@@ -929,6 +930,7 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.zoomOutDirectional': () => clickZoomOut(getActivePane()),
   'view.zoomFit': () => toggleZoomFit(getActivePane()),
   'view.zoomFitWidth': () => getViewerRef(getActivePane())?.zoomFitWidth?.(),
+  'view.infoTip': () => toggleInfoTip(),
   'view.saveViewport': () => getViewerRef(getActivePane())?.saveViewport?.(),
   'view.clearViewport': () => getViewerRef(getActivePane())?.clearSavedViewport?.(),
   'view.close': () => closeWindow(),
@@ -948,6 +950,7 @@ const viewActionOrder: ShortcutActionId[] = [
   'view.zoomOutDirectional',
   'view.zoomFit',
   'view.zoomFitWidth',
+  'view.infoTip',
   'view.saveViewport',
   'view.clearViewport',
   'view.close',

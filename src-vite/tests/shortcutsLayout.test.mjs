@@ -181,7 +181,8 @@ test('editing, external opening and album moves have distinct bindings', () => {
       const input = event({ key: letter.toLowerCase(), code: 'Key' + letter, ...modifier, shiftKey });
       assert.deepEqual(findShortcutMatches('content', input, platform), [action]);
     }
-    assert.deepEqual(findShortcutMatches('content', event({ key: 'i', code: 'KeyI' }), platform), ['meta.info']);
+    assert.deepEqual(findShortcutMatches('content', event({ key: 'i', code: 'KeyI' }), platform), ['view.infoTip']);
+    assert.deepEqual(findShortcutMatches('content', event({ key: 'i', code: 'KeyI', altKey: true }), platform), ['meta.info']);
     for (const context of ['content', 'media-viewer', 'image-viewer']) {
       assert.deepEqual(findShortcutMatches(context, event({ key: 'm', code: 'KeyM' }), platform), ['meta.edit']);
     }

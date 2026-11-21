@@ -254,6 +254,11 @@ if (isMainWindow) {
     config.settings.hybridDiskCache = event.payload.enabled
     config.settings.hybridDiskCacheAlbumsOnly = event.payload.albumsOnly
   })
+  listen('settings-infoTip-changed', (event) => {
+    config.settings.infoTipEnabled = event.payload.enabled
+    config.settings.infoTipLine1 = event.payload.line1
+    config.settings.infoTipLine2 = event.payload.line2
+  })
   listen('settings-hybridFilter-changed', (event) => {
     config.settings.hybridFilter = event.payload
   })

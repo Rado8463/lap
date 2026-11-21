@@ -839,6 +839,7 @@ import {
   normalizeGridSizePosition,
   thumbnailProfile,
 } from '@/common/thumbnailProfiles';
+import { toggleInfoTip } from '@/common/infoTip';
 import { getShortcutLabel, matchesShortcut, ShortcutActionId, ShortcutPlatform, VIEW_BACKGROUND_SHORTCUTS } from '@/common/shortcuts';
 import { getSmartTagById } from '@/common/smartTags';
 import { handleVideoPlaybackShortcut, handleVideoEscapeShortcut } from '@/common/video';
@@ -5210,6 +5211,12 @@ function handleLocalKeyDown(event: KeyboardEvent) {
   if (selectMode.value && matchesShortcut('file.invertSelection', event, shortcutPlatform)) {
     event.preventDefault();
     void invertSelectionInCurrentList();
+    return;
+  }
+
+  if (getActivePreviewMode() !== 'none' && matchesShortcut('view.infoTip', event, shortcutPlatform)) {
+    event.preventDefault();
+    if (!event.repeat) toggleInfoTip();
     return;
   }
 

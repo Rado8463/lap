@@ -7,6 +7,13 @@
   >
 
     <div
+      v-if="infoTipLines.length > 0"
+      class="absolute left-2 top-2 z-[60] max-w-[80%] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono pointer-events-none select-none"
+    >
+      <div v-for="(line, i) in infoTipLines" :key="i" class="whitespace-nowrap overflow-hidden text-ellipsis">{{ line }}</div>
+    </div>
+
+    <div
       v-if="loadTimingText"
       class="absolute left-2 bottom-2 z-[60] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono pointer-events-none select-none"
     >{{ loadTimingText }}</div>
@@ -213,6 +220,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { zoomLocked } from '@/common/zoomLock';
+import { parseInfoTipFields, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, type InfoTipField } from '@/common/infoTip';
 import { SIDEBAR, GESTURE_LOCK_THRESHOLD, HORIZONTAL_NAV_THRESHOLD, MOUSE_DRAG_NAV_THRESHOLD } from '@/common/constants';
 import {
   getAssetSrc,
@@ -291,6 +299,14 @@ const props = defineProps({
     default: 0,
   },
   fileAlbumId: {
+    type: Number,
+    default: 0,
+  },
+  fileSize: {
+    type: Number,
+    default: 0,
+  },
+  fileBitDepth: {
     type: Number,
     default: 0,
   },
@@ -956,7 +972,7 @@ function markHybridSlot(slot: number, filePath: string, src: string, bitmapWidth
   info.prefetchTimer = setTimeout(() => {
     info.prefetchTimer = null;
     if (hybridSlot.value[slot] === info) void loadHybridFull(info);
-  }, 350);
+  }, 0);
 }
 
 // Called when a zoom to a high magnification is likely (press on the photo): start loading the
@@ -1008,6 +1024,72 @@ function updateHybridResolution() {
   }
 }
 watch(() => [activeImage.value, scale.value[activeImage.value]], updateHybridResolution);
+
+// ---- Info tooltip (top left): file name and details ------------------------------
+function formatInfoTipSize(bytes: number): string {
+  if (!(bytes > 0)) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const value = bytes / Math.pow(1024, i);
+  return `${i === 0 ? value.toFixed(0) : value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${units[i]}`;
+}
+
+function buildInfoTipLine(fields: InfoTipField[]): string {
+  const segments: string[] = [];
+  const index = activeImage.value;
+  for (const field of fields) {
+    switch (field) {
+      case 'name': {
+        const path = String(props.filePath || '');
+        const name = path.split(/[\\/]/).pop() || '';
+        if (name) segments.push(name);
+        break;
+      }
+      case 'path':
+        if (props.filePath) segments.push(String(props.filePath));
+        break;
+      case 'dimensions': {
+        const size = imageSizeRotated.value[index];
+        const w = Math.round(size?.width || props.imageWidth || 0);
+        const h = Math.round(size?.height || props.imageHeight || 0);
+        if (w > 0 && h > 0) segments.push(`${w} x ${h}`);
+        break;
+      }
+      case 'bitDepth':
+        if (props.fileBitDepth > 0) {
+          const text = `${props.fileBitDepth}b`;
+          // Next to the dimensions it reads "10378 x 4900 x 8b".
+          if (fields.includes('dimensions') && segments.length > 0 && /^\d+ x \d+$/.test(segments[segments.length - 1])) {
+            segments[segments.length - 1] += ` x ${text}`;
+          } else {
+            segments.push(text);
+          }
+        }
+        break;
+      case 'size': {
+        const text = formatInfoTipSize(props.fileSize);
+        if (text) segments.push(text);
+        break;
+      }
+      case 'zoom':
+        if (scale.value[index] > 0) segments.push(`${Math.round(scale.value[index] * (window.devicePixelRatio || 1) * 100)}%`);
+        break;
+      case 'flags':
+        if (zoomLocked.value) segments.push('LOCK');
+        if (hasSavedViewport.value) segments.push('VIEWPORT');
+        break;
+    }
+  }
+  return segments.join(' | ');
+}
+
+const infoTipLines = computed<string[]>(() => {
+  if (config.settings.infoTipEnabled === false || props.isSlideShow) return [];
+  if (!props.filePath || loadError.value) return [];
+  const line1 = buildInfoTipLine(parseInfoTipFields(config.settings.infoTipLine1, INFO_TIP_DEFAULT_LINE1));
+  const line2 = buildInfoTipLine(parseInfoTipFields(config.settings.infoTipLine2, INFO_TIP_DEFAULT_LINE2));
+  return [line1, line2].filter((line) => line.length > 0);
+});
 
 // ---- Load timing (diagnostics, enabled by settings.showLoadTiming) ----------
 const loadTimingText = ref('');
@@ -2400,6 +2482,13 @@ function toggleZoomLock(): boolean {
 
 const toggleZoomFit = () => {
   if (props.isSlideShow) return;
+  // Zoomed in beyond fit: a double click always goes back to fit-to-screen.
+  const fit = getFitScale();
+  if (fit > 0 && scale.value[activeImage.value] > fit * 1.01) {
+    zoomFit();
+    if (!props.isZoomFit) emit('update:isZoomFit', true);
+    return;
+  }
   emit('update:isZoomFit', !props.isZoomFit);
 };
 

@@ -64,6 +64,7 @@ export type ShortcutActionId =
   | 'view.zoomOutDirectional'
   | 'view.zoomFit'
   | 'view.zoomFitWidth'
+  | 'view.infoTip'
   | 'view.saveViewport'
   | 'view.clearViewport'
   | 'view.zoomLock'
@@ -377,7 +378,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'meta.info',
     contexts: ['content', 'media-viewer'],
     defaultBindings: [
-      { code: 'KeyI', label: 'I' },
+      { code: 'KeyI', modifiers: ['alt'], label: { mac: '⌥I', windows: 'Alt+I', linux: 'Alt+I' } },
     ],
   },
   {
@@ -459,6 +460,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.zoomFit',
     contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ code: 'KeyZ', label: 'Z' }],
+  },
+  {
+    id: 'view.infoTip',
+    contexts: ['content', 'media-viewer', 'image-viewer'],
+    defaultBindings: [{ code: 'KeyI', label: 'I' }],
   },
   {
     id: 'view.zoomFitWidth',

@@ -198,6 +198,9 @@ export const useConfigStore = defineStore('configStore', {
       navigatorSharpnessGrid: false,
       rasterWarm: false,        // invisible pre-rendering of neighbours / 1:1 zoom (off by default: measured slower)
       shortcutOverrides: {},    // user-defined keyboard shortcuts: { actionId: [binding] }
+      infoTipEnabled: true,     // info tooltip (top left) in the viewers
+      infoTipLine1: 'name',     // comma separated fields of the tooltip's first line
+      infoTipLine2: 'dimensions,bitDepth,size,zoom,flags', // ... and second line (empty = no second line)
       hybridDiskCache: true,    // keep hybrid fit previews on disk for faster reopening
       hybridDiskCacheAlbumsOnly: true, // ... but not for photos browsed via the Disk tab
       hybridFilter: 0,          // resize filter of the hybrid preview: 0 Lanczos, 1 Catmull-Rom (cubic), 2 Mitchell
