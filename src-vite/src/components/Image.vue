@@ -933,10 +933,110 @@ function getNeighborPaths(): string[] {
   return out;
 }
 
+// ---- Raster / decode pre-warming ---------------------------------------------
+// A big photo shown through a CSS scale() makes the browser decode it and
+// rasterise tiles lazily (black screen / thin strip, ~0.5 s delay on the first
+// zoom to 100 %). Invisible, almost transparent copies of the image force that
+// work to happen early: neighbours at fit size (instant navigation) and the
+// current image at 1:1 (instant first zoom to 100 %).
+const RASTER_WARM_MIN_PIXELS = 4_000_000;
+const RASTER_WARM_NEIGHBORS = 3;
+let rasterWarmHost: HTMLDivElement | null = null;
+const rasterWarmFit = new Map<string, HTMLImageElement>();
+let rasterWarmZoom: HTMLImageElement | null = null;
+let rasterWarmZoomPath = '';
+let rasterWarmZoomTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getRasterWarmHost(): HTMLDivElement | null {
+  const parent = container.value as HTMLElement | null;
+  if (!parent) return null;
+  if (!rasterWarmHost || rasterWarmHost.parentElement !== parent) {
+    rasterWarmHost = document.createElement('div');
+    rasterWarmHost.setAttribute('aria-hidden', 'true');
+    rasterWarmHost.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;opacity:0.004;pointer-events:none;z-index:-1;';
+    parent.appendChild(rasterWarmHost);
+  }
+  return rasterWarmHost;
+}
+
+function makeWarmImage(src: string, width: number, height: number, left: number, top: number) {
+  const el = new Image();
+  el.decoding = 'async';
+  el.alt = '';
+  el.draggable = false;
+  el.style.cssText = `position:absolute;max-width:none;width:${width}px;height:${height}px;left:${left}px;top:${top}px;`;
+  el.src = src;
+  return el;
+}
+
+function isWarmEligible(loaded: LoadedImage) {
+  return !loaded.raw && (loaded.naturalWidth || 0) * (loaded.naturalHeight || 0) >= RASTER_WARM_MIN_PIXELS;
+}
+
+function pruneFitWarm(keepPaths: string[]) {
+  const keep = new Set(keepPaths);
+  for (const [path, el] of rasterWarmFit) {
+    if (!keep.has(path)) {
+      el.remove();
+      rasterWarmFit.delete(path);
+    }
+  }
+}
+
+function warmFitRaster(path: string, loaded: LoadedImage) {
+  if (rasterWarmFit.has(path) || !isWarmEligible(loaded)) return;
+  const host = getRasterWarmHost();
+  const cw = containerSize.value.width;
+  const ch = containerSize.value.height;
+  if (!host || cw <= 0 || ch <= 0) return;
+  const fit = Math.min(cw / loaded.naturalWidth, ch / loaded.naturalHeight, 1);
+  const w = loaded.naturalWidth * fit;
+  const h = loaded.naturalHeight * fit;
+  const el = makeWarmImage(loaded.src, w, h, (cw - w) / 2, (ch - h) / 2);
+  host.appendChild(el);
+  rasterWarmFit.set(path, el);
+}
+
+function clearZoomWarm() {
+  if (rasterWarmZoomTimer) { clearTimeout(rasterWarmZoomTimer); rasterWarmZoomTimer = null; }
+  rasterWarmZoom?.remove();
+  rasterWarmZoom = null;
+  rasterWarmZoomPath = '';
+}
+
+function scheduleZoomWarm(path: string, loaded: LoadedImage) {
+  if (rasterWarmZoomPath === path && rasterWarmZoom) return;
+  clearZoomWarm();
+  if (!isWarmEligible(loaded)) return;
+  rasterWarmZoomTimer = setTimeout(() => {
+    rasterWarmZoomTimer = null;
+    if (path !== props.filePath) return;
+    const host = getRasterWarmHost();
+    const cw = containerSize.value.width;
+    const ch = containerSize.value.height;
+    if (!host || cw <= 0 || ch <= 0) return;
+    // 1:1 device pixels, centred, so the visible part is rasterised at 100 %.
+    const dpr = window.devicePixelRatio || 1;
+    const w = loaded.naturalWidth / dpr;
+    const h = loaded.naturalHeight / dpr;
+    rasterWarmZoom = makeWarmImage(loaded.src, w, h, (cw - w) / 2, (ch - h) / 2);
+    rasterWarmZoomPath = path;
+    host.appendChild(rasterWarmZoom);
+  }, 250);
+}
+
+function disposeRasterWarm() {
+  clearZoomWarm();
+  rasterWarmFit.clear();
+  rasterWarmHost?.remove();
+  rasterWarmHost = null;
+}
+
 function warmNeighbors() {
   cancelWarmImageScheduling();
   const request = warmImageRequest;
   const paths = getNeighborPaths();
+  pruneFitWarm(paths.slice(0, RASTER_WARM_NEIGHBORS));
   if (paths.length === 0) return;
 
   const isStale = () => request !== warmImageRequest;
@@ -951,6 +1051,7 @@ function warmNeighbors() {
         if (isStale()) return;
         const loaded = await loadImageResource(path);
         pixels += (loaded.naturalWidth || 0) * (loaded.naturalHeight || 0);
+        if (!isStale() && paths.indexOf(path) < RASTER_WARM_NEIGHBORS) warmFitRaster(path, loaded);
       } catch {
         // Ignore preload failures and let the main load path surface errors.
       }
@@ -1112,6 +1213,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  disposeRasterWarm();
   document.removeEventListener('mousemove', trackImageDragOut, true);
   document.documentElement.removeEventListener('mouseleave', trackImageDragOut);
   document.removeEventListener('mouseup', handleImageMouseUp, true);
@@ -1358,6 +1460,7 @@ watch([
   currentLoadingId.value++;
   const loadingId = currentLoadingId.value;
   cancelWarmImageScheduling();
+  if (rasterWarmZoomPath !== String(newFilePath || '')) clearZoomWarm();
   if (
     newFilePath
     && newFilePath === oldFilePath
@@ -1547,6 +1650,7 @@ watch([
       const perfSlot = performance.now();
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (loadingId === currentLoadingId.value) {
+          scheduleZoomWarm(String(newFilePath), loaded);
           reportLoadTiming(String(newFilePath), perfT0, perfCloud, loaded, perfSlot, performance.now(), wasPreloaded);
         }
       }));
