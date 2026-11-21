@@ -787,6 +787,16 @@ function handleKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  // Typed zoom: digits on the numpad (or the plain top row) set that zoom in
+  // percent, e.g. 5 then 5 -> 55 %. Shift+digit stays reserved for ratings.
+  // Handled before the rating shortcuts, otherwise the plain top-row digits (no numpad) rate the photo.
+  if (!isEditingText && !event.ctrlKey && !event.altKey && !event.metaKey
+    && /^[0-9]$/.test(event.key) && (event.code.startsWith('Numpad') || !event.shiftKey)
+    && getViewerRef(getActivePane())?.typeZoomDigit?.(event.key)) {
+    event.preventDefault();
+    return;
+  }
+
   const ratingShortcut = getMatchedRating(event);
   if (ratingShortcut !== null) {
     event.preventDefault();
@@ -866,15 +876,6 @@ function handleKeyDown(event: KeyboardEvent) {
     if (panes.length === 0) return;
     const currentIndex = panes.indexOf(activePane.value);
     setActivePane(panes[((currentIndex >= 0 ? currentIndex : -1) + 1) % panes.length]);
-    return;
-  }
-
-  // Typed zoom: digits on the numpad (or the plain top row) set that zoom in
-  // percent, e.g. 5 then 5 -> 55 %. Shift+digit stays reserved for ratings.
-  if (!isEditingText && !event.ctrlKey && !event.altKey && !event.metaKey
-    && /^[0-9]$/.test(event.key) && (event.code.startsWith('Numpad') || !event.shiftKey)
-    && getViewerRef(getActivePane())?.typeZoomDigit?.(event.key)) {
-    event.preventDefault();
     return;
   }
 
