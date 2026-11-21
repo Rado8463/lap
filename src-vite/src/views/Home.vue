@@ -612,6 +612,17 @@ function handleHomeKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  const folderDelta = matchesShortcut('nav.prevFolder', event, shortcutPlatform) ? -1
+    : matchesShortcut('nav.nextFolder', event, shortcutPlatform) ? 1 : 0;
+  if (folderDelta !== 0) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (uiStore.inputStack.length === 0 && !libraryEmpty.value && !databaseCorrupted.value) {
+      void (panelRef.value as any)?.navigateSibling?.(folderDelta);
+    }
+    return;
+  }
+
   if (matchesShortcut('app.search', event, shortcutPlatform)) {
     event.preventDefault();
     event.stopPropagation();

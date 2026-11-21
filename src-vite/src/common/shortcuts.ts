@@ -18,6 +18,8 @@ export type ShortcutActionId =
   | 'app.scale.reset'
   | 'app.preferences'
   | 'app.search'
+  | 'nav.prevFolder'
+  | 'nav.nextFolder'
   | 'file.openNewWindow'
   | 'file.openExternalApp'
   | 'file.editImage'
@@ -175,10 +177,21 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     ],
   },
   {
+    id: 'nav.prevFolder',
+    contexts: ['content'],
+    defaultBindings: [{ key: 'BrowserBack', label: 'Browser Back' }],
+  },
+  {
+    id: 'nav.nextFolder',
+    contexts: ['content'],
+    defaultBindings: [{ key: 'BrowserForward', label: 'Browser Forward' }],
+  },
+  {
     id: 'file.openNewWindow',
     contexts: ['content'],
     defaultBindings: [
       { key: 'Enter', modifiers: ['cmdOrCtrl'], allowShift: true, label: { mac: '⌘⏎', windows: 'Ctrl+Enter', linux: 'Ctrl+Enter' } },
+      { key: 'Enter', platforms: ['windows', 'linux'], label: { windows: 'Enter', linux: 'Enter' } },
     ],
   },
   {
@@ -385,7 +398,6 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.quickPreview',
     contexts: ['content'],
     defaultBindings: [
-      { key: 'Enter', platforms: ['windows', 'linux'], label: { windows: 'Enter', linux: 'Enter' } },
       { key: ' ', label: 'Space' },
       { key: 'Space', label: 'Space' },
     ],

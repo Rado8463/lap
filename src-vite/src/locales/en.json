@@ -1749,6 +1749,8 @@
         "toggle_af_areas": "Toggle AF areas",
         "cycle_background": "Cycle background",
         "open_new_window": "View in new window",
+        "prev_folder": "Previous folder / album",
+        "next_folder": "Next folder / album",
         "open_external_app": "Open in external app",
         "edit_image": "Edit",
         "copy_file_path": "Copy file path",

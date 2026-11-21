@@ -351,5 +351,25 @@ async function handleKeyDown(event: KeyboardEvent) {
   }
 }
 
+// Previous / next folder next to the current one (same parent), used by the global shortcut.
+async function navigateSibling(delta: number): Promise<boolean> {
+  const current = normalize(currentPath.value);
+  if (!current) return false;
+  let siblings: string[] | null = null;
+  for (const node of nodes.values()) {
+    if ((node.children || []).some((c) => normalize(c) === current)) { siblings = node.children; break; }
+  }
+  if (!siblings) return false;
+  const index = siblings.findIndex((c) => normalize(c) === current);
+  const target = nodes.get(siblings[index + delta] ?? '');
+  if (!target) return false;
+  await openFolder(target);
+  await nextTick();
+  listRef.value?.querySelector(`[data-disk-path="${CSS.escape(target.path)}"]`)?.scrollIntoView({ block: 'nearest' });
+  return true;
+}
+
+defineExpose({ navigateSibling });
+
 onMounted(loadRoots);
 </script>

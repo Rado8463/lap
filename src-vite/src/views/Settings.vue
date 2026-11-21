@@ -1515,6 +1515,8 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'view.quickPreview', labelKey: 'quick_preview' },
       { actionId: 'view.close', labelKey: 'close_viewer' },
       { actionId: 'file.openNewWindow', labelKey: 'open_new_window' },
+      { actionId: 'nav.prevFolder', labelKey: 'prev_folder' },
+      { actionId: 'nav.nextFolder', labelKey: 'next_folder' },
       { actionId: 'file.openExternalApp', labelKey: 'open_external_app' },
       { actionId: 'file.editImage', labelKey: 'edit_image' },
       { actionId: 'file.searchSimilar', labelKey: 'search_similar' },
