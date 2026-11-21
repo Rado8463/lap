@@ -1347,13 +1347,15 @@ fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
 
 /// Full-resolution viewer preview of a PSD/PSB; None when the native reader cannot handle the file.
 async fn psd_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
-    cached_viewer_jpeg(file_path, 0, |path| psd_composite_jpeg(path, PSD_VIEWER_MAX_DIMENSION)).await
+    cached_viewer_jpeg(file_path, "psd".to_string(), |path| psd_composite_jpeg(path, PSD_VIEWER_MAX_DIMENSION)).await
 }
 
 /// PNGs at or above this many pixels are served to the viewer as a backend-made JPEG.
 const PNG_VIEWER_MIN_PIXELS: u64 = 12_000_000;
 /// JPEG quality for those previews (4:4:4, so only barely distinguishable from the PNG).
 const PNG_VIEWER_JPEG_QUALITY: u8 = 97;
+/// JPEG quality of the screen-sized "fit" previews.
+const FIT_PREVIEW_JPEG_QUALITY: u8 = 92;
 
 /// Colour shown through transparent PNG pixels in the JPEG preview (0xRRGGBB); set from the viewer.
 static PNG_ALPHA_BG: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x5a5a5a);
@@ -1469,7 +1471,128 @@ fn tiff_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
 }
 
 async fn tiff_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
-    cached_viewer_jpeg(file_path, PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed), tiff_viewer_jpeg).await
+    cached_viewer_jpeg(file_path, format!("tiff-{}", PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed)), tiff_viewer_jpeg).await
+}
+
+// ---- Hybrid mode: screen-sized "fit" previews of big JPEG / PNG files --------------------
+
+/// Big JPEGs are only handled when they carry no ICC profile or an sRGB one
+/// (the re-encoded preview carries no profile, so other profiles would shift colours).
+fn jpeg_fit_eligible(file_path: &str) -> bool {
+    use std::io::Read;
+    let Ok(size) = imagesize::size(file_path) else {
+        return false;
+    };
+    if (size.width as u64) * (size.height as u64) < PNG_VIEWER_MIN_PIXELS {
+        return false;
+    }
+    let Ok(file) = std::fs::File::open(file_path) else {
+        return false;
+    };
+    let mut buf = Vec::with_capacity(262144);
+    if file.take(262144).read_to_end(&mut buf).is_err() || buf.len() < 4 || buf[0] != 0xFF || buf[1] != 0xD8 {
+        return false;
+    }
+    let mut pos = 2usize;
+    let mut icc = Vec::new();
+    while pos + 4 <= buf.len() {
+        if buf[pos] != 0xFF {
+            break;
+        }
+        let marker = buf[pos + 1];
+        if marker == 0xD8 || marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+            pos += 2;
+            continue;
+        }
+        if marker == 0xDA || marker == 0xD9 {
+            break;
+        }
+        let len = u16::from_be_bytes([buf[pos + 2], buf[pos + 3]]) as usize;
+        let end = (pos + 2 + len).min(buf.len());
+        if marker == 0xE2 && buf[pos + 4..end].starts_with(b"ICC_PROFILE\0") {
+            icc.extend_from_slice(&buf[pos + 4..end]);
+        }
+        pos = pos + 2 + len;
+    }
+    icc.is_empty() || icc.windows(4).any(|w| w == b"sRGB")
+}
+
+/// Lanczos-resizes to `max_edge` on the long side (never upscales) and encodes a 4:4:4 JPEG.
+fn fit_resize_encode(rgb: RgbImage, max_edge: u32) -> Result<Vec<u8>, String> {
+    let (src_w, src_h) = rgb.dimensions();
+    let long = src_w.max(src_h);
+    if long <= max_edge {
+        return crate::t_jpeg::encode_rgb8_ex(&rgb, FIT_PREVIEW_JPEG_QUALITY, true);
+    }
+    let ratio = max_edge as f64 / long as f64;
+    let dst_w = ((src_w as f64 * ratio).round() as u32).max(1);
+    let dst_h = ((src_h as f64 * ratio).round() as u32).max(1);
+    let src_image = fir::images::Image::from_vec_u8(src_w, src_h, rgb.into_raw(), fir::PixelType::U8x3)
+        .map_err(|e| format!("Failed to prepare image for resize: {}", e))?;
+    let mut dst_image = fir::images::Image::new(dst_w, dst_h, fir::PixelType::U8x3);
+    let mut resizer = fir::Resizer::new();
+    let options = fir::ResizeOptions::new()
+        .resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::Lanczos3));
+    resizer
+        .resize(&src_image, &mut dst_image, &options)
+        .map_err(|e| format!("Failed to resize preview: {}", e))?;
+    let resized = RgbImage::from_raw(dst_w, dst_h, dst_image.into_vec())
+        .ok_or_else(|| "Failed to build resized image".to_string())?;
+    crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)
+}
+
+fn jpeg_fit_jpeg(file_path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
+    let size = imagesize::size(file_path).map_err(|e| format!("Failed to read JPEG size: {}", e))?;
+    let (w, h) = (size.width as u32, size.height as u32);
+    let ratio = (max_edge as f64 / w.max(h).max(1) as f64).min(1.0);
+    // The decoder picks the largest DCT downscale that still yields at least this size.
+    let target_w = ((w as f64 * ratio).ceil() as u32).max(1);
+    let target_h = ((h as f64 * ratio).ceil() as u32).max(1);
+    let (pixels, pw, ph) = crate::t_jpeg::decode_rgb8_scaled(file_path, target_w, target_h)?;
+    let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG pixel buffer".to_string())?;
+    let oriented = apply_orientation(DynamicImage::ImageRgb8(rgb), get_image_orientation(file_path));
+    fit_resize_encode(oriented.into_rgb8(), max_edge)
+}
+
+fn png_fit_jpeg(file_path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
+    let mut reader = ImageReader::open(file_path)
+        .map_err(|e| format!("Failed to open PNG: {}", e))?
+        .with_guessed_format()
+        .map_err(|e| format!("Failed to read PNG: {}", e))?;
+    reader.no_limits();
+    let decoded = reader
+        .decode()
+        .map_err(|e| format!("Failed to decode PNG: {}", e))?;
+    fit_resize_encode(flatten_for_viewer(decoded)?, max_edge)
+}
+
+/// Screen-sized preview (long side `max_edge`) of a big JPEG or PNG for the viewer's hybrid
+/// mode. None means "not applicable": the caller then serves the original file.
+pub async fn get_fit_preview(file_path: &str, max_edge: u32) -> Option<Vec<u8>> {
+    if !(512..=16384).contains(&max_edge) {
+        return None;
+    }
+    let ext = Path::new(file_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())?;
+    let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
+    let tag = format!("fit-{}-{}", max_edge, bg);
+    match ext.as_str() {
+        "jpg" | "jpeg" | "jpe" => {
+            if !jpeg_fit_eligible(file_path) {
+                return None;
+            }
+            cached_viewer_jpeg(file_path, tag, move |p| jpeg_fit_jpeg(p, max_edge)).await
+        }
+        "png" => {
+            if !is_large_opaque_png(file_path) {
+                return None;
+            }
+            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge)).await
+        }
+        _ => None,
+    }
 }
 
 /// Viewer preview of a big PNG as a full-resolution JPEG; None when not applicable or on failure.
@@ -1477,14 +1600,13 @@ async fn png_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
     if !is_large_opaque_png(file_path) {
         return None;
     }
-    cached_viewer_jpeg(file_path, PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed), png_viewer_jpeg).await
+    cached_viewer_jpeg(file_path, format!("png-{}", PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed)), png_viewer_jpeg).await
 }
 
-async fn cached_viewer_jpeg(
-    file_path: &str,
-    tag: u32,
-    produce: fn(&str) -> Result<Vec<u8>, String>,
-) -> Option<Vec<u8>> {
+async fn cached_viewer_jpeg<F>(file_path: &str, tag: String, produce: F) -> Option<Vec<u8>>
+where
+    F: FnOnce(&str) -> Result<Vec<u8>, String> + Send + 'static,
+{
     // The tag (e.g. the transparency colour) is part of the cache identity.
     let cache_path = format!("{}\u{0}{}", file_path, tag);
     let file_path_orig = file_path;

@@ -529,7 +529,7 @@ watch([isLoading, currentLoadingId], ([loading]) => {
 });
 
 const activeImageEl = ref<HTMLImageElement | null>(null);
-type LoadedImage = { src: string; naturalWidth: number; naturalHeight: number; img?: HTMLImageElement; perf?: { start: number; loaded: number; decoded: number }; raw?: { source: RawPreviewSource; unavailable: boolean; pair: string | null } };
+type LoadedImage = { src: string; naturalWidth: number; naturalHeight: number; layout?: { width: number; height: number }; img?: HTMLImageElement; perf?: { start: number; loaded: number; decoded: number }; raw?: { source: RawPreviewSource; unavailable: boolean; pair: string | null } };
 const preloadCache = new Map<string, Promise<LoadedImage>>();
 const rawOverride = ref<RawDisplayOptions | null>(null);
 const rawSource = ref<RawPreviewSource>('');
@@ -855,6 +855,137 @@ const adjustmentStyle = computed(() => (src: string) => {
   return '';
 });
 
+// ---- Hybrid mode (big JPEG / PNG) ----------------------------------------------
+// A screen-sized preview made by the backend is shown at the photo's real layout size, so
+// zoom and pan keep working in real pixels. The full-resolution file is swapped in only
+// when the zoom needs more pixels than the preview has, and swapped out again at fit.
+type HybridInfo = {
+  path: string;
+  meta?: { id?: number; version?: number; width?: number; height?: number };
+  layoutWidth: number;
+  bitmapWidth: number;
+  fitSrc: string;
+  fullSrc: string | null;
+  loadingFull: boolean;
+  prefetchTimer: ReturnType<typeof setTimeout> | null;
+};
+const hybridSlot = ref<(HybridInfo | null)[]>([null, null]);
+const fullCache = new Map<string, Promise<LoadedImage>>();
+const HYBRID_MIN_PIXELS = 12_000_000;
+const FULL_CACHE_LIMIT = 3;
+
+function hybridDims(filePath: string, meta?: { width?: number; height?: number }): { w: number; h: number } {
+  const sameAsCurrent = filePath === props.filePath;
+  return {
+    w: Number(sameAsCurrent ? props.imageWidth : meta?.width) || 0,
+    h: Number(sameAsCurrent ? props.imageHeight : meta?.height) || 0,
+  };
+}
+
+function isHybridCandidate(filePath: string, meta?: { id?: number; width?: number; height?: number }): boolean {
+  if (config.settings.hybridPreview === false) return false;
+  if (!((filePath === props.filePath ? props.fileId : meta?.id) > 0)) return false;
+  if (Number(props.fileType || 0) === 3) return false;
+  const ext = getFileExtension(filePath).toLowerCase();
+  if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'jpe' && ext !== 'png') return false;
+  const { w, h } = hybridDims(filePath, meta);
+  return w * h >= HYBRID_MIN_PIXELS;
+}
+
+// Longest side (device pixels) a fit preview needs: the largest screen dimension.
+function hybridFitEdge(): number {
+  const dpr = window.devicePixelRatio || 1;
+  const longest = Math.max(window.screen?.width || 1920, window.screen?.height || 1080) * dpr;
+  return Math.min(8192, Math.max(2048, Math.ceil(longest / 256) * 256));
+}
+
+function withQuery(url: string, query: string): string {
+  return `${url}${url.includes('?') ? '&' : '?'}${query}`;
+}
+
+// True layout size of a photo whose preview bitmap is bw x bh; the database size may be
+// stored before EXIF orientation, so a swapped aspect is accepted.
+function resolveHybridLayout(bw: number, bh: number, dbW: number, dbH: number): { width: number; height: number } | null {
+  if (!(bw > 0) || !(bh > 0) || !(dbW > 0) || !(dbH > 0)) return null;
+  let w = dbW;
+  let h = dbH;
+  if ((bw >= bh) !== (w >= h) && Math.abs(bw / bh - 1) > 0.02) [w, h] = [h, w];
+  if (Math.abs(bw / bh - w / h) / (w / h) > 0.02) return null;
+  return { width: w, height: h };
+}
+
+const hybridLayouts = new Map<string, { path: string; layout: { width: number; height: number }; meta?: HybridInfo['meta'] }>();
+
+function markHybridSlot(slot: number, filePath: string, src: string, bitmapWidth: number) {
+  const previous = hybridSlot.value[slot];
+  if (previous?.prefetchTimer) clearTimeout(previous.prefetchTimer);
+  const entry = hybridLayouts.get(src);
+  if (!entry || entry.path !== filePath) {
+    // Not a hybrid fit preview (could be the full-resolution swap itself).
+    if (!(previous && previous.path === filePath && previous.fullSrc === src)) hybridSlot.value[slot] = null;
+    return;
+  }
+  const info: HybridInfo = {
+    path: filePath,
+    meta: entry.meta,
+    layoutWidth: entry.layout.width,
+    bitmapWidth,
+    fitSrc: src,
+    fullSrc: null,
+    loadingFull: false,
+    prefetchTimer: null,
+  };
+  hybridSlot.value[slot] = info;
+  // A moment after the photo is shown, prepare the full resolution so zooming in is instant.
+  info.prefetchTimer = setTimeout(() => {
+    info.prefetchTimer = null;
+    if (hybridSlot.value[slot] === info) void loadHybridFull(info);
+  }, 900);
+}
+
+function loadHybridFull(info: HybridInfo): Promise<LoadedImage> {
+  let promise = fullCache.get(info.path);
+  if (!promise) {
+    promise = loadImageResource(info.path, info.meta, { full: true });
+    fullCache.set(info.path, promise);
+    promise.catch(() => fullCache.delete(info.path));
+    while (fullCache.size > FULL_CACHE_LIMIT) {
+      const oldest = fullCache.keys().next().value;
+      if (oldest === undefined) break;
+      fullCache.delete(oldest);
+    }
+  }
+  return promise;
+}
+
+function updateHybridResolution() {
+  const slot = activeImage.value;
+  const info = hybridSlot.value[slot];
+  if (!info || imageFilePath.value[slot] !== info.path) return;
+  const dpr = window.devicePixelRatio || 1;
+  const displayed = scale.value[slot] * dpr * info.layoutWidth;
+  const showingFull = info.fullSrc !== null && imageSrc.value[slot] === info.fullSrc;
+  if (!showingFull && displayed > info.bitmapWidth * 1.05) {
+    if (info.loadingFull) return;
+    info.loadingFull = true;
+    loadHybridFull(info).then((full) => {
+      info.loadingFull = false;
+      if (hybridSlot.value[slot] !== info || imageFilePath.value[slot] !== info.path) return;
+      info.fullSrc = full.src;
+      const stillNeeded = scale.value[slot] * dpr * info.layoutWidth > info.bitmapWidth * 1.05;
+      if (stillNeeded) {
+        imageNaturalSize.value[slot] = { width: full.naturalWidth, height: full.naturalHeight };
+        imageSrc.value[slot] = full.src;
+      }
+    }).catch(() => { info.loadingFull = false; });
+  } else if (showingFull && displayed < info.bitmapWidth * 0.9) {
+    // Back at fit: the fit preview is sharper and consistent than a GPU-downscaled original.
+    imageNaturalSize.value[slot] = { width: info.bitmapWidth, height: Math.round(info.bitmapWidth * (imageSize.value[slot].height / imageSize.value[slot].width)) };
+    imageSrc.value[slot] = info.fitSrc;
+  }
+}
+watch(() => [activeImage.value, scale.value[activeImage.value]], updateHybridResolution);
+
 // ---- Load timing (diagnostics, enabled by settings.showLoadTiming) ----------
 const loadTimingText = ref('');
 function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean, stageMs = 0) {
@@ -868,20 +999,22 @@ function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: Load
     stageMs > 0 ? `stage ${r(stageMs)} ms` : '',
     `show ${r(tPaint - tSlot)} ms`,
     `TOTAL ${r(tPaint - t0)} ms`,
-    `${loaded.naturalWidth}x${loaded.naturalHeight}`,
+    loaded.layout ? `${loaded.layout.width}x${loaded.layout.height} (fit ${loaded.naturalWidth}px)` : `${loaded.naturalWidth}x${loaded.naturalHeight}`,
   ].filter(Boolean);
   loadTimingText.value = parts.join(' | ');
   console.info('[lap-load]', path, loadTimingText.value);
 }
 
-function loadImageResource(filePath?: string, meta?: { id?: number; version?: number }) {
+function loadImageResource(filePath?: string, meta?: { id?: number; version?: number; width?: number; height?: number }, opts: { full?: boolean } = {}) {
   if (!filePath) {
     return Promise.reject(new Error('Missing file path'));
   }
 
   if (Number(props.fileType) === 3) return loadRawImage(filePath);
 
-  const cached = preloadCache.get(filePath);
+  const full = !!opts.full;
+  const hybrid = !full && isHybridCandidate(filePath, meta);
+  const cached = full ? undefined : preloadCache.get(filePath);
   if (cached) {
     return cached;
   }
@@ -897,12 +1030,27 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
     // The element is kept in the result so a decoded neighbour stays in memory.
     img.onload = () => {
       perfLoaded = performance.now();
+      let layout: { width: number; height: number } | undefined;
+      if (hybrid) {
+        const dims = hybridDims(filePath, meta);
+        const resolved = resolveHybridLayout(img.naturalWidth, img.naturalHeight, dims.w, dims.h);
+        if (resolved && resolved.width > img.naturalWidth * 1.05) {
+          layout = resolved;
+          hybridLayouts.set(src, { path: filePath, layout, meta });
+          while (hybridLayouts.size > 24) {
+            const oldest = hybridLayouts.keys().next().value;
+            if (oldest === undefined) break;
+            hybridLayouts.delete(oldest);
+          }
+        }
+      }
       img.decode()
         .then(() => {
           resolve({
             src,
             naturalWidth: img.naturalWidth,
             naturalHeight: img.naturalHeight,
+            layout,
             img,
             perf: { start: perfStart, loaded: perfLoaded, decoded: performance.now() },
           });
@@ -912,15 +1060,25 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
             src,
             naturalWidth: img.naturalWidth,
             naturalHeight: img.naturalHeight,
+            layout,
             img,
           });
         });
     };
 
     img.onerror = () => {
-      preloadCache.delete(filePath);
+      if (!full) preloadCache.delete(filePath);
       reject(new Error(`Error loading image: ${filePath}`));
     };
+
+    if (hybrid) {
+      const base = getPreviewUrl(meta?.id ?? props.fileId, filePath, false, meta?.version ?? props.fileVersion);
+      if (base) {
+        src = withQuery(base, `fit=${hybridFitEdge()}`);
+        img.src = src;
+        return;
+      }
+    }
 
     if (usesBackendPreviewFor(filePath, Number(props.fileType || 0), meta)) {
       src = getPreviewUrl(
@@ -930,7 +1088,7 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
         meta?.version ?? props.fileVersion,
       );
       if (!src) {
-        preloadCache.delete(filePath);
+        if (!full) preloadCache.delete(filePath);
         reject(new Error(`Failed to resolve RAW/TIFF preview source: ${filePath}`));
         return;
       }
@@ -955,7 +1113,7 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
     img.src = src;
   });
 
-  preloadCache.set(filePath, loadPromise);
+  if (!full) preloadCache.set(filePath, loadPromise);
   return loadPromise;
 }
 
@@ -1255,6 +1413,12 @@ function setImageSlot(
   layoutWidth: number = naturalWidth,
   layoutHeight: number = naturalHeight,
 ) {
+  const hybridEntry = hybridLayouts.get(src);
+  if (hybridEntry && hybridEntry.path === filePath) {
+    layoutWidth = hybridEntry.layout.width;
+    layoutHeight = hybridEntry.layout.height;
+  }
+  markHybridSlot(slotIndex, filePath, src, naturalWidth);
   imageNaturalSize.value[slotIndex] = { width: naturalWidth, height: naturalHeight };
   if (imageSrc.value[slotIndex] !== src) slotDecoded.value[slotIndex] = false;
   imageSrc.value[slotIndex] = src;
@@ -1518,7 +1682,8 @@ const updatePosition = () => {
 };
 
 // Preloaded next images must not retain a different RAW display policy.
-watch(rawDisplayKey, () => preloadCache.clear(), { flush: 'sync' });
+watch(rawDisplayKey, () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); }, { flush: 'sync' });
+watch(() => config.settings.hybridPreview, () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); });
 
 async function showOfflinePreview(filePath: string, loadingId: number) {
   if (loadingId !== currentLoadingId.value) return;

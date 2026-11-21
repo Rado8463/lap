@@ -285,6 +285,16 @@ pub fn register_protocols(builder: Builder<Wry>) -> Builder<Wry> {
                     responder.respond(response);
                     return;
                 }
+                // Hybrid mode: the viewer asks for a screen-sized preview of big JPEG/PNG files.
+                let fit_edge = request.uri().query().unwrap_or_default().split('&')
+                    .find_map(|param| param.strip_prefix("fit="))
+                    .and_then(|value| value.parse::<u32>().ok());
+                if let Some(edge) = fit_edge {
+                    if let Some(data) = t_image::get_fit_preview(&file_path, edge).await {
+                        responder.respond(image_response(data));
+                        return;
+                    }
+                }
                 let response = match t_image::get_file_image_bytes_cached(&file_path, options).await {
                     Ok(data) => image_response(data),
                     Err(_) => text_response(http::StatusCode::NOT_FOUND, "preview not found"),

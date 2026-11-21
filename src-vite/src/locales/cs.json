@@ -1614,6 +1614,8 @@
       "show_load_timing_hint": "Zobrazí ve vieweru malý přehled, jak dlouho trvalo načtení, dekódování a zobrazení každé fotky (diagnostika)",
       "raster_warm": "Předvykreslit velké fotky na pozadí",
       "raster_warm_hint": "Nenápadně připraví další fotky a zobrazení 100 %, aby se objevily rychleji. Vypněte, pokud se fotky načítají nerovnoměrně.",
+      "hybrid_preview": "Hybridní zobrazení velkých JPEG a PNG",
+      "hybrid_preview_hint": "Fotky nad 12 megapixelů se nejdřív zobrazí jako kvalitně zmenšený náhled velikosti obrazovky (rychlejší otevření, konzistentní ostrost). Plné rozlišení se načte až při přiblížení nad rozlišení náhledu. Vypněte, pokud chcete vždy originál.",
       "png_backend_preview": "Rychlé zobrazení velkých PNG",
       "png_backend_preview_hint": "Velká bezeztrátová PNG (12+ megapixelů) aplikace dekóduje sama a zobrazí jako JPEG ve plném rozlišení s vysokou kvalitou. Otevírání i přepínání je mnohem rychlejší, ale při 100% zoomu to není bit-přesné. Průhledné oblasti dostanou vaši barvu průhlednosti. PNG s jiným než sRGB profilem se vždy zobrazí beze změny.",
       "pan_beyond_edges": "Povolit posun přiblížené fotky přes okraje obrazovky",

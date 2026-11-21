@@ -250,6 +250,9 @@ if (isMainWindow) {
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)
   })
+  listen('settings-hybridPreview-changed', (event) => {
+    config.settings.hybridPreview = event.payload
+  })
   listen('settings-pngBackendPreview-changed', (event) => {
     config.settings.pngBackendPreview = event.payload
   })
