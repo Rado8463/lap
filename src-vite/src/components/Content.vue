@@ -11970,7 +11970,7 @@ async function openImageViewer(
       const compareModeParam = compareMode ? 1 : 0;
       imageWindow = new WebviewWindow(webViewLabel, {
         url: `/image-viewer?fileId=${leftFileId}&fileIndex=${leftIndex}&fileCount=${fileCount}&rightFileId=${rightFileId}&rightFileIndex=${rightIndex}&forceSplitCount=${forceSplitParam}&compareFileCount=${compareMode ? fileCount : 0}&compareMode=${compareModeParam}&nextFilePath=${encodeURIComponent(leftNextFilePath)}&neighborFilePaths=${encodeURIComponent(JSON.stringify(getNeighborImagePaths(leftIndex, viewerFiles)))}&rightNextFilePath=${encodeURIComponent(rightNextFilePath)}`,
-        title: 'Image Viewer',
+        title: 'Lap Image Viewer',
         width: 1200,
         height: 800,
         minWidth: 800,

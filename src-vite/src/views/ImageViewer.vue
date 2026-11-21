@@ -1170,14 +1170,15 @@ for (const pane of ['bottomLeft', 'bottomRight'] as const) {
 
 // Expose the current state in the native window title so external tools
 // (e.g. AutoHotkey: WinGetTitle) can read it. Format, "|"-separated:
-//   Image Viewer | <zoom %> | <width>x<height> | <size in MB> | <file name>
+//   Lap Image Viewer | <zoom %> | <width>x<height> | <size in MB> | <file name>
+// (only when the setting `viewerTitleInfo` is on; otherwise just "Lap Image Viewer")
 const windowTitleInfo = computed(() => {
   const file = fileInfo.value;
-  if (!file) return 'Image Viewer';
+  if (!file || !config.settings.viewerTitleInfo) return 'Lap Image Viewer';
   const zoom = Math.round(imageScale.value * (window.devicePixelRatio || 1) * 100);
   const resolution = file.width && file.height ? `${file.width}x${file.height}` : '-';
   const sizeMb = file.size > 0 ? (file.size / (1024 * 1024)).toFixed(2) : '-';
-  return `Image Viewer | ${zoom}% | ${resolution} | ${sizeMb} MB | ${file.name ?? ''}`;
+  return `Lap Image Viewer | ${zoom}% | ${resolution} | ${sizeMb} MB | ${file.name ?? ''}`;
 });
 watch(windowTitleInfo, (title) => {
   document.title = title; // WebView2 may mirror the page title; keep both in sync

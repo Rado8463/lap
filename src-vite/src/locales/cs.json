@@ -1616,6 +1616,8 @@
       "transparency_color": "Barva průhlednosti",
       "transparency_color_hint": "Barva za průhlednými oblastmi (PNG, PSD, TIFF…)",
       "transparency_color_reset": "Obnovit (90, 90, 90)",
+      "viewer_title_info": "Zobrazit info o fotce v názvu okna",
+      "viewer_title_info_hint": "Název okna Image Viewer za textem „Lap Image Viewer“ zobrazí i zoom, rozlišení, velikost souboru a název souboru (např. pro AutoHotkey)",
       "dbl_click_new_window": "Dvojklik otevře nové okno",
       "dbl_click_new_window_hint": "Dvojklik na náhled otevře Image Viewer v samostatném okně (s Shift/Ctrl náhled v okně)",
       "show_load_timing": "Zobrazit časy načítání obrázku",
