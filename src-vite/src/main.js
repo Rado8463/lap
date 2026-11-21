@@ -259,6 +259,9 @@ if (isMainWindow) {
     config.settings.infoTipLine1 = event.payload.line1
     config.settings.infoTipLine2 = event.payload.line2
   })
+  listen('settings-shiftAdvanceMetadata-changed', (event) => {
+    config.settings.shiftAdvanceMetadata = event.payload
+  })
   listen('settings-viewerTitleInfo-changed', (event) => {
     config.settings.viewerTitleInfo = event.payload
   })

@@ -215,6 +215,7 @@ export const useConfigStore = defineStore('configStore', {
       thumbHighlightEnabled: false, // use a custom colour for the current thumbnail's border
       thumbHighlightColor: '#f59e0b', // border colour of the current thumbnail (when enabled)
       showLoadTiming: false,    // diagnostics: overlay with image load timings in the viewer
+      shiftAdvanceMetadata: false, // Shift+rating/flag/favorite also advances to the next photo
       viewerTitleInfo: false,    // Image Viewer window title also shows zoom, resolution, size and file name
       dblClickNewWindow: true,   // double-click on a thumbnail opens the Image Viewer in a new window (Shift/Ctrl/Cmd inverts)
       transparencyColor: '#5a5a5a', // color shown behind transparent areas of PNG/PSD/TIFF in the viewer (default RGB 90,90,90)

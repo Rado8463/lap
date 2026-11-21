@@ -803,14 +803,14 @@ function handleKeyDown(event: KeyboardEvent) {
   const ratingShortcut = getMatchedRating(event);
   if (ratingShortcut !== null) {
     event.preventDefault();
-    if (!event.repeat) void setCurrentFileRating(ratingShortcut, getActiveFilePane(), event.shiftKey);
+    if (!event.repeat) void setCurrentFileRating(ratingShortcut, getActiveFilePane(), event.shiftKey && config.settings.shiftAdvanceMetadata === true);
     return;
   }
 
   const cullingShortcut = getMatchedCulling(event);
   if (cullingShortcut !== null) {
     event.preventDefault();
-    if (!event.repeat) void setCurrentFileCullingFlag(cullingShortcut, getActiveFilePane(), event.shiftKey);
+    if (!event.repeat) void setCurrentFileCullingFlag(cullingShortcut, getActiveFilePane(), event.shiftKey && config.settings.shiftAdvanceMetadata === true);
     return;
   }
 
@@ -839,7 +839,7 @@ function handleKeyDown(event: KeyboardEvent) {
 
   if (matchesShortcut('meta.favorite', event, shortcutPlatform)) {
     event.preventDefault();
-    if (!event.repeat) void toggleFavorite(getActiveFilePane(), event.shiftKey);
+    if (!event.repeat) void toggleFavorite(getActiveFilePane(), event.shiftKey && config.settings.shiftAdvanceMetadata === true);
     return;
   }
 
@@ -1174,11 +1174,13 @@ for (const pane of ['bottomLeft', 'bottomRight'] as const) {
 // (only when the setting `viewerTitleInfo` is on; otherwise just "Lap Image Viewer")
 const windowTitleInfo = computed(() => {
   const file = fileInfo.value;
-  if (!file || !config.settings.viewerTitleInfo) return 'Lap Image Viewer';
+  // A dialog (rename, delete confirmation...) is open: mark it so external tools can tell.
+  const dialogSuffix = uiStore.inputStack.length > 0 ? ' | Dialog' : '';
+  if (!file || !config.settings.viewerTitleInfo) return `Lap Image Viewer${dialogSuffix}`;
   const zoom = Math.round(imageScale.value * (window.devicePixelRatio || 1) * 100);
   const resolution = file.width && file.height ? `${file.width}x${file.height}` : '-';
   const sizeMb = file.size > 0 ? (file.size / (1024 * 1024)).toFixed(2) : '-';
-  return `Lap Image Viewer | ${zoom}% | ${resolution} | ${sizeMb} MB | ${file.name ?? ''}`;
+  return `Lap Image Viewer | ${zoom}% | ${resolution} | ${sizeMb} MB | ${file.name ?? ''}${dialogSuffix}`;
 });
 watch(windowTitleInfo, (title) => {
   document.title = title; // WebView2 may mirror the page title; keep both in sync

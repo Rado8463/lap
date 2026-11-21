@@ -296,6 +296,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.shift_advance_metadata') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.shift_advance_metadata_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.shiftAdvanceMetadata" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.viewer_title_info') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.viewer_title_info_hint') }}
@@ -2058,6 +2067,9 @@ watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
 });
 watch(() => [config.settings.hybridDiskCache, config.settings.hybridDiskCacheAlbumsOnly], ([enabled, albumsOnly]) => {
   emit('settings-hybridDiskCache-changed', { enabled: enabled !== false, albumsOnly: albumsOnly !== false });
+});
+watch(() => config.settings.shiftAdvanceMetadata, (value) => {
+  emit('settings-shiftAdvanceMetadata-changed', value === true);
 });
 watch(() => config.settings.viewerTitleInfo, (value) => {
   emit('settings-viewerTitleInfo-changed', value === true);

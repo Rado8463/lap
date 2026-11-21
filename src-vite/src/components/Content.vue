@@ -1573,7 +1573,23 @@ async function applyHistoryFocusRequest() {
   if (typeof position === 'number' && position >= 0) {
     historyFocusRequest = null;
     pendingFocusedFileId = request.fileId;
-    void restoreFocusedFileAfterListRefresh();
+    const requestId = currentContentRequestId;
+    await restoreFocusedFileAfterListRefresh();
+    // In big albums the grid layout / virtual rows settle after the first scroll,
+    // (and the list may be scrolled back to the top meanwhile), so re-apply it a few times.
+    for (const delay of [120, 350, 800]) {
+      await new Promise<void>(resolve => setTimeout(resolve, delay));
+      if (requestId !== currentContentRequestId || pendingScopeSelectionChange) return;
+      if (historyFocusRequest) return; // a newer history step took over
+      const index = Number(position);
+      if (selectedItemIndex.value !== index) return; // user moved the selection
+      if (groupedModeActive.value) {
+        await scrollToGroupedFile(index);
+      } else {
+        void fetchDataRange(index, index + 1);
+        gridViewRef.value?.scrollToItem(index);
+      }
+    }
   }
 }
 
@@ -3695,6 +3711,59 @@ function reorderLoadedFiles(ids: number[], folderId: number, beforeFileId: numbe
   return true;
 }
 
+// Re-sorts the already loaded list from the authoritative id order of the current
+// query (sort change, custom order reset) without reloading any thumbnails.
+// Returns false when it can't be done reliably; the caller then falls back to a
+// full refresh.
+async function reorderLoadedListInPlace(syncSortParams = false): Promise<boolean> {
+  if (currentQuerySource.value !== 'query' || groupedModeActive.value || tempViewMode.value !== 'none'
+    || !contentReady.value || isLoading.value || fileList.value.length === 0) return false;
+  if (syncSortParams) {
+    if (Number(config.search.sortType) === RANDOM_SORT) return false;
+    currentQueryParams.value = {
+      ...currentQueryParams.value,
+      sortType: Number(config.search.sortType),
+      sortOrder: Number(config.search.sortOrder),
+    };
+  }
+  const requestId = currentContentRequestId;
+  const focusedId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
+  let orderedIds: any;
+  try {
+    orderedIds = await getCurrentQueryFileIds();
+  } catch (error) {
+    console.error('reorderLoadedListInPlace error:', error);
+    return false;
+  }
+  if (requestId !== currentContentRequestId) return true; // superseded by a newer refresh
+  if (!Array.isArray(orderedIds) || orderedIds.length !== fileList.value.length) return false;
+  const availableIds = new Set<number>(orderedIds.map(Number));
+  const retained = new Map<number, any>();
+  for (const file of fileList.value) {
+    if (!isRealFileItem(file)) continue;
+    if (!availableIds.has(Number(file.id))) return false;
+    retained.set(Number(file.id), file);
+  }
+  fileList.value = orderedIds.map((id: any) => retained.get(Number(id)) ?? null);
+  lastVisibleRange = { start: -1, end: -1 };
+  lastSelectedIndex.value = -1;
+  keyboardSelectionAnchorIndex.value = -1;
+  const position = focusedId > 0 ? orderedIds.findIndex((id: any) => Number(id) === focusedId) : -1;
+  if (position >= 0) selectedItemIndex.value = position;
+  if (!isSearchLikeView.value) {
+    void getCurrentQueryTimeLine().then(data => {
+      if (requestId === currentContentRequestId) timelineData.value = data;
+    }).catch(error => console.error('Failed to refresh timeline:', error));
+  }
+  await nextTick();
+  if (requestId !== currentContentRequestId) return true;
+  gridViewRef.value?.refreshLayout?.();
+  if (position >= 0) gridViewRef.value?.scrollToItem(position);
+  // Reset the image viewer context (its list order changed too) without showing it.
+  openImageViewer(selectedItemIndex.value, false, true);
+  return true;
+}
+
 async function resetFolderCustomOrder() {
   const folderId = customOrderFolderId.value;
   if (folderId <= 0) return;
@@ -3702,6 +3771,7 @@ async function resetFolderCustomOrder() {
     toast.error(t('toolbar.filter.custom_order_failed'));
     return;
   }
+  if (await reorderLoadedListInPlace()) return;
   rememberFocusedFileForPresentationRefresh();
   pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
   await updateContent(true);
@@ -5519,7 +5589,7 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     if (selectMode.value) {
       void selectModeSetRatings(ratingShortcut);
     } else {
-      if (!event.repeat) void setSelectedFileRating(ratingShortcut, event.shiftKey);
+      if (!event.repeat) void setSelectedFileRating(ratingShortcut, event.shiftKey && config.settings.shiftAdvanceMetadata === true);
     }
     return;
   }
@@ -5531,7 +5601,7 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     if (selectMode.value) {
       void selectModeSetCullingFlags(cullingShortcut);
     } else {
-      if (!event.repeat) void setSelectedFileCullingFlag(cullingShortcut, event.shiftKey);
+      if (!event.repeat) void setSelectedFileCullingFlag(cullingShortcut, event.shiftKey && config.settings.shiftAdvanceMetadata === true);
     }
     return;
   }
@@ -5674,7 +5744,7 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     if (selectMode.value) {
       void toggleSelectModeFavorite();
     } else {
-      if (!event.repeat) void toggleFavorite(event.shiftKey);
+      if (!event.repeat) void toggleFavorite(event.shiftKey && config.settings.shiftAdvanceMetadata === true);
     }
     return;
   }
@@ -7198,6 +7268,11 @@ watch(
   },
 );
 
+let contentRefreshToken = 0;
+// Positions of config.search.sortType / sortOrder in the array watched below.
+const CONTENT_WATCH_SORT_TYPE_INDEX = 18;
+const CONTENT_WATCH_SORT_ORDER_INDEX = 19;
+
 watch(
   () => [
     config.main.sidebarIndex,      // toolbar index
@@ -7226,6 +7301,14 @@ watch(
     // Replacing smartAlbums creates a new outer array even if these values match.
     if (previousValues && values.every((value, index) => value === previousValues[index])) return;
     contentQueryRefreshPending = true;
+    const refreshToken = ++contentRefreshToken;
+    // Only the sort type/order changed: reorder the loaded list in place.
+    const changedIndexes = previousValues
+      ? values.map((value, index) => (value !== previousValues[index] ? index : -1)).filter(index => index >= 0)
+      : [];
+    const sortOnlyChange = changedIndexes.length > 0
+      && values[CONTENT_WATCH_SORT_TYPE_INDEX] === config.search.sortType
+      && changedIndexes.every(index => index === CONTENT_WATCH_SORT_TYPE_INDEX || index === CONTENT_WATCH_SORT_ORDER_INDEX);
     // Clear active adjustments when the file list changes to avoid unnecessary confirmation dialogs
     uiStore.clearActiveAdjustments();
 
@@ -7248,6 +7331,15 @@ watch(
       // Double check in case tempViewMode changed during setTimeout
       if (tempViewMode.value !== 'none') {
         contentQueryRefreshPending = false;
+        return;
+      }
+
+      if (sortOnlyChange) {
+        void reorderLoadedListInPlace(true).then(done => {
+          if (refreshToken !== contentRefreshToken) return; // a newer change took over
+          if (done) contentQueryRefreshPending = false;
+          else refreshContentFromSelectionChange();
+        });
         return;
       }
 
