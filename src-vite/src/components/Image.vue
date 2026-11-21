@@ -753,7 +753,10 @@ function usesBackendPreviewFor(filePath: string, fileType: number, meta?: { widt
   return w * h >= BACKEND_PNG_MIN_PIXELS;
 }
 
+// Backend previews that are already full resolution (big PNG, TIFF): no blurry thumbnail placeholder.
 function isBackendPngPath(filePath: string): boolean {
+  const ext = getFileExtension(filePath).toLowerCase();
+  if (ext === 'tif' || ext === 'tiff') return true;
   return !shouldUseBackendPreview(filePath, Number(props.fileType || 0)) && usesBackendPreviewFor(filePath, Number(props.fileType || 0));
 }
 

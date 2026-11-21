@@ -1421,6 +1421,12 @@ fn png_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
     let decoded = reader
         .decode()
         .map_err(|e| format!("Failed to decode PNG: {}", e))?;
+    let rgb = flatten_for_viewer(decoded)?;
+    crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
+}
+
+/// Converts to RGB8; transparent pixels are blended over the viewer's transparency colour.
+fn flatten_for_viewer(decoded: DynamicImage) -> Result<RgbImage, String> {
     let rgb = if decoded.color().has_alpha() {
         let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
         let (br, bgc, bb) = (((bg >> 16) & 255) as u32, ((bg >> 8) & 255) as u32, (bg & 255) as u32);
@@ -1437,7 +1443,33 @@ fn png_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
     } else {
         decoded.into_rgb8()
     };
+    Ok(rgb)
+}
+
+/// Native full-resolution decode of a TIFF (any size) as a high-quality JPEG; fails for
+/// files the `image` crate cannot read (e.g. CMYK), in which case the old path is used.
+fn tiff_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
+    use image::ImageDecoder;
+    let mut reader = ImageReader::open(file_path)
+        .map_err(|e| format!("Failed to open TIFF: {}", e))?
+        .with_guessed_format()
+        .map_err(|e| format!("Failed to read TIFF: {}", e))?;
+    reader.no_limits();
+    let mut decoder = reader
+        .into_decoder()
+        .map_err(|e| format!("Failed to open TIFF decoder: {}", e))?;
+    let orientation = decoder
+        .orientation()
+        .unwrap_or(image::metadata::Orientation::NoTransforms);
+    let mut decoded = DynamicImage::from_decoder(decoder)
+        .map_err(|e| format!("Failed to decode TIFF: {}", e))?;
+    decoded.apply_orientation(orientation);
+    let rgb = flatten_for_viewer(decoded)?;
     crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
+}
+
+async fn tiff_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
+    cached_viewer_jpeg(file_path, PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed), tiff_viewer_jpeg).await
 }
 
 /// Viewer preview of a big PNG as a full-resolution JPEG; None when not applicable or on failure.
@@ -2138,11 +2170,15 @@ pub async fn get_file_image_bytes_cached(
         get_image_thumbnail(file_path, get_image_orientation(file_path), 4096)?
             .ok_or_else(|| format!("Failed to resolve AVIF preview image: {}", file_path))?
     } else if crate::t_libraw::is_tiff_path(file_path) {
+        if let Some(data) = tiff_viewer_preview(file_path).await {
+            data
+        } else {
         match get_raw_preview_image(file_path, RawDisplayOptions::rendered_bright()) {
             Ok(Some(data)) => data,
             _ => tokio::fs::read(file_path)
                 .await
                 .map_err(|e| format!("Failed to read the image: {}", e))?,
+        }
         }
     } else if let Some(data) = png_viewer_preview(file_path).await {
         data
