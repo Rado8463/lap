@@ -1514,12 +1514,12 @@ fn tiff_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
     crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
 }
 
-fn tiff_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
-    fit_resize_encode(tiff_decode_rgb(file_path)?, max_edge, sharp)
+fn tiff_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+    fit_resize_encode(tiff_decode_rgb(file_path)?, max_edge, opts)
 }
 
-fn psd_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
-    fit_resize_encode(crate::t_psd::decode_composite(file_path)?, max_edge, sharp)
+fn psd_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+    fit_resize_encode(crate::t_psd::decode_composite(file_path)?, max_edge, opts)
 }
 
 /// True when the image header says the picture has at least the hybrid-mode pixel count.
@@ -1577,6 +1577,14 @@ fn jpeg_fit_eligible(file_path: &str) -> bool {
 }
 
 /// Lanczos-resizes to `max_edge` on the long side (never upscales) and encodes a 4:4:4 JPEG.
+/// Options of a hybrid-mode fit preview: sharpening (0-100) and resize filter
+/// (0 Lanczos3, 1 Catmull-Rom, 2 Mitchell).
+#[derive(Clone, Copy, Debug)]
+pub struct FitOpts {
+    pub sharp: u32,
+    pub filter: u32,
+}
+
 /// Mild unsharp mask (3x1 / 1x3 binomial blur) to bring a Lanczos-downscaled preview closer to the
 /// crispness of a GPU downscale. `amount_pct` 0 disables it; 100 adds the full detail difference once.
 fn unsharp_rgb8(raw: &mut [u8], w: usize, h: usize, amount_pct: u32) {
@@ -1616,7 +1624,7 @@ fn unsharp_rgb8(raw: &mut [u8], w: usize, h: usize, amount_pct: u32) {
     raw.copy_from_slice(&out_rows);
 }
 
-fn fit_resize_encode(rgb: RgbImage, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
+fn fit_resize_encode(rgb: RgbImage, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
     let (src_w, src_h) = rgb.dimensions();
     let long = src_w.max(src_h);
     if long <= max_edge {
@@ -1630,18 +1638,22 @@ fn fit_resize_encode(rgb: RgbImage, max_edge: u32, sharp: u32) -> Result<Vec<u8>
     let mut dst_image = fir::images::Image::new(dst_w, dst_h, fir::PixelType::U8x3);
     let mut resizer = fir::Resizer::new();
     let options = fir::ResizeOptions::new()
-        .resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::Lanczos3));
+        .resize_alg(fir::ResizeAlg::Convolution(match opts.filter {
+            1 => fir::FilterType::CatmullRom,
+            2 => fir::FilterType::Mitchell,
+            _ => fir::FilterType::Lanczos3,
+        }));
     resizer
         .resize(&src_image, &mut dst_image, &options)
         .map_err(|e| format!("Failed to resize preview: {}", e))?;
     let mut buffer = dst_image.into_vec();
-    unsharp_rgb8(&mut buffer, dst_w as usize, dst_h as usize, sharp);
+    unsharp_rgb8(&mut buffer, dst_w as usize, dst_h as usize, opts.sharp);
     let resized = RgbImage::from_raw(dst_w, dst_h, buffer)
         .ok_or_else(|| "Failed to build resized image".to_string())?;
     crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)
 }
 
-fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
+fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
     let size = imagesize::size(file_path).map_err(|e| format!("Failed to read JPEG size: {}", e))?;
     let (w, h) = (size.width as u32, size.height as u32);
     let ratio = (max_edge as f64 / w.max(h).max(1) as f64).min(1.0);
@@ -1651,10 +1663,10 @@ fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, 
     let (pixels, pw, ph) = crate::t_jpeg::decode_rgb8_scaled(file_path, target_w, target_h)?;
     let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG pixel buffer".to_string())?;
     let oriented = apply_orientation(DynamicImage::ImageRgb8(rgb), get_image_orientation(file_path));
-    fit_resize_encode(oriented.into_rgb8(), max_edge, sharp)
+    fit_resize_encode(oriented.into_rgb8(), max_edge, opts)
 }
 
-fn png_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
+fn png_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
     let mut reader = ImageReader::open(file_path)
         .map_err(|e| format!("Failed to open PNG: {}", e))?
         .with_guessed_format()
@@ -1663,12 +1675,12 @@ fn png_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, S
     let decoded = reader
         .decode()
         .map_err(|e| format!("Failed to decode PNG: {}", e))?;
-    fit_resize_encode(flatten_for_viewer(decoded)?, max_edge, sharp)
+    fit_resize_encode(flatten_for_viewer(decoded)?, max_edge, opts)
 }
 
 /// Screen-sized preview (long side `max_edge`) of a big JPEG or PNG for the viewer's hybrid
 /// mode. None means "not applicable": the caller then serves the original file.
-pub async fn get_fit_preview(file_path: &str, max_edge: u32, sharp: u32) -> Option<Vec<u8>> {
+pub async fn get_fit_preview(file_path: &str, max_edge: u32, opts: FitOpts) -> Option<Vec<u8>> {
     if !(512..=16384).contains(&max_edge) {
         return None;
     }
@@ -1677,38 +1689,38 @@ pub async fn get_fit_preview(file_path: &str, max_edge: u32, sharp: u32) -> Opti
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())?;
     let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
-    let sharp = sharp.min(100);
-    let tag = format!("fit-{}-{}-{}", max_edge, bg, sharp);
+    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2) };
+    let tag = format!("fit-{}-{}-{}-{}", max_edge, bg, opts.sharp, opts.filter);
     match ext.as_str() {
         "jpg" | "jpeg" | "jpe" => {
             if !jpeg_fit_eligible(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| jpeg_fit_jpeg(p, max_edge, sharp)).await
+            cached_viewer_jpeg(file_path, tag, move |p| jpeg_fit_jpeg(p, max_edge, opts)).await
         }
         "png" => {
             if !is_large_opaque_png(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge, sharp)).await
+            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge, opts)).await
         }
         "bmp" => {
             if !is_large_bmp(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge, sharp)).await
+            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge, opts)).await
         }
         "tif" | "tiff" => {
             if !is_big_by_header(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| tiff_fit_jpeg(p, max_edge, sharp)).await
+            cached_viewer_jpeg(file_path, tag, move |p| tiff_fit_jpeg(p, max_edge, opts)).await
         }
         "psd" | "psb" => {
             if !is_big_by_header(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| psd_fit_jpeg(p, max_edge, sharp)).await
+            cached_viewer_jpeg(file_path, tag, move |p| psd_fit_jpeg(p, max_edge, opts)).await
         }
         _ => None,
     }
@@ -1720,6 +1732,47 @@ async fn png_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
         return None;
     }
     cached_viewer_jpeg(file_path, format!("png-{}", PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed)), png_viewer_jpeg).await
+}
+
+const FIT_DISK_CACHE_MAX_FILES: usize = 400;
+
+fn fit_disk_cache_dir() -> Option<std::path::PathBuf> {
+    crate::t_config::get_app_data_dir().ok().map(|d| d.join("fit-cache"))
+}
+
+fn fit_disk_cache_path(file_path: &str, tag: &str, mtime: u64, len: u64) -> Option<std::path::PathBuf> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    file_path.hash(&mut hasher);
+    tag.hash(&mut hasher);
+    mtime.hash(&mut hasher);
+    len.hash(&mut hasher);
+    Some(fit_disk_cache_dir()?.join(format!("{:016x}.jpg", hasher.finish())))
+}
+
+/// Keeps the disk cache bounded: removes the least recently written files beyond the limit.
+fn prune_fit_disk_cache() {
+    let Some(dir) = fit_disk_cache_dir() else {
+        return;
+    };
+    let Ok(read) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    let mut files: Vec<(std::time::SystemTime, std::path::PathBuf)> = read
+        .flatten()
+        .filter_map(|e| {
+            let modified = e.metadata().ok()?.modified().ok()?;
+            Some((modified, e.path()))
+        })
+        .collect();
+    if files.len() <= FIT_DISK_CACHE_MAX_FILES {
+        return;
+    }
+    files.sort_by_key(|(t, _)| *t);
+    let excess = files.len() - FIT_DISK_CACHE_MAX_FILES;
+    for (_, path) in files.into_iter().take(excess) {
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 async fn cached_viewer_jpeg<F>(file_path: &str, tag: String, produce: F) -> Option<Vec<u8>>
@@ -1741,11 +1794,35 @@ where
             }
         }
     }
+    // Screen-sized previews are small, so they are also kept on disk: reopening a big photo
+    // later (even after a restart) skips the slow decode.
+    let disk_path = if tag.starts_with("fit-") {
+        key.and_then(|(mtime, len)| fit_disk_cache_path(file_path_orig, &tag, mtime, len))
+    } else {
+        None
+    };
+    if let Some(p) = &disk_path {
+        if let Ok(bytes) = tokio::fs::read(p).await {
+            if bytes.len() > 1024 {
+                return Some(bytes);
+            }
+        }
+    }
     let path = file_path_orig.to_string();
     let data = tauri::async_runtime::spawn_blocking(move || produce(&path))
     .await
     .ok()?
     .ok()?;
+    if let Some(p) = disk_path {
+        if let Some(dir) = p.parent() {
+            let _ = tokio::fs::create_dir_all(dir).await;
+        }
+        let tmp = p.with_extension("tmp");
+        if tokio::fs::write(&tmp, &data).await.is_ok() {
+            let _ = tokio::fs::rename(&tmp, &p).await;
+        }
+        prune_fit_disk_cache();
+    }
     if let Some((mtime, len)) = key {
         if let Ok(mut cache) = PSD_PREVIEW_CACHE.lock() {
             cache.retain(|(p, _, _, _)| p != file_path);

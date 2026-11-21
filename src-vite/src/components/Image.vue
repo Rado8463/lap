@@ -1083,7 +1083,7 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
       const base = getPreviewUrl(meta?.id ?? props.fileId, filePath, false, meta?.version ?? props.fileVersion);
       if (base) {
         const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
-        src = withQuery(base, `fit=${hybridFitEdge()}&sharp=${sharp}`);
+        src = withQuery(base, `fit=${hybridFitEdge()}&sharp=${sharp}&filter=${Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)))}`);
         img.src = src;
         return;
       }
@@ -1692,7 +1692,7 @@ const updatePosition = () => {
 
 // Preloaded next images must not retain a different RAW display policy.
 watch(rawDisplayKey, () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); }, { flush: 'sync' });
-watch(() => [config.settings.hybridPreview, config.settings.hybridSharpness], () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); });
+watch(() => [config.settings.hybridPreview, config.settings.hybridSharpness, config.settings.hybridFilter], () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); });
 
 async function showOfflinePreview(filePath: string, loadingId: number) {
   if (loadingId !== currentLoadingId.value) return;

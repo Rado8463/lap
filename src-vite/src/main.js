@@ -250,6 +250,9 @@ if (isMainWindow) {
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)
   })
+  listen('settings-hybridFilter-changed', (event) => {
+    config.settings.hybridFilter = event.payload
+  })
   listen('settings-hybridSharpness-changed', (event) => {
     config.settings.hybridSharpness = event.payload
   })

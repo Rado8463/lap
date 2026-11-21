@@ -198,6 +198,7 @@ export const useConfigStore = defineStore('configStore', {
       navigatorSharpnessGrid: false,
       rasterWarm: false,        // invisible pre-rendering of neighbours / 1:1 zoom (off by default: measured slower)
       shortcutOverrides: {},    // user-defined keyboard shortcuts: { actionId: [binding] }
+      hybridFilter: 0,          // resize filter of the hybrid preview: 0 Lanczos, 1 Catmull-Rom (cubic), 2 Mitchell
       hybridSharpness: 40,      // sharpening (0-100) of the Lanczos-downscaled hybrid preview
       hybridPreview: true,      // big JPEG/PNG shown as a screen-sized preview, full resolution only when zoomed in
       pngBackendPreview: true,  // big lossless PNGs shown via backend JPEG (fast), instead of WebView decoding
