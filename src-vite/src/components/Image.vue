@@ -1032,6 +1032,27 @@ function disposeRasterWarm() {
   rasterWarmHost = null;
 }
 
+// Cloud-only checks are a backend round trip that can queue behind other work
+// (it was seen taking 1+ s). A "local" answer is remembered briefly and shared,
+// so preloaded neighbours do not pay for it again when they are opened.
+const cloudCheckCache = new Map<string, { at: number; promise: Promise<boolean> }>();
+const CLOUD_CHECK_TTL_MS = 60_000;
+function checkCloudOnlyCached(path: string): Promise<boolean> {
+  const now = Date.now();
+  const hit = cloudCheckCache.get(path);
+  if (hit && now - hit.at < CLOUD_CHECK_TTL_MS) return hit.promise;
+  const promise = isCloudOnlyFile(path).then(
+    (cloud) => { if (cloud) cloudCheckCache.delete(path); return cloud; },
+    (err) => { cloudCheckCache.delete(path); throw err; },
+  );
+  cloudCheckCache.set(path, { at: now, promise });
+  if (cloudCheckCache.size > 64) {
+    const oldest = cloudCheckCache.keys().next().value;
+    if (oldest !== undefined) cloudCheckCache.delete(oldest);
+  }
+  return promise;
+}
+
 function warmNeighbors() {
   cancelWarmImageScheduling();
   const request = warmImageRequest;
@@ -1047,7 +1068,7 @@ function warmNeighbors() {
       if (shouldUseBackendPreview(path, Number(props.fileType || 0))) continue;
       try {
         // Reading a cloud-only original would trigger a download.
-        if (await isCloudOnlyFile(path)) continue;
+        if (await checkCloudOnlyCached(path)) continue;
         if (isStale()) return;
         const loaded = await loadImageResource(path);
         pixels += (loaded.naturalWidth || 0) * (loaded.naturalHeight || 0);
@@ -1510,7 +1531,7 @@ watch([
   try {
     const usesRealtimePreview = (await ffmpegExtensionsPromise).has(getFileExtension(newFilePath).toLowerCase());
     if (loadingId !== currentLoadingId.value) return;
-    const cloudOnly = await isCloudOnlyFile(newFilePath);
+    const cloudOnly = await checkCloudOnlyCached(newFilePath);
     perfCloud = performance.now();
     if (loadingId !== currentLoadingId.value) return;
     if (cloudOnly) {

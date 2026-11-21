@@ -453,10 +453,28 @@ fn resize_rgb_image_to_jpeg(rgb: image::RgbImage, thumbnail_size: u32) -> Result
     encode_jpeg_rgb8(&resized)
 }
 
+/// Colour shown through transparent pixels in thumbnails (matches the viewer default, RGB 90,90,90).
+const THUMBNAIL_TRANSPARENCY_BG: u32 = 90;
+
+/// Composites semi-transparent pixels over the thumbnail background colour.
+fn flatten_alpha_over_background(img: &mut image::RgbaImage) {
+    for px in img.pixels_mut() {
+        let a = px[3] as u32;
+        if a == 255 {
+            continue;
+        }
+        for c in 0..3 {
+            px[c] = ((px[c] as u32 * a + THUMBNAIL_TRANSPARENCY_BG * (255 - a) + 127) / 255) as u8;
+        }
+        px[3] = 255;
+    }
+}
+
 fn resize_rgba_image_to_png(
-    rgba: image::RgbaImage,
+    mut rgba: image::RgbaImage,
     thumbnail_size: u32,
 ) -> Result<Vec<u8>, String> {
+    flatten_alpha_over_background(&mut rgba);
     let (src_w, src_h) = rgba.dimensions();
     let (dst_w, dst_h) = compute_thumbnail_dimensions(src_w, src_h, thumbnail_size);
 
@@ -541,7 +559,8 @@ pub(crate) fn resize_dynamic_image_to_jpeg(
         return resize_rgb_image_to_jpeg(adjusted.to_rgb8(), thumbnail_size);
     }
 
-    let rgba = adjusted.to_rgba8();
+    let mut rgba = adjusted.to_rgba8();
+    flatten_alpha_over_background(&mut rgba);
     let (src_w, src_h) = rgba.dimensions();
     let (dst_w, dst_h) = compute_thumbnail_dimensions(src_w, src_h, thumbnail_size);
 
