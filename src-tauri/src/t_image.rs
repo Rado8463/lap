@@ -1345,43 +1345,79 @@ fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
     Some((mtime, meta.len()))
 }
 
-/// The decoded composite of the PSD/PSB most recently shown in the viewer. The hybrid mode asks for
-/// a fit preview and then the full-resolution image of the same file; sharing one decode makes the
-/// second request cost only the resize/encode.
-static PSD_RGB_CACHE: Lazy<std::sync::Mutex<Option<(String, u64, u64, std::sync::Arc<RgbImage>)>>> =
-    Lazy::new(|| std::sync::Mutex::new(None));
-static PSD_DECODE_LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
-/// Composites above this many bytes of RGB are not kept (about 750 MB).
-const PSD_RGB_CACHE_MAX_BYTES: u64 = 750 * 1024 * 1024;
+/// Decoded RGB pictures of recently shown big photos (PSD composites, PNG, BMP, TIFF). The hybrid
+/// mode asks for a fit preview and then the full-resolution image of the same file; sharing one
+/// decode makes the second request cost only the resize/encode. Oldest entries go first.
+type ViewerRgbEntry = (String, u64, u64, std::sync::Arc<RgbImage>);
+static VIEWER_RGB_CACHE: Lazy<std::sync::Mutex<Vec<ViewerRgbEntry>>> =
+    Lazy::new(|| std::sync::Mutex::new(Vec::new()));
+static VIEWER_RGB_INFLIGHT: Lazy<
+    std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<std::sync::Mutex<()>>>>,
+> = Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+/// Total size of the cached RGB pictures (about 750 MB).
+const VIEWER_RGB_CACHE_MAX_BYTES: u64 = 750 * 1024 * 1024;
+
+fn shared_rgb<F>(file_path: &str, tag: &str, decode: F) -> Result<std::sync::Arc<RgbImage>, String>
+where
+    F: FnOnce() -> Result<RgbImage, String>,
+{
+    let key = psd_cache_key(file_path);
+    let id = format!("{}\u{0}{}", file_path, tag);
+    let lookup = || -> Option<std::sync::Arc<RgbImage>> {
+        let (mtime, len) = key?;
+        let mut guard = VIEWER_RGB_CACHE.lock().ok()?;
+        let pos = guard
+            .iter()
+            .position(|(p, m, l, _)| *p == id && *m == mtime && *l == len)?;
+        let entry = guard.remove(pos);
+        let image = entry.3.clone();
+        guard.push(entry);
+        Some(image)
+    };
+    if let Some(image) = lookup() {
+        return Ok(image);
+    }
+    // One decode per file at a time: a concurrent request for the same file waits and then finds it.
+    let lock = {
+        let mut map = VIEWER_RGB_INFLIGHT
+            .lock()
+            .map_err(|_| "decode lock poisoned".to_string())?;
+        map.entry(id.clone())
+            .or_insert_with(|| std::sync::Arc::new(std::sync::Mutex::new(())))
+            .clone()
+    };
+    let _guard = lock.lock().map_err(|_| "decode lock poisoned".to_string())?;
+    let result = match lookup() {
+        Some(image) => Ok(image),
+        None => decode().map(std::sync::Arc::new).map(|image| {
+            if let Some((mtime, len)) = key {
+                let bytes = image.width() as u64 * image.height() as u64 * 3;
+                if bytes <= VIEWER_RGB_CACHE_MAX_BYTES {
+                    if let Ok(mut cache) = VIEWER_RGB_CACHE.lock() {
+                        cache.retain(|(p, _, _, _)| *p != id);
+                        cache.push((id.clone(), mtime, len, image.clone()));
+                        let mut total: u64 = cache
+                            .iter()
+                            .map(|(_, _, _, img)| img.width() as u64 * img.height() as u64 * 3)
+                            .sum();
+                        while total > VIEWER_RGB_CACHE_MAX_BYTES && cache.len() > 1 {
+                            let (_, _, _, removed) = cache.remove(0);
+                            total -= removed.width() as u64 * removed.height() as u64 * 3;
+                        }
+                    }
+                }
+            }
+            image
+        }),
+    };
+    if let Ok(mut map) = VIEWER_RGB_INFLIGHT.lock() {
+        map.remove(&id);
+    }
+    result
+}
 
 fn psd_decode_shared(file_path: &str) -> Result<std::sync::Arc<RgbImage>, String> {
-    let key = psd_cache_key(file_path);
-    let lookup = |key: Option<(u64, u64)>| -> Option<std::sync::Arc<RgbImage>> {
-        let (mtime, len) = key?;
-        let guard = PSD_RGB_CACHE.lock().ok()?;
-        let (p, m, l, img) = guard.as_ref()?;
-        (p == file_path && *m == mtime && *l == len).then(|| img.clone())
-    };
-    if let Some(img) = lookup(key) {
-        return Ok(img);
-    }
-    // One decode at a time: a concurrent request for the same file waits and then finds the cache.
-    let _decode = PSD_DECODE_LOCK.lock().map_err(|_| "PSD decode lock poisoned".to_string())?;
-    if let Some(img) = lookup(key) {
-        return Ok(img);
-    }
-    let decoded = std::sync::Arc::new(crate::t_psd::decode_composite(file_path)?);
-    if let Some((mtime, len)) = key {
-        let bytes = decoded.width() as u64 * decoded.height() as u64 * 3;
-        if let Ok(mut guard) = PSD_RGB_CACHE.lock() {
-            *guard = if bytes <= PSD_RGB_CACHE_MAX_BYTES {
-                Some((file_path.to_string(), mtime, len, decoded.clone()))
-            } else {
-                None
-            };
-        }
-    }
-    Ok(decoded)
+    shared_rgb(file_path, "psd", || crate::t_psd::decode_composite(file_path))
 }
 
 fn psd_viewer_full_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
@@ -1498,16 +1534,24 @@ fn is_large_bmp(file_path: &str) -> bool {
     true
 }
 
+/// PNG / BMP decoded to RGB (transparency flattened), shared between the fit and full previews.
+fn png_decode_shared(file_path: &str) -> Result<std::sync::Arc<RgbImage>, String> {
+    let tag = format!("png-{}", PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed));
+    shared_rgb(file_path, &tag, || {
+        let mut reader = ImageReader::open(file_path)
+            .map_err(|e| format!("Failed to open image: {}", e))?
+            .with_guessed_format()
+            .map_err(|e| format!("Failed to read image: {}", e))?;
+        reader.no_limits();
+        let decoded = reader
+            .decode()
+            .map_err(|e| format!("Failed to decode image: {}", e))?;
+        flatten_for_viewer(decoded)
+    })
+}
+
 fn png_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
-    let mut reader = ImageReader::open(file_path)
-        .map_err(|e| format!("Failed to open PNG: {}", e))?
-        .with_guessed_format()
-        .map_err(|e| format!("Failed to read PNG: {}", e))?;
-    reader.no_limits();
-    let decoded = reader
-        .decode()
-        .map_err(|e| format!("Failed to decode PNG: {}", e))?;
-    let rgb = flatten_for_viewer(decoded)?;
+    let rgb = png_decode_shared(file_path)?;
     crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
 }
 
@@ -1553,13 +1597,19 @@ fn tiff_decode_rgb(file_path: &str) -> Result<RgbImage, String> {
     flatten_for_viewer(decoded)
 }
 
+fn tiff_decode_shared(file_path: &str) -> Result<std::sync::Arc<RgbImage>, String> {
+    let tag = format!("tiff-{}", PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed));
+    shared_rgb(file_path, &tag, || tiff_decode_rgb(file_path))
+}
+
 fn tiff_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
-    let rgb = tiff_decode_rgb(file_path)?;
+    let rgb = tiff_decode_shared(file_path)?;
     crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
 }
 
 fn tiff_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
-    fit_resize_encode(tiff_decode_rgb(file_path)?, max_edge, opts)
+    let rgb = tiff_decode_shared(file_path)?;
+    fit_resize_encode((*rgb).clone(), max_edge, opts)
 }
 
 fn psd_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
@@ -1714,15 +1764,8 @@ fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8
 }
 
 fn png_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
-    let mut reader = ImageReader::open(file_path)
-        .map_err(|e| format!("Failed to open PNG: {}", e))?
-        .with_guessed_format()
-        .map_err(|e| format!("Failed to read PNG: {}", e))?;
-    reader.no_limits();
-    let decoded = reader
-        .decode()
-        .map_err(|e| format!("Failed to decode PNG: {}", e))?;
-    fit_resize_encode(flatten_for_viewer(decoded)?, max_edge, opts)
+    let rgb = png_decode_shared(file_path)?;
+    fit_resize_encode((*rgb).clone(), max_edge, opts)
 }
 
 /// Screen-sized preview (long side `max_edge`) of a big JPEG or PNG for the viewer's hybrid
