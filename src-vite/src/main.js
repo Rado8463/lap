@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { message } from '@tauri-apps/plugin-dialog'
 import { initializeOriginalMedia } from '@/common/utils'
+import { setShortcutOverrides } from '@/common/shortcuts'
 import { getSystemRegionLocale } from '@/common/api'
 import 'cally'
 import router from '@/common/router'
@@ -110,6 +111,7 @@ if (config.settings.language === initialLanguage) {
   config.settings.languageInitialized = true
 }
 else i18n.global.locale.value = config.settings.language
+setShortcutOverrides(config.settings.shortcutOverrides)
 performance.mark('startup-language-ready')
 if (isMainWindow) void invoke('record_startup_stage', { stage: 'language-ready' }).catch(console.error)
 
@@ -240,6 +242,10 @@ if (isMainWindow) {
   })
   listen('settings-navigatorSharpnessGrid-changed', (event) => {
     config.settings.navigatorSharpnessGrid = event.payload
+  })
+  listen('settings-shortcutOverrides-changed', (event) => {
+    config.settings.shortcutOverrides = event.payload
+    setShortcutOverrides(event.payload)
   })
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)

@@ -522,6 +522,22 @@ const shortcutMap = new Map<ShortcutActionId, ShortcutDefinition>(
   SHORTCUTS.map((shortcut) => [shortcut.id, shortcut]),
 );
 
+// User-defined bindings (settings.shortcutOverrides) replace the defaults of an action.
+let shortcutOverrides: Record<string, ShortcutBinding[]> = {};
+
+export function setShortcutOverrides(map?: Record<string, ShortcutBinding[]> | null): void {
+  shortcutOverrides = map && typeof map === 'object' ? map : {};
+}
+
+export function getShortcutOverrides(): Record<string, ShortcutBinding[]> {
+  return shortcutOverrides;
+}
+
+export function getActiveBindings(shortcut: ShortcutDefinition): readonly ShortcutBinding[] {
+  const custom = shortcutOverrides[shortcut.id];
+  return Array.isArray(custom) && custom.length > 0 ? custom : shortcut.defaultBindings;
+}
+
 export function getShortcut(actionId: ShortcutActionId): ShortcutDefinition {
   const shortcut = shortcutMap.get(actionId);
   if (!shortcut) {
@@ -538,7 +554,7 @@ export function getShortcutLabels(
   actionId: ShortcutActionId,
   platform: ShortcutPlatform = DEFAULT_PLATFORM,
 ): string[] {
-  return getShortcut(actionId).defaultBindings
+  return getActiveBindings(getShortcut(actionId))
     .filter((binding) => isBindingAvailableOnPlatform(binding, platform))
     .map((binding) => getBindingLabel(binding, platform));
 }
@@ -555,7 +571,7 @@ export function matchesShortcut(
   event: ShortcutEventLike,
   platform: ShortcutPlatform = DEFAULT_PLATFORM,
 ): boolean {
-  return getShortcut(actionId).defaultBindings.some((binding) => matchesBinding(binding, event, platform));
+  return getActiveBindings(getShortcut(actionId)).some((binding) => matchesBinding(binding, event, platform));
 }
 
 export function findShortcutMatches(
@@ -564,7 +580,7 @@ export function findShortcutMatches(
   platform: ShortcutPlatform = DEFAULT_PLATFORM,
 ): ShortcutActionId[] {
   return getShortcutsByContext(context)
-    .filter((shortcut) => shortcut.defaultBindings.some((binding) => matchesBinding(binding, event, platform)))
+    .filter((shortcut) => getActiveBindings(shortcut).some((binding) => matchesBinding(binding, event, platform)))
     .map((shortcut) => shortcut.id);
 }
 
@@ -575,7 +591,7 @@ export function getShortcutConflicts(
   const actionsBySignature = new Map<string, ShortcutActionId[]>();
 
   for (const shortcut of getShortcutsByContext(context)) {
-    for (const binding of shortcut.defaultBindings) {
+    for (const binding of getActiveBindings(shortcut)) {
       if (!isBindingAvailableOnPlatform(binding, platform)) continue;
       for (const signature of getBindingSignatures(binding, platform)) {
         const actions = actionsBySignature.get(signature) ?? [];

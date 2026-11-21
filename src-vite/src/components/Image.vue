@@ -115,7 +115,7 @@
           transform: `translate(${position[activeImage].x}px, ${position[activeImage].y}px) 
                       scale(${scale[activeImage]}) 
                       rotate(${imageRotate[activeImage]}deg)`,
-          transition: !isDraggingImage && !noTransition && !isResizingContainer ? (isDraggingNavBox ? 'transform 0.2s ease-out' : 'transform 0.3s ease-in-out') : 'none',
+          transition: (!isDraggingImage || loupeAnimating) && !noTransition && !isResizingContainer ? (isDraggingNavBox ? 'transform 0.2s ease-out' : 'transform 0.3s ease-in-out') : 'none',
         }"
       >
         <div
@@ -496,7 +496,7 @@ const getImageStyle = (index: number) => ({
   transform: `translate3d(${position.value[index].x}px, ${position.value[index].y}px, 0)
               scale(${scale.value[index]})
               rotate(${imageRotate.value[index]}deg)`,
-  transition: !isSliding.value && !isDraggingImage.value && !noTransition.value && !isResizingContainer.value && !isWheelZooming.value
+  transition: !isSliding.value && (!isDraggingImage.value || loupeAnimating.value) && !noTransition.value && !isResizingContainer.value && !isWheelZooming.value
     ? (isDraggingNavBox.value ? 'transform 0.2s ease-out' : 'transform 0.3s ease-in-out')
     : 'none',
   willChange: 'transform',
@@ -2272,6 +2272,15 @@ let loupeTimer: ReturnType<typeof setTimeout> | null = null;
 let loupeStart = { x: 0, y: 0 };
 let loupeSaved: { index: number; scale: number; x: number; y: number } | null = null;
 
+// The loupe jump (and the return) animate like step zooming, even while the button is held.
+const loupeAnimating = ref(false);
+let loupeAnimTimer: ReturnType<typeof setTimeout> | null = null;
+function startLoupeAnimation() {
+  loupeAnimating.value = true;
+  if (loupeAnimTimer) clearTimeout(loupeAnimTimer);
+  loupeAnimTimer = setTimeout(() => { loupeAnimating.value = false; loupeAnimTimer = null; }, 320);
+}
+
 function cancelLoupeTimer() {
   if (loupeTimer) clearTimeout(loupeTimer);
   loupeTimer = null;
@@ -2296,9 +2305,8 @@ function beginLoupe() {
 
   updatePosition();
   loupeSaved = { index, scale: current, x: position.value[index].x, y: position.value[index].y };
-  noTransition.value = true;
+  startLoupeAnimation();
   zoomImage(loupeStart.x - containerPos.value.x, loupeStart.y - containerPos.value.y, target, true);
-  releaseNoTransition();
   window.addEventListener('mouseup', endLoupe, { once: true, capture: true });
 }
 
@@ -2308,11 +2316,10 @@ function endLoupe() {
   const saved = loupeSaved;
   loupeSaved = null;
   if (!saved || activeImage.value !== saved.index) return;
-  noTransition.value = true;
+  startLoupeAnimation();
   scale.value[saved.index] = saved.scale;
   position.value[saved.index] = { x: saved.x, y: saved.y };
   clampPosition(true);
-  releaseNoTransition();
 }
 
 function releaseNoTransition() {

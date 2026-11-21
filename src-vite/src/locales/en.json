@@ -1680,6 +1680,11 @@
       ]
     },
     "shortcuts": {
+      "rebind_hint": "Click a shortcut, then press the new key combination (Esc cancels).",
+      "reset": "Reset to default",
+      "reset_all": "Reset all shortcuts",
+      "press_key": "Press a key…",
+      "conflict": "This shortcut is already used by another action.",
       "title": "Shortcuts",
       "sections": {
         "global": "Global",

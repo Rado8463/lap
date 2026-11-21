@@ -1679,6 +1679,11 @@
       ]
     },
     "shortcuts": {
+      "rebind_hint": "Klikněte na zkratku a stiskněte novou kombinaci kláves (Esc zruší).",
+      "reset": "Obnovit výchozí",
+      "reset_all": "Obnovit všechny zkratky",
+      "press_key": "Stiskněte klávesu…",
+      "conflict": "Tato zkratka je již použita jinou akcí.",
       "title": "Klávesové zkratky",
       "sections": {
         "global": "Globální",

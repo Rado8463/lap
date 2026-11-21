@@ -750,6 +750,10 @@
 
         <!-- Shortcuts Tab -->
         <div v-else-if="config.settings.tabIndex === SETTINGS_TAB.SHORTCUTS" class="@container flex flex-col space-y-2">
+          <div class="flex items-center justify-between gap-2 px-1 text-xs text-base-content/40">
+            <span>{{ $t('settings.shortcuts.rebind_hint') }}</span>
+            <button class="btn btn-xs btn-ghost" @click="resetAllShortcuts">{{ $t('settings.shortcuts.reset_all') }}</button>
+          </div>
           <div
             v-for="section in shortcutSections"
             :key="section.key"
@@ -783,14 +787,31 @@
                     class="min-h-9 flex items-center justify-between gap-4 px-1 py-1 rounded-box hover:bg-base-100/10 transition-colors duration-200"
                   >
                     <div class="min-w-0 text-sm leading-5">{{ row.label }}</div>
-                    <div class="shrink-0 flex items-center gap-1">
+                    <div
+                      class="shrink-0 flex items-center gap-1"
+                      :class="rowIndex === 0 && isRebindable(item.actionId) ? 'cursor-pointer' : ''"
+                      @click="rowIndex === 0 && startCapture(item.actionId)"
+                    >
                       <span
-                        v-for="(key, keyIndex) in row.keys"
-                        :key="keyIndex"
-                        class="min-w-7 h-7 px-2 inline-flex items-center justify-center rounded-box border border-base-content/10 bg-base-100/40 text-xs font-semibold text-base-content/30 shadow-sm"
-                      >
-                        {{ key }}
-                      </span>
+                        v-if="rowIndex === 0 && capturingAction === item.actionId"
+                        class="h-7 px-2 inline-flex items-center rounded-box border border-primary/60 text-xs font-semibold text-primary"
+                      >{{ $t('settings.shortcuts.press_key') }}</span>
+                      <template v-else>
+                        <span
+                          v-for="(key, keyIndex) in row.keys"
+                          :key="keyIndex"
+                          class="min-w-7 h-7 px-2 inline-flex items-center justify-center rounded-box border border-base-content/10 bg-base-100/40 text-xs font-semibold shadow-sm"
+                          :class="rowIndex === 0 && isShortcutOverridden(item.actionId) ? 'text-primary' : 'text-base-content/30'"
+                        >
+                          {{ key }}
+                        </span>
+                      </template>
+                      <button
+                        v-if="rowIndex === 0 && isShortcutOverridden(item.actionId)"
+                        class="btn btn-ghost btn-xs"
+                        :title="$t('settings.shortcuts.reset')"
+                        @click.stop="resetShortcut(item.actionId)"
+                      >↺</button>
                     </div>
                   </div>
                 </div>
@@ -925,7 +946,7 @@ import {
 } from '@/common/api';
 import { formatFileSize, isLinux, isMac, SCALE_VALUES } from '@/common/utils';
 import { useAppearance } from '@/composables/useAppearance';
-import { getShortcutLabels, ShortcutActionId, ShortcutPlatform } from '@/common/shortcuts';
+import { getShortcut, getShortcutLabels, getActiveBindings, getBindingSignature, setShortcutOverrides, SHORTCUTS, ShortcutActionId, ShortcutBinding, ShortcutModifier, ShortcutPlatform } from '@/common/shortcuts';
 import { useToast } from '@/common/toast';
 import { IconClose, IconRestore } from '@/common/icons';
 
@@ -1473,6 +1494,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
 ];
 
 const shortcutSections = computed(() => {
+  void config.settings.shortcutOverrides; // re-evaluate when a shortcut is rebound
   const shortcutMessages = localeMsg.value.settings.shortcuts;
   const translatedActionLabels: Partial<Record<ShortcutActionId, string>> = {
     'meta.edit': localeMsg.value.file_info.edit_metadata,
@@ -1506,6 +1528,93 @@ const shortcutSections = computed(() => {
     };
   });
 });
+
+// ---- Rebinding shortcuts ------------------------------------------------------
+const capturingAction = ref<ShortcutActionId | null>(null);
+
+function isRebindable(actionId: ShortcutActionId): boolean {
+  if (getShortcut(actionId).readonly) return false;
+  return shortcutDisplaySections.some((section) =>
+    section.items.some((item) => item.actionId === actionId && !item.keys && item.backgroundValue === undefined));
+}
+
+function isShortcutOverridden(actionId: ShortcutActionId): boolean {
+  return !!config.settings.shortcutOverrides?.[actionId];
+}
+
+function applyShortcutOverrides(map: Record<string, ShortcutBinding[]>) {
+  setShortcutOverrides(map);
+  config.settings.shortcutOverrides = map;
+}
+
+function stopCapture() {
+  capturingAction.value = null;
+  window.removeEventListener('keydown', onCaptureKey, true);
+}
+
+function startCapture(actionId: ShortcutActionId) {
+  if (!isRebindable(actionId)) return;
+  stopCapture();
+  capturingAction.value = actionId;
+  window.addEventListener('keydown', onCaptureKey, true);
+}
+
+function bindingFromEvent(event: KeyboardEvent): ShortcutBinding | null {
+  if (['Control', 'Shift', 'Alt', 'Meta', 'AltGraph', 'CapsLock', 'Dead', 'Unidentified'].includes(event.key)) return null;
+  const modifiers: ShortcutModifier[] = [];
+  if (event.ctrlKey) modifiers.push('ctrl');
+  if (event.metaKey) modifiers.push('meta');
+  if (event.altKey) modifiers.push('alt');
+  if (event.shiftKey) modifiers.push('shift');
+  const isLetterOrDigit = /^Key[A-Z]$/.test(event.code) || /^Digit[0-9]$/.test(event.code);
+  const base = isLetterOrDigit ? { code: event.code } : { key: event.key };
+  let name = isLetterOrDigit ? event.code.replace(/^Key|^Digit/, '') : event.key;
+  if (name === ' ') name = 'Space';
+  if (name.length === 1) name = name.toUpperCase();
+  const mac = shortcutPlatform === 'mac';
+  const label = mac
+    ? `${event.ctrlKey ? '⌃' : ''}${event.altKey ? '⌥' : ''}${event.shiftKey ? '⇧' : ''}${event.metaKey ? '⌘' : ''}${name}`
+    : [event.ctrlKey ? 'Ctrl' : '', event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '', event.metaKey ? 'Meta' : '', name]
+        .filter(Boolean).join('+');
+  return { ...base, ...(modifiers.length ? { modifiers } : {}), label };
+}
+
+function onCaptureKey(event: KeyboardEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  const actionId = capturingAction.value;
+  if (!actionId) return;
+  if (event.key === 'Escape') { stopCapture(); return; }
+  const binding = bindingFromEvent(event);
+  if (!binding) return;
+  const signature = getBindingSignature(binding, shortcutPlatform);
+  const target = getShortcut(actionId);
+  const clash = SHORTCUTS.find((other) =>
+    other.id !== actionId
+    && other.contexts.some((context) => target.contexts.includes(context))
+    && getActiveBindings(other).some((b) => getBindingSignature(b, shortcutPlatform) === signature));
+  if (clash) {
+    toast.warning(localeMsg.value.settings.shortcuts.conflict);
+    return;
+  }
+  applyShortcutOverrides({ ...(config.settings.shortcutOverrides || {}), [actionId]: [binding] });
+  stopCapture();
+}
+
+function resetShortcut(actionId: ShortcutActionId) {
+  const next = { ...(config.settings.shortcutOverrides || {}) };
+  delete next[actionId];
+  applyShortcutOverrides(next);
+}
+
+function resetAllShortcuts() {
+  stopCapture();
+  applyShortcutOverrides({});
+}
+
+watch(() => config.settings.shortcutOverrides, (newValue) => {
+  emit('settings-shortcutOverrides-changed', newValue || {});
+}, { deep: true });
 
 function getShortcutActionLabelKey(item: ShortcutDisplayItem): string {
   if (item.actionId === 'file.reveal' && shortcutPlatform === 'mac') {
