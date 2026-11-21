@@ -1083,6 +1083,8 @@ function buildInfoTipLine(fields: InfoTipField[]): string {
       case 'flags':
         if (zoomLocked.value) segments.push('LOCK');
         if (hasSavedViewport.value) segments.push('VIEWPORT');
+        // Hybrid mode: the screen-sized preview is shown (full resolution not swapped in yet).
+        if (imageNaturalSize.value[index].width > 0 && imageNaturalSize.value[index].width < imageSize.value[index].width * 0.98) segments.push('PREVIEW');
         break;
     }
   }
