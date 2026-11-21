@@ -1518,6 +1518,8 @@
     "grid": {
       "title": "Layout",
       "section_grid": "Grid",
+      "highlight_current": "Custom highlight for the current thumbnail",
+      "highlight_current_hint": "When on, the border around the current thumbnail uses the colour you choose.",
       "style": "Style",
       "style_options": [
         "Card view",
@@ -1612,6 +1614,10 @@
       "show_load_timing_hint": "Shows a small overlay in the viewer with how long loading, decoding and showing each photo took (diagnostics)",
       "raster_warm": "Pre-render large photos in the background",
       "raster_warm_hint": "Invisibly prepares the next photos and the 100 % view so they appear faster. Turn off if photos load unevenly.",
+      "stage_before_show": "Wait for big photos before showing them",
+      "stage_before_show_hint": "Keeps the previous photo on screen until the next large photo is fully rendered, instead of building it up from a thin strip.",
+      "loading_background": "Background of a photo that is still loading",
+      "loading_background_hint": "Colour shown where a photo's pixels are not loaded yet (the transparency colour above is used only for the loaded photo).",
       "view_background_options": [
         "Follow Theme",
         "Black",

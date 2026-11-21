@@ -78,6 +78,7 @@
           :class="isGrabbing ? (isDraggingImage ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'"
           :style="getImageStyle(index)"
           draggable="false"
+          @load="handleSlotLoad(index, $event)"
           @mousedown="handleImageMouseDown"
           @mousemove="handleImageMouseMove"
           @mouseup="handleImageMouseUp"
@@ -254,7 +255,7 @@ const props = defineProps({
   },
   // Paths of nearby images in preload priority order (next first, then previous).
   neighborFilePaths: {
-    type: Array as () => string[],
+    type: Array as () => Array<string | { path: string; id?: number; version?: number }>,
     default: () => [],
   },
   rotate: {
@@ -472,6 +473,19 @@ const transitionName = computed(() => {
   return '';
 });
 
+// A slot shows the transparency colour only once its pixels are decoded; before
+// that it shows the "unloaded photo" colour so the two are never confused.
+const slotDecoded = ref<boolean[]>([false, false]);
+function handleSlotLoad(index: number, event: Event) {
+  const el = event.target as HTMLImageElement | null;
+  if (!el) return;
+  const key = imageFilePath.value[index];
+  const done = () => {
+    if (imageFilePath.value[index] === key) slotDecoded.value[index] = true;
+  };
+  el.decode().then(done, done);
+}
+
 const getImageStyle = (index: number) => ({
   position: 'absolute',
   // RAW placeholders and full previews can have different intrinsic sizes.
@@ -489,7 +503,9 @@ const getImageStyle = (index: number) => ({
   backfaceVisibility: 'hidden',
   pointerEvents: 'auto',
   // Visible only through transparent pixels (PNG, PSD, TIFF ...).
-  backgroundColor: config.settings.transparencyColor || '#5a5a5a',
+  backgroundColor: slotDecoded.value[index]
+    ? (config.settings.transparencyColor || '#5a5a5a')
+    : (config.settings.loadingBackgroundColor || '#000000'),
   filter: adjustmentStyle.value(index === activeImage.value ? imageSrc.value[activeImage.value] : imageSrc.value[index]),
 });
 // loading and error overlays
@@ -813,7 +829,7 @@ const adjustmentStyle = computed(() => (src: string) => {
 
 // ---- Load timing (diagnostics, enabled by settings.showLoadTiming) ----------
 const loadTimingText = ref('');
-function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean) {
+function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean, stageMs = 0) {
   if (!config.settings.showLoadTiming) { loadTimingText.value = ''; return; }
   const r = (n: number) => Math.round(n);
   const p = loaded.perf;
@@ -821,6 +837,7 @@ function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: Load
     `cloud-check ${r(tCloud - t0)} ms`,
     p && !fromCache ? `fetch+header ${r(p.loaded - p.start)} ms` : 'preloaded (cache)',
     p && !fromCache ? `decode ${r(p.decoded - p.loaded)} ms` : '',
+    stageMs > 0 ? `stage ${r(stageMs)} ms` : '',
     `show ${r(tPaint - tSlot)} ms`,
     `TOTAL ${r(tPaint - t0)} ms`,
     `${loaded.naturalWidth}x${loaded.naturalHeight}`,
@@ -829,7 +846,7 @@ function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: Load
   console.info('[lap-load]', path, loadTimingText.value);
 }
 
-function loadImageResource(filePath?: string) {
+function loadImageResource(filePath?: string, meta?: { id?: number; version?: number }) {
   if (!filePath) {
     return Promise.reject(new Error('Missing file path'));
   }
@@ -879,10 +896,10 @@ function loadImageResource(filePath?: string) {
 
     if (shouldUseBackendPreview(filePath, Number(props.fileType || 0))) {
       src = getPreviewUrl(
-        props.fileId,
+        meta?.id ?? props.fileId,
         filePath,
         false,
-        props.fileVersion,
+        meta?.version ?? props.fileVersion,
       );
       if (!src) {
         preloadCache.delete(filePath);
@@ -921,14 +938,19 @@ function loadImageResource(filePath?: string) {
 const PRELOAD_PIXEL_BUDGET = 250_000_000;   // ~1 GB of decoded RGBA
 let warmImageRequest = 0;
 
+const neighborMeta = new Map<string, { id?: number; version?: number }>();
 function getNeighborPaths(): string[] {
-  const list = props.neighborFilePaths.length > 0 ? props.neighborFilePaths : [props.nextFilePath];
+  const list: Array<string | { path: string; id?: number; version?: number }> =
+    props.neighborFilePaths.length > 0 ? props.neighborFilePaths : [props.nextFilePath];
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const path of list) {
+  neighborMeta.clear();
+  for (const entry of list) {
+    const path = typeof entry === 'string' ? entry : entry?.path;
     if (!path || path === props.filePath || seen.has(path)) continue;
     seen.add(path);
     out.push(path);
+    if (typeof entry !== 'string') neighborMeta.set(path, { id: entry.id, version: entry.version });
   }
   return out;
 }
@@ -939,6 +961,7 @@ function getNeighborPaths(): string[] {
 // zoom to 100 %). Invisible, almost transparent copies of the image force that
 // work to happen early: neighbours at fit size (instant navigation) and the
 // current image at 1:1 (instant first zoom to 100 %).
+const PRELOAD_BACKEND_COUNT = 3;
 const RASTER_WARM_MIN_PIXELS = 4_000_000;
 const RASTER_WARM_NEIGHBORS = 3;
 let rasterWarmHost: HTMLDivElement | null = null;
@@ -984,7 +1007,7 @@ function pruneFitWarm(keepPaths: string[]) {
 }
 
 function warmFitRaster(path: string, loaded: LoadedImage) {
-  if (config.settings.rasterWarm === false) return;
+  if (!config.settings.rasterWarm) return;
   if (rasterWarmFit.has(path) || !isWarmEligible(loaded)) return;
   const host = getRasterWarmHost();
   const cw = containerSize.value.width;
@@ -1008,7 +1031,7 @@ function clearZoomWarm() {
 function scheduleZoomWarm(path: string, loaded: LoadedImage) {
   if (rasterWarmZoomPath === path && rasterWarmZoom) return;
   clearZoomWarm();
-  if (config.settings.rasterWarm === false || !isWarmEligible(loaded)) return;
+  if (!config.settings.rasterWarm || !isWarmEligible(loaded)) return;
   rasterWarmZoomTimer = setTimeout(() => {
     rasterWarmZoomTimer = null;
     if (path !== props.filePath) return;
@@ -1027,8 +1050,37 @@ function scheduleZoomWarm(path: string, loaded: LoadedImage) {
 }
 
 watch(() => config.settings.rasterWarm, (enabled) => {
-  if (enabled === false) disposeRasterWarm();
+  if (!enabled) disposeRasterWarm();
 });
+
+// Just before a new big photo replaces the current one, a probe that mirrors the
+// real display layout (natural-size box scaled to fit) is attached almost
+// transparently. Waiting for its decode and a few frames lets the browser do the
+// expensive work while the previous photo is still on screen, so the new photo
+// appears complete instead of building up from a thin strip.
+async function stageForDisplay(loaded: LoadedImage, loadingId: number) {
+  if (config.settings.stageBeforeShow === false) return;
+  if (!isWarmEligible(loaded)) return;
+  const host = getRasterWarmHost();
+  const cw = containerSize.value.width;
+  const ch = containerSize.value.height;
+  if (!host || cw <= 0 || ch <= 0) return;
+  const fit = Math.min(cw / loaded.naturalWidth, ch / loaded.naturalHeight, 1);
+  const el = new Image();
+  el.decoding = 'async';
+  el.alt = '';
+  el.style.cssText = `position:absolute;max-width:none;left:50%;top:50%;width:${loaded.naturalWidth}px;height:${loaded.naturalHeight}px;margin-left:${-loaded.naturalWidth / 2}px;margin-top:${-loaded.naturalHeight / 2}px;transform:scale(${fit});will-change:transform;backface-visibility:hidden;`;
+  el.src = loaded.src;
+  host.appendChild(el);
+  try {
+    await Promise.race([el.decode(), new Promise<void>((resolve) => setTimeout(resolve, 2500))]);
+    for (let i = 0; i < 3 && loadingId === currentLoadingId.value; i++) await waitForNextPaint();
+  } catch {
+    // The real display path surfaces decode errors.
+  } finally {
+    el.remove();
+  }
+}
 
 function disposeRasterWarm() {
   clearZoomWarm();
@@ -1070,12 +1122,16 @@ function warmNeighbors() {
     let pixels = 0;
     for (const path of paths) {
       if (isStale()) return;
-      if (shouldUseBackendPreview(path, Number(props.fileType || 0))) continue;
+      if (Number(props.fileType) === 3) return;
+      const meta = neighborMeta.get(path);
+      // Backend-decoded formats (PSD, TIFF ...) are expensive to produce, so only
+      // the nearest few are prepared, and only when their file id is known.
+      if (shouldUseBackendPreview(path, 1) && (!meta?.id || paths.indexOf(path) >= PRELOAD_BACKEND_COUNT)) continue;
       try {
         // Reading a cloud-only original would trigger a download.
         if (await checkCloudOnlyCached(path)) continue;
         if (isStale()) return;
-        const loaded = await loadImageResource(path);
+        const loaded = await loadImageResource(path, meta);
         pixels += (loaded.naturalWidth || 0) * (loaded.naturalHeight || 0);
         if (!isStale() && paths.indexOf(path) < RASTER_WARM_NEIGHBORS) warmFitRaster(path, loaded);
       } catch {
@@ -1170,6 +1226,7 @@ function setImageSlot(
   layoutHeight: number = naturalHeight,
 ) {
   imageNaturalSize.value[slotIndex] = { width: naturalWidth, height: naturalHeight };
+  if (imageSrc.value[slotIndex] !== src) slotDecoded.value[slotIndex] = false;
   imageSrc.value[slotIndex] = src;
   imageFilePath.value[slotIndex] = filePath;
   imageRotate.value[slotIndex] = props.rotate;
@@ -1598,6 +1655,14 @@ watch([
       return;
     }
 
+    const perfStageStart = performance.now();
+    await stageForDisplay(loaded, loadingId);
+    const perfStage = performance.now() - perfStageStart;
+    if (loadingId !== currentLoadingId.value) {
+      if (loaded.raw) { URL.revokeObjectURL(loaded.src); rawObjectUrls.delete(loaded.src); }
+      return;
+    }
+
     if (loadingTimeout) {
       clearTimeout(loadingTimeout);
       loadingTimeout = null;
@@ -1677,7 +1742,7 @@ watch([
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (loadingId === currentLoadingId.value) {
           scheduleZoomWarm(String(newFilePath), loaded);
-          reportLoadTiming(String(newFilePath), perfT0, perfCloud, loaded, perfSlot, performance.now(), wasPreloaded);
+          reportLoadTiming(String(newFilePath), perfT0, perfCloud, loaded, perfSlot, performance.now(), wasPreloaded, perfStage);
         }
       }));
       for (const url of rawObjectUrls) {

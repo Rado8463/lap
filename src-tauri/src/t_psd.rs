@@ -116,7 +116,17 @@ fn unpack_packbits(src: &[u8], dst: &mut [u8]) -> Result<(), String> {
     Ok(())
 }
 
+fn worker_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(2)
+        .clamp(1, 16)
+}
+
 /// Decodes the merged image into 8-bit RGB (alpha ignored).
+///
+/// Rows are independent once the byte counts are known, so RLE decoding and the
+/// final interleaving are spread over all CPU cores.
 pub fn decode_composite(file_path: &str) -> Result<RgbImage, String> {
     let file = File::open(file_path).map_err(|e| e.to_string())?;
     let mut r = BufReader::with_capacity(1 << 20, file);
@@ -150,26 +160,26 @@ pub fn decode_composite(file_path: &str) -> Result<RgbImage, String> {
 
     let compression = read_u16(&mut r)?;
     let (w, ht) = (h.width, h.height);
-    let bytes_per_sample = h.depth / 8;
-    let row_bytes = w * bytes_per_sample;
+    let bps = h.depth / 8;
+    let row_bytes = w * bps;
     let pixels = w
         .checked_mul(ht)
         .ok_or_else(|| "PSD too large".to_string())?;
+    let workers = worker_count();
 
     let mut planes: Vec<Vec<u8>> = (0..needed).map(|_| vec![0u8; pixels]).collect();
-    let mut row = vec![0u8; row_bytes];
 
     match compression {
         0 => {
-            for c in 0..h.channels {
-                if c >= needed {
-                    break;
-                }
-                for y in 0..ht {
-                    r.read_exact(&mut row).map_err(|e| e.to_string())?;
-                    let dst = &mut planes[c][y * w..(y + 1) * w];
-                    for (x, d) in dst.iter_mut().enumerate() {
-                        *d = row[x * bytes_per_sample];
+            // Raw: channels are stored one after another, row by row.
+            let mut plane_raw = vec![0u8; row_bytes * ht];
+            for plane in planes.iter_mut() {
+                r.read_exact(&mut plane_raw).map_err(|e| e.to_string())?;
+                if bps == 1 {
+                    plane.copy_from_slice(&plane_raw);
+                } else {
+                    for (d, chunk) in plane.iter_mut().zip(plane_raw.chunks_exact(bps)) {
+                        *d = chunk[0];
                     }
                 }
             }
@@ -184,50 +194,95 @@ pub fn decode_composite(file_path: &str) -> Result<RgbImage, String> {
                     read_u16(&mut r)? as usize
                 });
             }
-            let mut packed: Vec<u8> = Vec::new();
-            for c in 0..needed {
-                for y in 0..ht {
-                    let count = counts[c * ht + y];
-                    packed.resize(count, 0);
-                    r.read_exact(&mut packed).map_err(|e| e.to_string())?;
-                    unpack_packbits(&packed, &mut row)?;
-                    let dst = &mut planes[c][y * w..(y + 1) * w];
-                    for (x, d) in dst.iter_mut().enumerate() {
-                        *d = row[x * bytes_per_sample];
-                    }
+            // Rows of the channels we need are contiguous at the start of the data.
+            let needed_rows = needed * ht;
+            let mut offsets = Vec::with_capacity(needed_rows + 1);
+            let mut total = 0usize;
+            offsets.push(0);
+            for &c in &counts[..needed_rows] {
+                total = total
+                    .checked_add(c)
+                    .ok_or_else(|| "PSD row data too large".to_string())?;
+                offsets.push(total);
+            }
+            let mut packed = vec![0u8; total];
+            r.read_exact(&mut packed).map_err(|e| e.to_string())?;
+
+            let mut rows: Vec<(usize, &mut [u8])> = Vec::with_capacity(needed_rows);
+            for (c, plane) in planes.iter_mut().enumerate() {
+                for (y, row) in plane.chunks_mut(w).enumerate() {
+                    rows.push((c * ht + y, row));
                 }
             }
+            let per_worker = rows.len().div_ceil(workers).max(1);
+            let packed_ref = &packed;
+            let offsets_ref = &offsets;
+            std::thread::scope(|scope| -> Result<(), String> {
+                let handles: Vec<_> = rows
+                    .chunks_mut(per_worker)
+                    .map(|chunk| {
+                        scope.spawn(move || -> Result<(), String> {
+                            let mut tmp = if bps == 1 { Vec::new() } else { vec![0u8; row_bytes] };
+                            for (idx, dst) in chunk.iter_mut() {
+                                let src = &packed_ref[offsets_ref[*idx]..offsets_ref[*idx + 1]];
+                                if bps == 1 {
+                                    unpack_packbits(src, dst)?;
+                                } else {
+                                    unpack_packbits(src, &mut tmp)?;
+                                    for (x, d) in dst.iter_mut().enumerate() {
+                                        *d = tmp[x * bps];
+                                    }
+                                }
+                            }
+                            Ok(())
+                        })
+                    })
+                    .collect();
+                for handle in handles {
+                    handle
+                        .join()
+                        .map_err(|_| "PSD decoder thread panicked".to_string())??;
+                }
+                Ok(())
+            })?;
         }
         other => return Err(format!("Unsupported PSD compression {}", other)),
     }
 
     let mut rgb = vec![0u8; pixels * 3];
-    match h.mode {
-        1 => {
-            for i in 0..pixels {
-                let v = planes[0][i];
-                rgb[i * 3] = v;
-                rgb[i * 3 + 1] = v;
-                rgb[i * 3 + 2] = v;
-            }
+    let mode = h.mode;
+    let planes_ref = &planes;
+    let rows_per_worker = ht.div_ceil(workers).max(1);
+    std::thread::scope(|scope| {
+        for (chunk_index, out) in rgb.chunks_mut(rows_per_worker * w * 3).enumerate() {
+            scope.spawn(move || {
+                let first_pixel = chunk_index * rows_per_worker * w;
+                for (i, px) in out.chunks_exact_mut(3).enumerate() {
+                    let p = first_pixel + i;
+                    match mode {
+                        1 => {
+                            let v = planes_ref[0][p];
+                            px[0] = v;
+                            px[1] = v;
+                            px[2] = v;
+                        }
+                        3 => {
+                            px[0] = planes_ref[0][p];
+                            px[1] = planes_ref[1][p];
+                            px[2] = planes_ref[2][p];
+                        }
+                        _ => {
+                            // CMYK: Photoshop stores inverted ink values (255 = no ink).
+                            let k = planes_ref[3][p] as u32;
+                            px[0] = ((planes_ref[0][p] as u32 * k + 127) / 255) as u8;
+                            px[1] = ((planes_ref[1][p] as u32 * k + 127) / 255) as u8;
+                            px[2] = ((planes_ref[2][p] as u32 * k + 127) / 255) as u8;
+                        }
+                    }
+                }
+            });
         }
-        3 => {
-            for i in 0..pixels {
-                rgb[i * 3] = planes[0][i];
-                rgb[i * 3 + 1] = planes[1][i];
-                rgb[i * 3 + 2] = planes[2][i];
-            }
-        }
-        _ => {
-            // CMYK: Photoshop stores inverted ink values (255 = no ink).
-            for i in 0..pixels {
-                let k = planes[3][i] as u32;
-                rgb[i * 3] = ((planes[0][i] as u32 * k + 127) / 255) as u8;
-                rgb[i * 3 + 1] = ((planes[1][i] as u32 * k + 127) / 255) as u8;
-                rgb[i * 3 + 2] = ((planes[2][i] as u32 * k + 127) / 255) as u8;
-            }
-        }
-    }
+    });
 
     RgbImage::from_raw(w as u32, ht as u32, rgb).ok_or_else(|| "Failed to build RGB image".to_string())
 }

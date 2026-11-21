@@ -194,7 +194,23 @@
       @cancel="showAddToCollectionDialog = false"
     />
 
-    <EditMetadataDialog v-if="showCommentMsgbox && metadataFiles.length" :files="metadataFiles" :focus-field="metadataFocus"
+    <MessageBox
+      v-if="showRenameMsgbox"
+      :title="$t('msgbox.rename_file.title')"
+      :showInput="true"
+      :inputText="renamingFileName.name"
+      :inputPlaceholder="$t('msgbox.rename_file.placeholder')"
+      :inputExtension="renamingFileName.ext"
+      :needValidateInput="true"
+      :OkText="$t('msgbox.rename_file.ok')"
+      :cancelText="$t('msgbox.cancel')"
+      :errorMessage="renameErrorMessage"
+      @ok="onRenameFile"
+      @cancel="showRenameMsgbox = false"
+      @reset="renameErrorMessage = ''"
+    />
+
+    <EditMetadataDialog v-if="showCommentMsgbox" && metadataFiles.length" :files="metadataFiles" :focus-field="metadataFocus"
     @saved="onMetadataSaved" @cancel="showCommentMsgbox = false" />
 
   </div>
@@ -213,7 +229,7 @@ import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
-import { isWin, isMac, isLinux, copyFilePaths, getClipboardItemPaths, getMediaItemSize, getSlideShowInterval, SCALE_VALUES } from '@/common/utils';
+import { extractFileName, combineFileName, isWin, isMac, isLinux, copyFilePaths, getClipboardItemPaths, getMediaItemSize, getSlideShowInterval, SCALE_VALUES } from '@/common/utils';
 import { matchesShortcut, ShortcutActionId, ShortcutPlatform, VIEW_BACKGROUND_SHORTCUTS } from '@/common/shortcuts';
 import { handleVideoPlaybackShortcut, handleVideoEscapeShortcut } from '@/common/video';
 import {
@@ -227,6 +243,7 @@ import {
   setFileCullingFlag,
   setFileRotate,
   openFilesWithApp,
+  renameFile,
 } from '@/common/api';
 
 import MediaViewer from '@/components/MediaViewer.vue';
@@ -257,7 +274,7 @@ const fileCount = ref(0);       // Total number of files
 
 const fileInfo = ref<any>(null);
 const nextFilePath = ref('');
-const neighborFilePaths = ref<string[]>([]);
+const neighborFilePaths = ref<any[]>([]);
 const iconRotate = ref(0);      // icon rotation angle
 const isTransitionDisabled = ref(true);
 
@@ -383,7 +400,7 @@ onMounted(async() => {
   nextFilePath.value = decodeURIComponent(urlParams.get('nextFilePath') || '');
   try {
     const parsed = JSON.parse(urlParams.get('neighborFilePaths') || '[]');
-    neighborFilePaths.value = Array.isArray(parsed) ? parsed.filter((p: unknown) => typeof p === 'string') : [];
+    neighborFilePaths.value = Array.isArray(parsed) ? parsed.filter((p: unknown) => typeof p === 'string' || (p && typeof p === 'object')) : [];
   } catch {
     neighborFilePaths.value = [];
   }
@@ -628,6 +645,49 @@ async function openActiveFileInExternalApp() {
   }
 }
 
+const showRenameMsgbox = ref(false);
+const renamingFileName = ref<{ name?: string; ext?: string }>({});
+const renameErrorMessage = ref('');
+
+function openRenameDialog() {
+  const file = getFileInfoByPane(getActivePane());
+  if (!file?.file_path || !file?.name) return;
+  if (isOriginalStorageUnavailable(file)) {
+    toast.warning(t('offline.requires_original'));
+    return;
+  }
+  renamingFileName.value = extractFileName(file.name);
+  renameErrorMessage.value = '';
+  showRenameMsgbox.value = true;
+}
+
+async function onRenameFile(newName: string) {
+  const pane = getActivePane();
+  const file = getFileInfoByPane(pane);
+  if (!file) { showRenameMsgbox.value = false; return; }
+  const fileName = combineFileName(newName, renamingFileName.value.ext ?? '');
+  if (fileName === file.name) {
+    showRenameMsgbox.value = false;
+    return;
+  }
+  let newFilePath;
+  try {
+    newFilePath = await renameFile(file.id, file.file_path, fileName);
+  } catch (error) {
+    renameErrorMessage.value = `${t('msgbox.rename_file.error')}: ${String(error)}`;
+    return;
+  }
+  if (newFilePath) {
+    const changes = { name: fileName, file_path: newFilePath };
+    applyFileMetaToPanes(file.id, changes);
+    syncFileMetaToContent(file.id, changes);
+    showRenameMsgbox.value = false;
+    renameErrorMessage.value = '';
+  } else {
+    renameErrorMessage.value = t('msgbox.rename_file.error');
+  }
+}
+
 async function copyActiveFilePath() {
   try {
     const count = await copyFilePaths([getFileInfoByPane(getActivePane())], config.settings.groupRawJpegPairs);
@@ -687,6 +747,11 @@ function handleKeyDown(event: KeyboardEvent) {
   if (matchesShortcut('file.openExternalApp', event, shortcutPlatform) && !isEditingText) {
     event.preventDefault();
     if (!event.repeat) void openActiveFileInExternalApp();
+    return;
+  }
+  if (matchesShortcut('file.rename', event, shortcutPlatform) && !isEditingText) {
+    event.preventDefault();
+    if (!event.repeat) openRenameDialog();
     return;
   }
   if (matchesShortcut('file.copyPath', event, shortcutPlatform) && !isEditingText) {

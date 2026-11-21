@@ -196,7 +196,11 @@ export const useConfigStore = defineStore('configStore', {
       navigatorViewMode: 0,      // 0: Auto, 1: Always show, 2: Always hide
       navigatorViewSize: 240,    // navigator view size (160, 240, 320, 400)
       navigatorSharpnessGrid: false,
-      rasterWarm: true,         // invisible pre-rendering of neighbours / 1:1 zoom (A/B test switch)
+      rasterWarm: false,        // invisible pre-rendering of neighbours / 1:1 zoom (off by default: measured slower)
+      stageBeforeShow: true,    // keep the old photo until the new big photo is decoded and rendered
+      loadingBackgroundColor: '#000000', // colour of a photo's area before its pixels are loaded
+      thumbHighlightEnabled: false, // use a custom colour for the current thumbnail's border
+      thumbHighlightColor: '#f59e0b', // border colour of the current thumbnail (when enabled)
       showLoadTiming: false,    // diagnostics: overlay with image load timings in the viewer
       dblClickNewWindow: true,   // double-click on a thumbnail opens the Image Viewer in a new window (Shift/Ctrl/Cmd inverts)
       transparencyColor: '#5a5a5a', // color shown behind transparent areas of PNG/PSD/TIFF in the viewer (default RGB 90,90,90)

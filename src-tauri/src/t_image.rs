@@ -1328,13 +1328,53 @@ fn psd_composite_jpeg(file_path: &str, max_dimension: u32) -> Result<Vec<u8>, St
     resize_rgb_image_to_jpeg(rgb, max_dimension)
 }
 
+/// Recently produced PSD/PSB viewer previews, so reopening (or opening after a
+/// background preload) does not decode a multi-hundred-megapixel composite again.
+static PSD_PREVIEW_CACHE: Lazy<std::sync::Mutex<Vec<(String, u64, u64, std::sync::Arc<Vec<u8>>)>>> =
+    Lazy::new(|| std::sync::Mutex::new(Vec::new()));
+const PSD_PREVIEW_CACHE_ENTRIES: usize = 6;
+
+fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
+    let meta = std::fs::metadata(file_path).ok()?;
+    let mtime = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis() as u64;
+    Some((mtime, meta.len()))
+}
+
 /// Full-resolution viewer preview of a PSD/PSB; None when the native reader cannot handle the file.
 async fn psd_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
+    let key = psd_cache_key(file_path);
+    if let Some((mtime, len)) = key {
+        if let Ok(cache) = PSD_PREVIEW_CACHE.lock() {
+            if let Some(entry) = cache
+                .iter()
+                .find(|(p, m, l, _)| p == file_path && *m == mtime && *l == len)
+            {
+                return Some(entry.3.as_ref().clone());
+            }
+        }
+    }
     let path = file_path.to_string();
-    tauri::async_runtime::spawn_blocking(move || psd_composite_jpeg(&path, PSD_VIEWER_MAX_DIMENSION))
-        .await
-        .ok()?
-        .ok()
+    let data = tauri::async_runtime::spawn_blocking(move || {
+        psd_composite_jpeg(&path, PSD_VIEWER_MAX_DIMENSION)
+    })
+    .await
+    .ok()?
+    .ok()?;
+    if let Some((mtime, len)) = key {
+        if let Ok(mut cache) = PSD_PREVIEW_CACHE.lock() {
+            cache.retain(|(p, _, _, _)| p != file_path);
+            cache.push((file_path.to_string(), mtime, len, std::sync::Arc::new(data.clone())));
+            while cache.len() > PSD_PREVIEW_CACHE_ENTRIES {
+                cache.remove(0);
+            }
+        }
+    }
+    Some(data)
 }
 
 fn should_generate_preview_for_file(file_path: &str, file_type: i64) -> bool {

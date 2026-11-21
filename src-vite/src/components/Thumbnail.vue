@@ -10,6 +10,7 @@
         : 'border-transparent',
       config.settings.grid.style === 0 && isSelected ? 'bg-base-100 hover:bg-base-100' : 'hover:bg-base-100/30 hover:text-base-content ',
     ]"
+    :style="highlightStyle"
     @click="(event: MouseEvent) => $emit('clicked', { shiftKey: event.shiftKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey })"
     @dblclick="handleDoubleClick"
     @contextmenu="handleContextMenu"
@@ -558,6 +559,13 @@ const layoutStyle = computed(() => {
   if (style === 0) return { width: `${size}px`, height: `${size}px` };
   if (style === 1) return { width: '100%', height: `${size}px` };
   return { width: '100%', height: '100%' };
+});
+
+// Optional custom colour for the border around the current thumbnail.
+const highlightStyle = computed((): CSSProperties | undefined => {
+  if (!config.settings.thumbHighlightEnabled || !props.isActive) return undefined;
+  const color = config.settings.thumbHighlightColor || '#f59e0b';
+  return { borderColor: props.isContentActive ? color : `color-mix(in srgb, ${color} 50%, transparent)` };
 });
 
 const imgStyle = computed((): CSSProperties => {

@@ -127,6 +127,18 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.highlight_current') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.grid.highlight_current_hint') }}</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <template v-if="config.settings.thumbHighlightEnabled">
+                  <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.thumbHighlightColor" />
+                </template>
+                <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.thumbHighlightEnabled" />
+              </div>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.grid.style') }}</div>
               </div>
               <select class="select select-bordered select-sm min-w-32" v-model="config.settings.grid.style">
@@ -292,6 +304,27 @@
                 </div>
               </div>
               <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.rasterWarm" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.stage_before_show') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.stage_before_show_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.stageBeforeShow" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.loading_background') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.loading_background_hint') }}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.loadingBackgroundColor" />
+                <button class="btn btn-ghost btn-sm" @click="config.settings.loadingBackgroundColor = '#000000'">{{ $t('settings.image_view.transparency_color_reset') }}</button>
+              </div>
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
@@ -1787,6 +1820,15 @@ watch(() => config.settings.navigatorViewSize, (newValue) => {
 });
 watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
   emit('settings-navigatorSharpnessGrid-changed', newValue);
+});
+watch(() => config.settings.stageBeforeShow, (newValue) => {
+  emit('settings-stageBeforeShow-changed', newValue);
+});
+watch(() => config.settings.loadingBackgroundColor, (newValue) => {
+  emit('settings-loadingBackgroundColor-changed', newValue);
+});
+watch(() => [config.settings.thumbHighlightEnabled, config.settings.thumbHighlightColor], ([enabled, color]) => {
+  emit('settings-thumbHighlight-changed', { enabled, color });
 });
 watch(() => config.settings.rasterWarm, (newValue) => {
   emit('settings-rasterWarm-changed', newValue);

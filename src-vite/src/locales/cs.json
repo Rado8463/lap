@@ -1517,6 +1517,8 @@
     "grid": {
       "title": "Rozvržení",
       "section_grid": "Mřížka",
+      "highlight_current": "Vlastní zvýraznění aktuálního náhledu",
+      "highlight_current_hint": "Když je zapnuto, rámeček kolem aktuálního náhledu má zvolenou barvu.",
       "style": "Styl",
       "style_options": [
         "Zobrazení karet",
@@ -1611,6 +1613,10 @@
       "show_load_timing_hint": "Zobrazí ve vieweru malý přehled, jak dlouho trvalo načtení, dekódování a zobrazení každé fotky (diagnostika)",
       "raster_warm": "Předvykreslit velké fotky na pozadí",
       "raster_warm_hint": "Nenápadně připraví další fotky a zobrazení 100 %, aby se objevily rychleji. Vypněte, pokud se fotky načítají nerovnoměrně.",
+      "stage_before_show": "Počkat na velké fotky před zobrazením",
+      "stage_before_show_hint": "Ponechá předchozí fotku na obrazovce, dokud se další velká fotka úplně nevykreslí, místo aby se skládala z úzkého pruhu.",
+      "loading_background": "Pozadí ještě nenačtené fotky",
+      "loading_background_hint": "Barva v místech, kde ještě nejsou načtené pixely fotky (barva průhlednosti výše se používá jen pro načtenou fotku).",
       "view_background_options": [
         "Podle motivu",
         "Černá",

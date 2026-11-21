@@ -2259,10 +2259,12 @@ const isSlideShow = ref(false);
 // images, then the previous PRELOAD_BEHIND ones.
 const PRELOAD_AHEAD = 5;
 const PRELOAD_BEHIND = 5;
-function getNeighborImagePaths(index: number, files: any[] = fileList.value): string[] {
-  const paths: string[] = [];
+function getNeighborImagePaths(index: number, files: any[] = fileList.value): Array<{ path: string; id: number; version: number }> {
+  const paths: Array<{ path: string; id: number; version: number }> = [];
   const add = (target: any) => {
-    if (target && !target.isPlaceholder && target.file_type === 1 && target.file_path) paths.push(target.file_path);
+    if (target && !target.isPlaceholder && target.file_type === 1 && target.file_path) {
+      paths.push({ path: target.file_path, id: target.id, version: target.modified_at || 0 });
+    }
   };
   for (let i = 1; i <= PRELOAD_AHEAD; i++) add(files[index + i]);
   for (let i = 1; i <= PRELOAD_BEHIND; i++) add(files[index - i]);

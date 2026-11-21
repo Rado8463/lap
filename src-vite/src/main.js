@@ -244,6 +244,16 @@ if (isMainWindow) {
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)
   })
+  listen('settings-stageBeforeShow-changed', (event) => {
+    config.settings.stageBeforeShow = event.payload
+  })
+  listen('settings-loadingBackgroundColor-changed', (event) => {
+    config.settings.loadingBackgroundColor = event.payload
+  })
+  listen('settings-thumbHighlight-changed', (event) => {
+    config.settings.thumbHighlightEnabled = event.payload.enabled
+    config.settings.thumbHighlightColor = event.payload.color
+  })
   listen('settings-rasterWarm-changed', (event) => {
     config.settings.rasterWarm = event.payload
   })
