@@ -1319,8 +1319,9 @@ fn is_preview_only_document(file_path: &str) -> bool {
             .is_some_and(|ext| ext.eq_ignore_ascii_case("psd") || ext.eq_ignore_ascii_case("psb"))
 }
 
-/// Longest side of a PSD/PSB composite preview shown in the viewer (never upscaled).
-const PSD_VIEWER_MAX_DIMENSION: u32 = 16384;
+/// Longest side of a PSD/PSB composite preview shown in the viewer (never upscaled). Bigger files are
+/// shown at their real size so 100 % zoom is not a resampled copy (JPEG itself allows 65535 px).
+const PSD_VIEWER_MAX_DIMENSION: u32 = 32768;
 
 /// Decodes the merged image of a PSD/PSB and encodes it as JPEG (no upscaling).
 fn psd_composite_jpeg(file_path: &str, max_dimension: u32) -> Result<Vec<u8>, String> {
