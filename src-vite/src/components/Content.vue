@@ -1552,6 +1552,9 @@ async function restoreSelectionAfterFileListRefresh() {
   }
 }
 
+// Back / Forward: the restored file is scrolled to the middle of the grid instead of the nearest edge.
+let centerFocusedFileOnRestore = false;
+
 // File to focus once the list of the next history location has loaded (Back / Forward).
 let historyFocusRequest: { fileId: number; expires: number } | null = null;
 
@@ -1574,7 +1577,12 @@ async function applyHistoryFocusRequest() {
     historyFocusRequest = null;
     pendingFocusedFileId = request.fileId;
     const requestId = currentContentRequestId;
-    await restoreFocusedFileAfterListRefresh();
+    centerFocusedFileOnRestore = true;
+    try {
+      await restoreFocusedFileAfterListRefresh();
+    } finally {
+      centerFocusedFileOnRestore = false;
+    }
     // In big albums the grid layout / virtual rows settle after the first scroll,
     // (and the list may be scrolled back to the top meanwhile), so re-apply it a few times.
     for (const delay of [120, 350, 800]) {
@@ -1587,7 +1595,7 @@ async function applyHistoryFocusRequest() {
         await scrollToGroupedFile(index);
       } else {
         void fetchDataRange(index, index + 1);
-        gridViewRef.value?.scrollToItem(index);
+        gridViewRef.value?.scrollToItem(index, true);
       }
     }
   }
@@ -1620,7 +1628,7 @@ async function restoreRefreshedFileSelection(
     await scrollToGroupedFile(index);
   } else {
     if (scrollTop !== null) gridViewRef.value?.scrollToPosition(scrollTop);
-    gridViewRef.value?.scrollToItem(index);
+    gridViewRef.value?.scrollToItem(index, centerFocusedFileOnRestore);
   }
 }
 
