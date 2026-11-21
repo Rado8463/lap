@@ -63,6 +63,7 @@ export type ShortcutActionId =
   | 'view.zoomInDirectional'
   | 'view.zoomOutDirectional'
   | 'view.zoomFit'
+  | 'view.zoomFitWidth'
   | 'view.saveViewport'
   | 'view.clearViewport'
   | 'view.zoomLock'
@@ -458,6 +459,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.zoomFit',
     contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ code: 'KeyZ', label: 'Z' }],
+  },
+  {
+    id: 'view.zoomFitWidth',
+    contexts: ['image-viewer'],
+    defaultBindings: [{ code: 'KeyW', label: 'W' }],
   },
   {
     id: 'view.saveViewport',

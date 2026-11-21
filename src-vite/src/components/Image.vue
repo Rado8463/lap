@@ -2631,14 +2631,34 @@ function wheelZoom(event: WheelEvent, zoomFactor: number) {
   zoomImage(event.clientX - containerPosVal.x, event.clientY - containerPosVal.y, newScale);
 }
 
+function getFitWidthScale(): number {
+  const container = containerSize.value;
+  const rotated = imageSizeRotated.value[activeImage.value];
+  if (!(container.width > 0) || !(rotated.width > 0)) return 0;
+  return container.width / rotated.width;
+}
+
 // Discrete zoom levels (in real screen pixels per image pixel) used by the
 // zoom in/out commands: 10, 20, 30, 50, 70, 100, 200 %, then larger steps.
 const ZOOM_STEPS = [0.1, 0.2, 0.3, 0.5, 0.7, 1, 2, 3, 4, 5, 7, 10];
 
+// The steps plus the "fit to width" zoom of the current image (when it is a sensible step).
+function getZoomSteps(dpr: number): number[] {
+  const steps = [...ZOOM_STEPS];
+  if (typeof getFitWidthScale === 'function') {
+    const fitWidth = getFitWidthScale() * dpr;
+    if (fitWidth > 0.1 && fitWidth < 10 && !steps.some(step => Math.abs(step / fitWidth - 1) < 0.01)) {
+      steps.push(fitWidth);
+      steps.sort((a, b) => a - b);
+    }
+  }
+  return steps;
+}
+
 const zoomIn = () => {
   const dpr = window.devicePixelRatio || 1;
   const current = scale.value[activeImage.value] * dpr;
-  const next = ZOOM_STEPS.find(step => step > current * 1.005);
+  const next = getZoomSteps(dpr).find(step => step > current * 1.005);
   const newScale = Math.min(next !== undefined ? next / dpr : scale.value[activeImage.value], maxScale.value);
   const container = containerSize.value;
   zoomImage(container.width / 2, container.height / 2, newScale);
@@ -2649,9 +2669,17 @@ const zoomOut = () => {
   minScale.value = 0.1;
   const dpr = window.devicePixelRatio || 1;
   const current = scale.value[activeImage.value] * dpr;
-  const previous = [...ZOOM_STEPS].reverse().find(step => step < current * 0.995);
+  const previous = getZoomSteps(dpr).reverse().find(step => step < current * 0.995);
   const newScale = Math.max(previous !== undefined ? previous / dpr : minScale.value, minScale.value);
   zoomImage(container.width / 2, container.height / 2, newScale);
+};
+
+const zoomFitWidth = () => {
+  const target = getFitWidthScale();
+  if (!(target > 0)) return;
+  const container = containerSize.value;
+  // Fit to width: show the top of the photo at the new zoom.
+  zoomImage(container.width / 2, 0, Math.min(Math.max(target, 0.01), maxScale.value));
 };
 
 const zoomActual = () => {
@@ -2875,6 +2903,7 @@ defineExpose({
   zoomIn, 
   zoomOut,
   zoomActual,
+  zoomFitWidth,
   rotateView,
   getViewportState,
   applyViewportState,
