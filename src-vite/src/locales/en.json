@@ -1466,6 +1466,8 @@
         "Large",
         "Larger"
       ],
+      "hide_title_bar": "Hide window title bar",
+      "hide_title_bar_hint": "Removes the title bar of the main window; the minimize, maximize and close buttons move to the toolbar. Drag the window by the empty part of the toolbar.",
       "show_tool_tip": "Show button tips",
       "show_status_bar": "Show status bar",
       "auto_check_updates": "Auto-check for updates"

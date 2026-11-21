@@ -349,7 +349,10 @@ const currentLibrary = computed(() =>
 
 // Manage Libraries dialog state
 const showManageLibraries = ref(false);
-const showDesktopTitleBar = isWin || isLinux;
+// With the title bar hidden (default) the window buttons live in the content toolbar. The title
+// bar stays when there is no toolbar (empty library, damaged database).
+const titleBarHidden = computed(() => config.settings.titleBarHidden !== false);
+const showDesktopTitleBar = computed(() => (isWin || isLinux) && (!titleBarHidden.value || libraryEmpty.value || databaseCorrupted.value !== false));
 
 /// Splitter for resizing the left pane
 const isDraggingSplitter = ref(false);

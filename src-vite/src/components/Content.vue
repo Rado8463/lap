@@ -190,6 +190,9 @@
             @click="toggleInfoPanel"
           />
         </div>
+
+        <!-- window buttons (when the window title bar is hidden) -->
+        <WindowControls v-if="showInlineWindowControls" class="ml-1" />
       </div>
     </div>
 
@@ -872,6 +875,7 @@ import { fileInfoRevision } from '@/common/fileInfoRefresh';
 import IndexRecoveryDialog from '@/components/IndexRecoveryDialog.vue';
 import MoveTo from '@/components/MoveTo.vue';
 import TButton from '@/components/TButton.vue';
+import WindowControls from '@/components/WindowControls.vue';
 import TaggingDialog from '@/components/TaggingDialog.vue';
 import AddToCollectionDialog from '@/components/AddToCollectionDialog.vue';
 import ExternalAppsDialog from '@/components/ExternalAppsDialog.vue';
@@ -4150,6 +4154,7 @@ function commitRequestedSidebarCount(count: number, request = uiStore.countUpdat
 }
 
 const showWelcomeContent = computed(() => props.libraryEmpty && libraryChecked.value);
+const showInlineWindowControls = computed(() => (isWin || isLinux) && config.settings.titleBarHidden !== false && !showWelcomeContent.value);
 const hasConfirmedEmptyContent = computed(() => (
   contentReady.value
   && !isLoading.value

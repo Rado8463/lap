@@ -259,6 +259,9 @@ if (isMainWindow) {
     config.settings.infoTipLine1 = event.payload.line1
     config.settings.infoTipLine2 = event.payload.line2
   })
+  listen('settings-titleBarHidden-changed', (event) => {
+    config.settings.titleBarHidden = event.payload
+  })
   listen('settings-hybridFilter-changed', (event) => {
     config.settings.hybridFilter = event.payload
   })

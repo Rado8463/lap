@@ -87,6 +87,13 @@
             <div class="flex items-center gap-2 text-base-content/30">
               <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.general.section_interface') }}</span>
             </div>
+            <div v-if="isWin || isLinux" class="flex items-center justify-between p-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.general.hide_title_bar') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.general.hide_title_bar_hint') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-primary toggle-sm" :checked="config.settings.titleBarHidden !== false" @change="config.settings.titleBarHidden = $event.target.checked" />
+            </div>
             <div class="flex items-center justify-between p-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.general.show_tool_tip') }}</div>
@@ -1021,7 +1028,7 @@ import {
   cancelMultilingualImageSearchModelDownload,
   listenImageSearchModelDownloadProgress,
 } from '@/common/api';
-import { formatFileSize, isLinux, isMac, SCALE_VALUES } from '@/common/utils';
+import { formatFileSize, isLinux, isMac, isWin, SCALE_VALUES } from '@/common/utils';
 import { useAppearance } from '@/composables/useAppearance';
 import { getShortcut, getShortcutLabels, getActiveBindings, getBindingSignature, setShortcutOverrides, SHORTCUTS, ShortcutActionId, ShortcutBinding, ShortcutModifier, ShortcutPlatform } from '@/common/shortcuts';
 import { useToast } from '@/common/toast';
@@ -2029,6 +2036,9 @@ watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
 });
 watch(() => [config.settings.hybridDiskCache, config.settings.hybridDiskCacheAlbumsOnly], ([enabled, albumsOnly]) => {
   emit('settings-hybridDiskCache-changed', { enabled: enabled !== false, albumsOnly: albumsOnly !== false });
+});
+watch(() => config.settings.titleBarHidden, (hidden) => {
+  emit('settings-titleBarHidden-changed', hidden !== false);
 });
 watch(() => [config.settings.infoTipEnabled, config.settings.infoTipLine1, config.settings.infoTipLine2], ([enabled, line1, line2]) => {
   emit('settings-infoTip-changed', { enabled: enabled !== false, line1: String(line1 ?? ''), line2: String(line2 ?? '') });

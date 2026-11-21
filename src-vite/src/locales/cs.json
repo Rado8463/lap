@@ -1465,6 +1465,8 @@
         "Velké",
         "Největší"
       ],
+      "hide_title_bar": "Skrýt záhlaví okna",
+      "hide_title_bar_hint": "Odstraní záhlaví hlavního okna; tlačítka minimalizovat, maximalizovat a zavřít se přesunou do panelu nástrojů. Okno přesouvejte za prázdnou část panelu nástrojů.",
       "show_tool_tip": "Zobrazovat tipy u tlačítek",
       "show_status_bar": "Zobrazovat stavový řádek",
       "auto_check_updates": "Automaticky kontrolovat aktualizace"
