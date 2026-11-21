@@ -1614,6 +1614,8 @@
       "show_load_timing_hint": "Shows a small overlay in the viewer with how long loading, decoding and showing each photo took (diagnostics)",
       "raster_warm": "Pre-render large photos in the background",
       "raster_warm_hint": "Invisibly prepares the next photos and the 100 % view so they appear faster. Turn off if photos load unevenly.",
+      "pan_beyond_edges": "Allow moving zoomed photo past screen edges",
+      "pan_beyond_edges_hint": "When zoomed in beyond fit-to-screen, the photo can be dragged so that its edge is inside the screen, leaving empty space.",
       "stage_before_show": "Wait for big photos before showing them",
       "stage_before_show_hint": "Keeps the previous photo on screen until the next large photo is fully rendered, instead of building it up from a thin strip.",
       "loading_background": "Background of a photo that is still loading",

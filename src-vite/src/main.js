@@ -244,6 +244,9 @@ if (isMainWindow) {
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)
   })
+  listen('settings-panBeyondEdges-changed', (event) => {
+    config.settings.panBeyondEdges = event.payload
+  })
   listen('settings-stageBeforeShow-changed', (event) => {
     config.settings.stageBeforeShow = event.payload
   })

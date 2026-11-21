@@ -1613,6 +1613,8 @@
       "show_load_timing_hint": "Zobrazí ve vieweru malý přehled, jak dlouho trvalo načtení, dekódování a zobrazení každé fotky (diagnostika)",
       "raster_warm": "Předvykreslit velké fotky na pozadí",
       "raster_warm_hint": "Nenápadně připraví další fotky a zobrazení 100 %, aby se objevily rychleji. Vypněte, pokud se fotky načítají nerovnoměrně.",
+      "pan_beyond_edges": "Povolit posun přiblížené fotky přes okraje obrazovky",
+      "pan_beyond_edges_hint": "Při přiblížení nad velikost „přizpůsobit obrazovce“ lze fotku posunout tak, aby její okraj byl uvnitř obrazovky a zůstalo prázdné místo.",
       "stage_before_show": "Počkat na velké fotky před zobrazením",
       "stage_before_show_hint": "Ponechá předchozí fotku na obrazovce, dokud se další velká fotka úplně nevykreslí, místo aby se skládala z úzkého pruhu.",
       "loading_background": "Pozadí ještě nenačtené fotky",

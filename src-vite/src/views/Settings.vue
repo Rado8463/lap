@@ -307,6 +307,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.pan_beyond_edges') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.pan_beyond_edges_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.panBeyondEdges" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.stage_before_show') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.stage_before_show_hint') }}
@@ -1821,6 +1830,10 @@ watch(() => config.settings.navigatorViewSize, (newValue) => {
 watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
   emit('settings-navigatorSharpnessGrid-changed', newValue);
 });
+watch(() => config.settings.panBeyondEdges, (newValue) => {
+  emit('settings-panBeyondEdges-changed', newValue);
+});
+
 watch(() => config.settings.stageBeforeShow, (newValue) => {
   emit('settings-stageBeforeShow-changed', newValue);
 });

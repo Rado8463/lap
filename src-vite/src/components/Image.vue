@@ -2816,14 +2816,18 @@ function clampPosition(force: boolean = false) {
   const maxY = container.height - imgRotatedSize.height * scaleVal + paddingY;
 
   isGrabbing.value = false;
+  // Optional: let the photo be dragged past the screen edges, keeping a strip of it visible.
+  const minVisible = 100;
+  const overX = config.settings.panBeyondEdges ? Math.max(0, container.width - minVisible) : 0;
+  const overY = config.settings.panBeyondEdges ? Math.max(0, container.height - minVisible) : 0;
   if (Math.floor(imgRotatedSize.width * scaleVal) > container.width) {
-    pos.x = Math.min(Math.max(pos.x, maxX), paddingX);
+    pos.x = Math.min(Math.max(pos.x, maxX - overX), paddingX + overX);
     isGrabbing.value = true;
   } else {
     pos.x = (container.width - imgSize.width) / 2;
   }
   if (Math.floor(imgRotatedSize.height * scaleVal) > container.height) {
-    pos.y = Math.min(Math.max(pos.y, maxY), paddingY);
+    pos.y = Math.min(Math.max(pos.y, maxY - overY), paddingY + overY);
     isGrabbing.value = true;
   } else {
     pos.y = (container.height - imgSize.height) / 2;
