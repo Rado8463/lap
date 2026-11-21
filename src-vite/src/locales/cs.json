@@ -1637,6 +1637,7 @@
       "info_tip_field_dimensions": "Rozměry",
       "info_tip_field_bitDepth": "Bitová hloubka",
       "info_tip_field_size": "Velikost souboru",
+      "info_tip_field_created": "Datum vytvoření",
       "info_tip_field_zoom": "Zoom",
       "info_tip_field_flags": "LOCK / VIEWPORT",
       "hybrid_disk_cache": "Ukládat hybridní náhledy na disk",

@@ -233,6 +233,7 @@ import {
   getThumbnailDataUrlInflight,
   isWin,
   setThumbnailDataUrlInflight,
+  formatTimestamp,
 } from '@/common/utils';
 import { getFacesForFile, getFileThumbById, getFfmpegBackedImageExtensions } from '@/common/api';
 import { RawFace, Face } from '@/common/types';
@@ -309,6 +310,10 @@ const props = defineProps({
     default: false,
   },
   fileSize: {
+    type: Number,
+    default: 0,
+  },
+  fileCreatedAt: {
     type: Number,
     default: 0,
   },
@@ -1089,6 +1094,11 @@ function buildInfoTipLine(fields: InfoTipField[]): string {
         break;
       case 'size': {
         const text = formatInfoTipSize(props.fileSize);
+        if (text) segments.push(text);
+        break;
+      }
+      case 'created': {
+        const text = props.fileCreatedAt > 0 ? formatTimestamp(props.fileCreatedAt, 'date_time') : '';
         if (text) segments.push(text);
         break;
       }

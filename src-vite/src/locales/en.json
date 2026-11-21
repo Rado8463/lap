@@ -1638,6 +1638,7 @@
       "info_tip_field_dimensions": "Dimensions",
       "info_tip_field_bitDepth": "Bit depth",
       "info_tip_field_size": "File size",
+      "info_tip_field_created": "Created date",
       "info_tip_field_zoom": "Zoom",
       "info_tip_field_flags": "LOCK / VIEWPORT",
       "hybrid_disk_cache": "Keep hybrid previews on disk",

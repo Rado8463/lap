@@ -5,6 +5,7 @@ export const statusBarFields: Record<string, string> = {
   album_name: 'file_info.album_name',
   colorInfo: 'statusbar.color_info',
   takenDate: 'file_info.taken_at',
+  createdDate: 'file_info.created_at',
   camera: 'file_info.camera',
   lens: 'file_info.lens',
   exposure: 'file_info.capture_settings',

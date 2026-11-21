@@ -375,6 +375,7 @@
           :fileAlbumId="file?.album_id"
           :allowViewportFollow="mode === 2"
           :fileSize="Number(file?.size || 0)"
+          :fileCreatedAt="Number(file?.created_at || 0)"
           :fileBitDepth="Number(file?.bit_depth || 0)"
           :fileType="file?.file_type"
           :originalUnavailable="originalUnavailable"
