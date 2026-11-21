@@ -233,7 +233,7 @@ import { useToast } from '@/common/toast';
 import { createDragPreview, isWindowDragEdge, startNativeFileDrag } from '@/common/nativeDrag';
 import { getSavedViewport, setSavedViewport, removeSavedViewport, type SavedViewport } from '@/common/savedViewports';
 
-import { checkFileAccessibility, isCloudOnlyFile } from '@/common/api';
+import { checkFileAccessibility, isCloudOnlyFile, setPngAlphaBackground } from '@/common/api';
 import { setFileAccessibility } from '@/common/availability';
 import { IconCloud, IconError, IconBrightness, IconEmbedded, IconRender } from '@/common/icons';
 import ImageNavigator from '@/components/ImageNavigator.vue';
@@ -753,6 +753,18 @@ function usesBackendPreviewFor(filePath: string, fileType: number, meta?: { widt
   return w * h >= BACKEND_PNG_MIN_PIXELS;
 }
 
+function isBackendPngPath(filePath: string): boolean {
+  return !shouldUseBackendPreview(filePath, Number(props.fileType || 0)) && usesBackendPreviewFor(filePath, Number(props.fileType || 0));
+}
+
+// The backend flattens transparent PNG pixels over the viewer's transparency colour.
+function syncPngAlphaBackground() {
+  const hex = String(config.settings.transparencyColor || '#5a5a5a').replace('#', '');
+  const rgb = parseInt(hex.length === 3 ? hex.split('').map(c => c + c).join('') : hex, 16);
+  if (Number.isFinite(rgb)) setPngAlphaBackground(rgb).catch(() => {});
+}
+watch(() => config.settings.transparencyColor, syncPngAlphaBackground, { immediate: true });
+
 // inline loading for formats that require backend preview decoding
 const showInlineLoading = computed(() =>
   props.showInlineLoading || (shouldUseBackendPreview(props.filePath, Number(props.fileType || 0)) && !!displayThumbnailSrc.value)
@@ -1073,6 +1085,8 @@ watch(() => config.settings.rasterWarm, (enabled) => {
 // appears complete instead of building up from a thin strip.
 async function stageForDisplay(loaded: LoadedImage, loadingId: number) {
   if (config.settings.stageBeforeShow === false) return;
+  // Backend-made JPEG previews decode quickly and never build up as a strip, so no staging needed.
+  if (/^(https?:\/\/preview\.localhost|preview:\/\/)/.test(loaded.src)) return;
   if (!isWarmEligible(loaded)) return;
   const host = getRasterWarmHost();
   const cw = containerSize.value.width;
@@ -1621,7 +1635,7 @@ watch([
     const imageResultPromise = loadImageResource(newFilePath)
       .then((loaded) => ({ kind: 'image' as const, loaded }));
     const keepCurrentRaw = isRawPreview && newFilePath === oldFilePath && !!rawSource.value;
-    const thumbnailResultPromise = !keepCurrentRaw && (!isRawPreview || requestedRawOptions.value.mode === 'embedded' || requestedRawOptions.value.preferPair) && !usesRealtimePreview && (usesBackendPreview || props.showThumbnailPlaceholder)
+    const thumbnailResultPromise = !keepCurrentRaw && (!isRawPreview || requestedRawOptions.value.mode === 'embedded' || requestedRawOptions.value.preferPair) && !usesRealtimePreview && ((usesBackendPreview && !isBackendPngPath(String(newFilePath))) || props.showThumbnailPlaceholder)
       ? getEffectiveThumbnailSrc()
         .then(async (src) => {
           if (!src) return { kind: 'thumbnail' as const, placeholder: null };

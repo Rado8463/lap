@@ -1347,7 +1347,7 @@ fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
 
 /// Full-resolution viewer preview of a PSD/PSB; None when the native reader cannot handle the file.
 async fn psd_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
-    cached_viewer_jpeg(file_path, |path| psd_composite_jpeg(path, PSD_VIEWER_MAX_DIMENSION)).await
+    cached_viewer_jpeg(file_path, 0, |path| psd_composite_jpeg(path, PSD_VIEWER_MAX_DIMENSION)).await
 }
 
 /// PNGs at or above this many pixels are served to the viewer as a backend-made JPEG.
@@ -1355,8 +1355,15 @@ const PNG_VIEWER_MIN_PIXELS: u64 = 12_000_000;
 /// JPEG quality for those previews (4:4:4, so only barely distinguishable from the PNG).
 const PNG_VIEWER_JPEG_QUALITY: u8 = 97;
 
-/// True for big, opaque, sRGB-like PNGs, i.e. those where a JPEG preview is a safe stand-in.
-/// Transparency, palettes and non-sRGB ICC profiles keep the original bytes.
+/// Colour shown through transparent PNG pixels in the JPEG preview (0xRRGGBB); set from the viewer.
+static PNG_ALPHA_BG: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x5a5a5a);
+
+pub fn set_png_alpha_background(rgb: u32) {
+    PNG_ALPHA_BG.store(rgb & 0xffffff, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// True for big sRGB-like PNGs (with or without transparency), where a JPEG preview is a good stand-in.
+/// PNGs with a non-sRGB ICC profile keep the original bytes.
 fn is_large_opaque_png(file_path: &str) -> bool {
     use std::io::Read;
     let is_png = Path::new(file_path)
@@ -1379,9 +1386,8 @@ fn is_large_opaque_png(file_path: &str) -> bool {
     let width = u32::from_be_bytes([buf[16], buf[17], buf[18], buf[19]]) as u64;
     let height = u32::from_be_bytes([buf[20], buf[21], buf[22], buf[23]]) as u64;
     let colour_type = buf[25];
-    let interlaced = buf[28] != 0;
-    // 0 = grayscale, 2 = RGB; alpha (4, 6) and palette (3) stay untouched.
-    if (colour_type != 0 && colour_type != 2) || interlaced || width * height < PNG_VIEWER_MIN_PIXELS {
+    let _ = colour_type;
+    if width * height < PNG_VIEWER_MIN_PIXELS {
         return false;
     }
     // Walk the chunks before the image data.
@@ -1391,9 +1397,6 @@ fn is_large_opaque_png(file_path: &str) -> bool {
         let kind = &buf[pos + 4..pos + 8];
         if kind == b"IDAT" {
             break;
-        }
-        if kind == b"tRNS" {
-            return false;
         }
         if kind == b"iCCP" {
             let end = (pos + 8 + len).min(buf.len());
@@ -1415,10 +1418,25 @@ fn png_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
         .with_guessed_format()
         .map_err(|e| format!("Failed to read PNG: {}", e))?;
     reader.no_limits();
-    let rgb = reader
+    let decoded = reader
         .decode()
-        .map_err(|e| format!("Failed to decode PNG: {}", e))?
-        .into_rgb8();
+        .map_err(|e| format!("Failed to decode PNG: {}", e))?;
+    let rgb = if decoded.color().has_alpha() {
+        let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
+        let (br, bgc, bb) = (((bg >> 16) & 255) as u32, ((bg >> 8) & 255) as u32, (bg & 255) as u32);
+        let rgba = decoded.into_rgba8();
+        let (w, h) = rgba.dimensions();
+        let mut out = vec![0u8; (w as usize) * (h as usize) * 3];
+        for (src, dst) in rgba.as_raw().chunks_exact(4).zip(out.chunks_exact_mut(3)) {
+            let a = src[3] as u32;
+            dst[0] = ((src[0] as u32 * a + br * (255 - a) + 127) / 255) as u8;
+            dst[1] = ((src[1] as u32 * a + bgc * (255 - a) + 127) / 255) as u8;
+            dst[2] = ((src[2] as u32 * a + bb * (255 - a) + 127) / 255) as u8;
+        }
+        RgbImage::from_raw(w, h, out).ok_or_else(|| "Failed to build RGB image".to_string())?
+    } else {
+        decoded.into_rgb8()
+    };
     crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
 }
 
@@ -1427,14 +1445,19 @@ async fn png_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
     if !is_large_opaque_png(file_path) {
         return None;
     }
-    cached_viewer_jpeg(file_path, png_viewer_jpeg).await
+    cached_viewer_jpeg(file_path, PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed), png_viewer_jpeg).await
 }
 
 async fn cached_viewer_jpeg(
     file_path: &str,
+    tag: u32,
     produce: fn(&str) -> Result<Vec<u8>, String>,
 ) -> Option<Vec<u8>> {
-    let key = psd_cache_key(file_path);
+    // The tag (e.g. the transparency colour) is part of the cache identity.
+    let cache_path = format!("{}\u{0}{}", file_path, tag);
+    let file_path_orig = file_path;
+    let file_path = cache_path.as_str();
+    let key = psd_cache_key(file_path_orig);
     if let Some((mtime, len)) = key {
         if let Ok(cache) = PSD_PREVIEW_CACHE.lock() {
             if let Some(entry) = cache
@@ -1445,7 +1468,7 @@ async fn cached_viewer_jpeg(
             }
         }
     }
-    let path = file_path.to_string();
+    let path = file_path_orig.to_string();
     let data = tauri::async_runtime::spawn_blocking(move || produce(&path))
     .await
     .ok()?

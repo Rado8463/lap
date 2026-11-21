@@ -1614,7 +1614,7 @@
       "raster_warm": "Předvykreslit velké fotky na pozadí",
       "raster_warm_hint": "Nenápadně připraví další fotky a zobrazení 100 %, aby se objevily rychleji. Vypněte, pokud se fotky načítají nerovnoměrně.",
       "png_backend_preview": "Rychlé zobrazení velkých PNG",
-      "png_backend_preview_hint": "Velká bezeztrátová PNG (12+ megapixelů) aplikace dekóduje sama a zobrazí jako JPEG ve plném rozlišení s vysokou kvalitou. Otevírání i přepínání je mnohem rychlejší, ale při 100% zoomu to není bit-přesné. PNG s průhledností nebo jiným než sRGB profilem se vždy zobrazí beze změny.",
+      "png_backend_preview_hint": "Velká bezeztrátová PNG (12+ megapixelů) aplikace dekóduje sama a zobrazí jako JPEG ve plném rozlišení s vysokou kvalitou. Otevírání i přepínání je mnohem rychlejší, ale při 100% zoomu to není bit-přesné. Průhledné oblasti dostanou vaši barvu průhlednosti. PNG s jiným než sRGB profilem se vždy zobrazí beze změny.",
       "pan_beyond_edges": "Povolit posun přiblížené fotky přes okraje obrazovky",
       "pan_beyond_edges_hint": "Při přiblížení nad velikost „přizpůsobit obrazovce“ lze fotku posunout tak, aby její okraj byl uvnitř obrazovky a zůstalo prázdné místo.",
       "stage_before_show": "Počkat na velké fotky před zobrazením",

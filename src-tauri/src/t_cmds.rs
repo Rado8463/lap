@@ -269,6 +269,12 @@ fn gstreamer_element_missing(exit_code: Option<i32>, stderr: &[u8]) -> bool {
             line.trim() == "No such element or plugin 'autoaudiosink'")
 }
 
+/// Colour (0xRRGGBB) that transparent PNG pixels get in the viewer's JPEG preview.
+#[tauri::command]
+pub fn set_png_alpha_background(rgb: u32) {
+    crate::t_image::set_png_alpha_background(rgb);
+}
+
 /// set last selected item index
 #[tauri::command]
 pub fn set_last_selected_item_index(index: i64) -> Result<(), String> {

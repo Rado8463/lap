@@ -1177,6 +1177,10 @@ export function batchRenameFiles(libraryId, fileIds, options, expected) {
 }
 
 // Rename a single file.
+export function setPngAlphaBackground(rgb) {
+  return invoke('set_png_alpha_background', { rgb });
+}
+
 export function renameFile(fileId, filePath, newName) {
   return invoke('rename_file', { fileId, filePath, newName });
 }

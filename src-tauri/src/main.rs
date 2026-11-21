@@ -325,6 +325,7 @@ async fn main() {
             t_cmds::copy_images,
             t_cmds::copy_file_paths,
             t_cmds::rename_file,
+            t_cmds::set_png_alpha_background,
             t_cmds::preview_batch_rename,
             t_cmds::batch_rename_files,
             t_cmds::move_file,
