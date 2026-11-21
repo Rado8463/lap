@@ -215,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, triggerRef, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
+import { ref, shallowRef, toRaw, triggerRef, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
@@ -977,7 +977,8 @@ function markHybridSlot(slot: number, filePath: string, src: string, bitmapWidth
   // A moment after the photo is shown, prepare the full resolution so zooming in is instant.
   info.prefetchTimer = setTimeout(() => {
     info.prefetchTimer = null;
-    if (hybridSlot.value[slot] === info) void loadHybridFull(info);
+    // hybridSlot is a ref: reading it returns a reactive proxy, so compare the raw objects.
+    if (toRaw(hybridSlot.value[slot]) === info) void loadHybridFull(info);
   }, 0);
 }
 
