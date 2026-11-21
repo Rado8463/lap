@@ -1422,6 +1422,11 @@ fn psd_decode_shared(file_path: &str) -> Result<std::sync::Arc<RgbImage>, String
 
 fn psd_viewer_full_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
     let rgb = psd_decode_shared(file_path)?;
+    let (w, h) = rgb.dimensions();
+    if w.max(h) <= PSD_VIEWER_MAX_DIMENSION {
+        // Same quality as the PNG/TIFF full-resolution previews (q97, 4:4:4), no thumbnail encoding.
+        return crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true);
+    }
     resize_rgb_image_to_jpeg((*rgb).clone(), PSD_VIEWER_MAX_DIMENSION)
 }
 
