@@ -220,6 +220,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { zoomLocked } from '@/common/zoomLock';
+import { followViewport } from '@/common/viewportFollow';
 import { parseInfoTipFields, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, type InfoTipField } from '@/common/infoTip';
 import { SIDEBAR, GESTURE_LOCK_THRESHOLD, HORIZONTAL_NAV_THRESHOLD, MOUSE_DRAG_NAV_THRESHOLD } from '@/common/constants';
 import {
@@ -301,6 +302,11 @@ const props = defineProps({
   fileAlbumId: {
     type: Number,
     default: 0,
+  },
+  // Image Viewer window only: Save Viewport also carries the viewport to the following images.
+  allowViewportFollow: {
+    type: Boolean,
+    default: false,
   },
   fileSize: {
     type: Number,
@@ -2353,6 +2359,12 @@ const onImageReady = (nextIndex: number, preserveLoading: boolean = false) => {
       }, 500);
       return;
     }
+    if (!savedViewport && props.allowViewportFollow && followViewport.value && applyFollowedViewport()) {
+      setTimeout(() => {
+        noTransition.value = false;
+      }, 500);
+      return;
+    }
     if (!savedViewport && zoomFitBeforeRestore !== null) {
       // The previous image was shown from a saved viewport and this one has
       // none: go back to the zoom mode that was active before the restore.
@@ -3019,6 +3031,74 @@ function restoreSavedViewport(saved: SavedViewport): boolean {
   return true;
 }
 
+// Is a zoom (physical px per image px) at or below this image's fit-to-screen zoom?
+function isScaleAtOrBelowFit(displayScale: number, sourceWidth: number): boolean {
+  const fit = getFitScale();
+  if (!(fit > 0)) return false;
+  const imgSize = imageSize.value[activeImage.value];
+  const widthRatio = sourceWidth > 0 && imgSize.width > 0 ? sourceWidth / imgSize.width : 1;
+  return (displayScale * widthRatio) / (window.devicePixelRatio || 1) <= fit * 1.005;
+}
+
+// Follow mode: the next image takes over the shared viewport (and keeps it saved), unless the
+// zoom would not exceed its fit-to-screen size; then it is shown fitted.
+function applyFollowedViewport(): boolean {
+  const shared = followViewport.value;
+  const path = imageFilePath.value[activeImage.value];
+  const imgSize = imageSize.value[activeImage.value];
+  if (!shared || !path || !(imgSize.width > 0) || !(containerSize.value.width > 0)) return false;
+
+  if (isScaleAtOrBelowFit(shared.displayScale, shared.sourceWidth)) {
+    isZoomFit.value = true;
+    if (!props.isZoomFit) emit('update:isZoomFit', true);
+    zoomFit(true);
+    return true;
+  }
+  if (!restoreSavedViewport({ ...shared, savedAt: Date.now() })) return false;
+  persistCurrentViewport(path);
+  setHasSavedViewport(true);
+  return true;
+}
+
+function persistCurrentViewport(path: string) {
+  const imgSize = imageSize.value[activeImage.value];
+  const viewport = getViewportState();
+  const entry = {
+    displayScale: viewport.scale * (window.devicePixelRatio || 1),
+    normX: viewport.normX,
+    normY: viewport.normY,
+    sourceWidth: imgSize.width,
+  };
+  setSavedViewport(path, entry);
+  if (props.allowViewportFollow && followViewport.value) followViewport.value = entry;
+}
+
+// A change of zoom or position on an image with a saved viewport (or in follow mode) is saved
+// and, in follow mode, becomes the viewport of the images opened next.
+let viewportPersistTimer: ReturnType<typeof setTimeout> | null = null;
+function schedulePersistViewport() {
+  if (!hasSavedViewport.value && !(props.allowViewportFollow && followViewport.value)) return;
+  if (noTransition.value || loupeSaved || isLoading.value) return;
+  if (viewportPersistTimer) clearTimeout(viewportPersistTimer);
+  viewportPersistTimer = setTimeout(() => {
+    viewportPersistTimer = null;
+    const path = imageFilePath.value[activeImage.value];
+    if (!path || path !== props.filePath || noTransition.value || loupeSaved) return;
+    if (!(imageSize.value[activeImage.value].width > 0)) return;
+    if (isAtFitScale()) {
+      // Back at fit: the image no longer pins a viewport (the followed one stays as it is).
+      if (hasSavedViewport.value && removeSavedViewport(path)) setHasSavedViewport(false);
+      return;
+    }
+    persistCurrentViewport(path);
+    setHasSavedViewport(true);
+  }, 400);
+}
+watch(() => {
+  const i = activeImage.value;
+  return [scale.value[i], position.value[i]?.x, position.value[i]?.y];
+}, schedulePersistViewport);
+
 function getFitScale(): number {
   const container = containerSize.value;
   const rotated = imageSizeRotated.value[activeImage.value];
@@ -3052,12 +3132,22 @@ function saveViewport(): boolean {
   });
   // The displayed image is now "pinned"; keep the mode that preceded it.
   setHasSavedViewport(true);
+  // Image Viewer window: carry this viewport to every image opened next.
+  if (props.allowViewportFollow) {
+    followViewport.value = { displayScale, normX: viewport.normX, normY: viewport.normY, sourceWidth: imgSize.width };
+  }
   toast.success(t('image_viewer.viewport_saved', { zoom: Math.round(displayScale * 100) }));
   return true;
 }
 
 function clearSavedViewport(): boolean {
   const path = imageFilePath.value[activeImage.value];
+  if (followViewport.value) {
+    followViewport.value = null;
+    if (path && removeSavedViewport(path)) setHasSavedViewport(false);
+    toast.success(t('image_viewer.viewport_cleared'));
+    return true;
+  }
   if (!path || !removeSavedViewport(path)) {
     if (path) toast.info(t('image_viewer.viewport_none'));
     return false;

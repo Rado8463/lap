@@ -231,6 +231,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { extractFileName, combineFileName, isWin, isMac, isLinux, copyFilePaths, getClipboardItemPaths, getMediaItemSize, getSlideShowInterval, SCALE_VALUES } from '@/common/utils';
 import { toggleInfoTip } from '@/common/infoTip';
+import { followViewport } from '@/common/viewportFollow';
 import { matchesShortcut, ShortcutActionId, ShortcutPlatform, VIEW_BACKGROUND_SHORTCUTS } from '@/common/shortcuts';
 import { handleVideoPlaybackShortcut, handleVideoEscapeShortcut } from '@/common/video';
 import {
@@ -613,6 +614,7 @@ onMounted(async() => {
 });
 
 onUnmounted(() => {
+  followViewport.value = null;
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keydown', handleVideoSpaceKeyDown, true);
   window.removeEventListener('resize', handleResize);
@@ -1447,6 +1449,7 @@ const toggleNativeFullScreen = () => {
 };
 
 const closeWindow = () => {
+  followViewport.value = null;
   appWindow.close();
 }
 
