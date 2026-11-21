@@ -68,10 +68,10 @@ static bool lap_read_file(const char *file_path,
   }
 }
 
-int lap_jpeg_encode_rgb8(const unsigned char *rgb_data, unsigned int width,
-                         unsigned int height, int quality,
-                         unsigned char **out_data, unsigned long *out_len,
-                         char *err_buf, size_t err_buf_len) {
+int lap_jpeg_encode_rgb8_ex(const unsigned char *rgb_data, unsigned int width,
+                            unsigned int height, int quality, int full_chroma,
+                            unsigned char **out_data, unsigned long *out_len,
+                            char *err_buf, size_t err_buf_len) {
   if (!rgb_data || width == 0 || height == 0 || !out_data || !out_len) {
     if (err_buf && err_buf_len > 0) {
       std::snprintf(err_buf, err_buf_len, "Invalid JPEG encode arguments");
@@ -115,6 +115,11 @@ int lap_jpeg_encode_rgb8(const unsigned char *rgb_data, unsigned int width,
 
   jpeg_set_defaults(&cinfo);
   jpeg_set_quality(&cinfo, quality, TRUE);
+  if (full_chroma) {
+    // 4:4:4 (no chroma subsampling): keeps sharp colour edges of lossless graphics.
+    cinfo.comp_info[0].h_samp_factor = 1;
+    cinfo.comp_info[0].v_samp_factor = 1;
+  }
   jpeg_start_compress(&cinfo, TRUE);
 
   while (cinfo.next_scanline < cinfo.image_height) {
@@ -126,6 +131,14 @@ int lap_jpeg_encode_rgb8(const unsigned char *rgb_data, unsigned int width,
   jpeg_finish_compress(&cinfo);
   jpeg_destroy_compress(&cinfo);
   return 1;
+}
+
+int lap_jpeg_encode_rgb8(const unsigned char *rgb_data, unsigned int width,
+                         unsigned int height, int quality,
+                         unsigned char **out_data, unsigned long *out_len,
+                         char *err_buf, size_t err_buf_len) {
+  return lap_jpeg_encode_rgb8_ex(rgb_data, width, height, quality, 0, out_data,
+                                 out_len, err_buf, err_buf_len);
 }
 
 int lap_jpeg_decode_rgb8(const char *file_path, unsigned int target_width,

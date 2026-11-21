@@ -14,6 +14,17 @@ unsafe extern "C" {
         err_buf: *mut c_char,
         err_buf_len: usize,
     ) -> c_int;
+    fn lap_jpeg_encode_rgb8_ex(
+        rgb_data: *const u8,
+        width: u32,
+        height: u32,
+        quality: c_int,
+        full_chroma: c_int,
+        out_data: *mut *mut u8,
+        out_len: *mut c_ulong,
+        err_buf: *mut c_char,
+        err_buf_len: usize,
+    ) -> c_int;
     fn lap_jpeg_decode_rgb8(
         file_path: *const c_char,
         target_width: u32,
@@ -80,16 +91,22 @@ pub fn decode_rgb8_scaled(
 }
 
 pub fn encode_rgb8(rgb: &RgbImage, quality: u8) -> Result<Vec<u8>, String> {
+    encode_rgb8_ex(rgb, quality, false)
+}
+
+/// Like `encode_rgb8`; `full_chroma` selects 4:4:4 (no chroma subsampling).
+pub fn encode_rgb8_ex(rgb: &RgbImage, quality: u8, full_chroma: bool) -> Result<Vec<u8>, String> {
     let mut out_data: *mut u8 = std::ptr::null_mut();
     let mut out_len: c_ulong = 0;
     let mut err_buf = vec![0 as c_char; 512];
 
     let ok = unsafe {
-        lap_jpeg_encode_rgb8(
+        lap_jpeg_encode_rgb8_ex(
             rgb.as_raw().as_ptr(),
             rgb.width(),
             rgb.height(),
             quality as c_int,
+            full_chroma as c_int,
             &mut out_data,
             &mut out_len,
             err_buf.as_mut_ptr(),

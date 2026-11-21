@@ -1614,6 +1614,8 @@
       "show_load_timing_hint": "Shows a small overlay in the viewer with how long loading, decoding and showing each photo took (diagnostics)",
       "raster_warm": "Pre-render large photos in the background",
       "raster_warm_hint": "Invisibly prepares the next photos and the 100 % view so they appear faster. Turn off if photos load unevenly.",
+      "png_backend_preview": "Fast display of big PNG files",
+      "png_backend_preview_hint": "Large lossless PNGs (12+ megapixels) are decoded by the app and shown as a full-resolution high-quality JPEG. Much faster to open and switch, but not bit-exact at 100% zoom. PNGs with transparency or a non-sRGB colour profile are always shown as-is.",
       "pan_beyond_edges": "Allow moving zoomed photo past screen edges",
       "pan_beyond_edges_hint": "When zoomed in beyond fit-to-screen, the photo can be dragged so that its edge is inside the screen, leaving empty space.",
       "stage_before_show": "Wait for big photos before showing them",

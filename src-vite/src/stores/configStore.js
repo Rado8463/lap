@@ -197,6 +197,7 @@ export const useConfigStore = defineStore('configStore', {
       navigatorViewSize: 240,    // navigator view size (160, 240, 320, 400)
       navigatorSharpnessGrid: false,
       rasterWarm: false,        // invisible pre-rendering of neighbours / 1:1 zoom (off by default: measured slower)
+      pngBackendPreview: true,  // big lossless PNGs shown via backend JPEG (fast), instead of WebView decoding
       panBeyondEdges: false,    // allow dragging a zoomed photo past the screen edges (like ZPS)
       stageBeforeShow: true,    // keep the old photo until the new big photo is decoded and rendered
       loadingBackgroundColor: '#000000', // colour of a photo's area before its pixels are loaded

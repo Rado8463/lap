@@ -1332,7 +1332,7 @@ fn psd_composite_jpeg(file_path: &str, max_dimension: u32) -> Result<Vec<u8>, St
 /// background preload) does not decode a multi-hundred-megapixel composite again.
 static PSD_PREVIEW_CACHE: Lazy<std::sync::Mutex<Vec<(String, u64, u64, std::sync::Arc<Vec<u8>>)>>> =
     Lazy::new(|| std::sync::Mutex::new(Vec::new()));
-const PSD_PREVIEW_CACHE_ENTRIES: usize = 6;
+const PSD_PREVIEW_CACHE_ENTRIES: usize = 10;
 
 fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
     let meta = std::fs::metadata(file_path).ok()?;
@@ -1347,6 +1347,93 @@ fn psd_cache_key(file_path: &str) -> Option<(u64, u64)> {
 
 /// Full-resolution viewer preview of a PSD/PSB; None when the native reader cannot handle the file.
 async fn psd_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
+    cached_viewer_jpeg(file_path, |path| psd_composite_jpeg(path, PSD_VIEWER_MAX_DIMENSION)).await
+}
+
+/// PNGs at or above this many pixels are served to the viewer as a backend-made JPEG.
+const PNG_VIEWER_MIN_PIXELS: u64 = 12_000_000;
+/// JPEG quality for those previews (4:4:4, so only barely distinguishable from the PNG).
+const PNG_VIEWER_JPEG_QUALITY: u8 = 97;
+
+/// True for big, opaque, sRGB-like PNGs, i.e. those where a JPEG preview is a safe stand-in.
+/// Transparency, palettes and non-sRGB ICC profiles keep the original bytes.
+fn is_large_opaque_png(file_path: &str) -> bool {
+    use std::io::Read;
+    let is_png = Path::new(file_path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("png"));
+    if !is_png {
+        return false;
+    }
+    let Ok(file) = std::fs::File::open(file_path) else {
+        return false;
+    };
+    let mut buf = Vec::with_capacity(65536);
+    if file.take(65536).read_to_end(&mut buf).is_err() || buf.len() < 33 {
+        return false;
+    }
+    if &buf[0..8] != b"\x89PNG\r\n\x1a\n" || &buf[12..16] != b"IHDR" {
+        return false;
+    }
+    let width = u32::from_be_bytes([buf[16], buf[17], buf[18], buf[19]]) as u64;
+    let height = u32::from_be_bytes([buf[20], buf[21], buf[22], buf[23]]) as u64;
+    let colour_type = buf[25];
+    let interlaced = buf[28] != 0;
+    // 0 = grayscale, 2 = RGB; alpha (4, 6) and palette (3) stay untouched.
+    if (colour_type != 0 && colour_type != 2) || interlaced || width * height < PNG_VIEWER_MIN_PIXELS {
+        return false;
+    }
+    // Walk the chunks before the image data.
+    let mut pos = 33usize;
+    while pos + 8 <= buf.len() {
+        let len = u32::from_be_bytes([buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]]) as usize;
+        let kind = &buf[pos + 4..pos + 8];
+        if kind == b"IDAT" {
+            break;
+        }
+        if kind == b"tRNS" {
+            return false;
+        }
+        if kind == b"iCCP" {
+            let end = (pos + 8 + len).min(buf.len());
+            let body = &buf[pos + 8..end];
+            let name_len = body.iter().position(|b| *b == 0).unwrap_or(body.len());
+            let name = String::from_utf8_lossy(&body[..name_len]).to_ascii_lowercase();
+            if !name.contains("srgb") {
+                return false;
+            }
+        }
+        pos = pos.saturating_add(12).saturating_add(len);
+    }
+    true
+}
+
+fn png_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
+    let mut reader = ImageReader::open(file_path)
+        .map_err(|e| format!("Failed to open PNG: {}", e))?
+        .with_guessed_format()
+        .map_err(|e| format!("Failed to read PNG: {}", e))?;
+    reader.no_limits();
+    let rgb = reader
+        .decode()
+        .map_err(|e| format!("Failed to decode PNG: {}", e))?
+        .into_rgb8();
+    crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
+}
+
+/// Viewer preview of a big PNG as a full-resolution JPEG; None when not applicable or on failure.
+async fn png_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
+    if !is_large_opaque_png(file_path) {
+        return None;
+    }
+    cached_viewer_jpeg(file_path, png_viewer_jpeg).await
+}
+
+async fn cached_viewer_jpeg(
+    file_path: &str,
+    produce: fn(&str) -> Result<Vec<u8>, String>,
+) -> Option<Vec<u8>> {
     let key = psd_cache_key(file_path);
     if let Some((mtime, len)) = key {
         if let Ok(cache) = PSD_PREVIEW_CACHE.lock() {
@@ -1359,9 +1446,7 @@ async fn psd_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
         }
     }
     let path = file_path.to_string();
-    let data = tauri::async_runtime::spawn_blocking(move || {
-        psd_composite_jpeg(&path, PSD_VIEWER_MAX_DIMENSION)
-    })
+    let data = tauri::async_runtime::spawn_blocking(move || produce(&path))
     .await
     .ok()?
     .ok()?;
@@ -2036,6 +2121,8 @@ pub async fn get_file_image_bytes_cached(
                 .await
                 .map_err(|e| format!("Failed to read the image: {}", e))?,
         }
+    } else if let Some(data) = png_viewer_preview(file_path).await {
+        data
     } else {
         tokio::fs::read(file_path)
             .await

@@ -740,6 +740,19 @@ function waitForNextPaint() {
   });
 }
 
+// Big lossless PNGs are decoded by the backend (Rust) and served as a full-resolution JPEG,
+// which WebView2 displays far faster than a 50-megapixel PNG.
+const BACKEND_PNG_MIN_PIXELS = 12_000_000;
+function usesBackendPreviewFor(filePath: string, fileType: number, meta?: { width?: number; height?: number }): boolean {
+  if (shouldUseBackendPreview(filePath, fileType)) return true;
+  if (config.settings.pngBackendPreview === false) return false;
+  if (getFileExtension(filePath).toLowerCase() !== 'png') return false;
+  const sameAsCurrent = filePath === props.filePath;
+  const w = Number(sameAsCurrent ? props.imageWidth : meta?.width) || 0;
+  const h = Number(sameAsCurrent ? props.imageHeight : meta?.height) || 0;
+  return w * h >= BACKEND_PNG_MIN_PIXELS;
+}
+
 // inline loading for formats that require backend preview decoding
 const showInlineLoading = computed(() =>
   props.showInlineLoading || (shouldUseBackendPreview(props.filePath, Number(props.fileType || 0)) && !!displayThumbnailSrc.value)
@@ -894,7 +907,7 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
       reject(new Error(`Error loading image: ${filePath}`));
     };
 
-    if (shouldUseBackendPreview(filePath, Number(props.fileType || 0))) {
+    if (usesBackendPreviewFor(filePath, Number(props.fileType || 0), meta)) {
       src = getPreviewUrl(
         meta?.id ?? props.fileId,
         filePath,
@@ -938,9 +951,9 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
 const PRELOAD_PIXEL_BUDGET = 250_000_000;   // ~1 GB of decoded RGBA
 let warmImageRequest = 0;
 
-const neighborMeta = new Map<string, { id?: number; version?: number }>();
+const neighborMeta = new Map<string, { id?: number; version?: number; width?: number; height?: number }>();
 function getNeighborPaths(): string[] {
-  const list: Array<string | { path: string; id?: number; version?: number }> =
+  const list: Array<string | { path: string; id?: number; version?: number; width?: number; height?: number }> =
     props.neighborFilePaths.length > 0 ? props.neighborFilePaths : [props.nextFilePath];
   const seen = new Set<string>();
   const out: string[] = [];
@@ -950,7 +963,7 @@ function getNeighborPaths(): string[] {
     if (!path || path === props.filePath || seen.has(path)) continue;
     seen.add(path);
     out.push(path);
-    if (typeof entry !== 'string') neighborMeta.set(path, { id: entry.id, version: entry.version });
+    if (typeof entry !== 'string') neighborMeta.set(path, { id: entry.id, version: entry.version, width: entry.width, height: entry.height });
   }
   return out;
 }
@@ -1126,7 +1139,7 @@ function warmNeighbors() {
       const meta = neighborMeta.get(path);
       // Backend-decoded formats (PSD, TIFF ...) are expensive to produce, so only
       // the nearest few are prepared, and only when their file id is known.
-      if (shouldUseBackendPreview(path, 1) && (!meta?.id || paths.indexOf(path) >= PRELOAD_BACKEND_COUNT)) continue;
+      if (usesBackendPreviewFor(path, 1, meta) && (!meta?.id || paths.indexOf(path) >= PRELOAD_BACKEND_COUNT)) continue;
       try {
         // Reading a cloud-only original would trigger a download.
         if (await checkCloudOnlyCached(path)) continue;
@@ -1582,7 +1595,7 @@ watch([
   const perfT0 = performance.now();
   const wasPreloaded = preloadCache.has(String(newFilePath));
   let perfCloud = perfT0;
-  const usesBackendPreview = shouldUseBackendPreview(newFilePath, Number(props.fileType || 0));
+  const usesBackendPreview = usesBackendPreviewFor(String(newFilePath), Number(props.fileType || 0));
   const ffmpegExtensionsPromise = getFfmpegBackedPreviewExtensions();
   const isRawPreview = Number(props.fileType || 0) === 3;
   const requested = requestedRawOptions.value;
@@ -1796,7 +1809,7 @@ watch(displayThumbnailSrc, async (newThumbSrc) => {
   if (!currentFilePath) return;
   const loadingId = currentLoadingId.value;
 
-  const usesBackendPreview = shouldUseBackendPreview(currentFilePath, Number(props.fileType || 0));
+  const usesBackendPreview = usesBackendPreviewFor(currentFilePath, Number(props.fileType || 0));
   const ffmpegExtensions = await getFfmpegBackedPreviewExtensions();
   if (!usesBackendPreview || ffmpegExtensions.has(getFileExtension(currentFilePath).toLowerCase())) return;
 
