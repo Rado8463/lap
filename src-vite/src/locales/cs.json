@@ -1807,7 +1807,9 @@
     },
     "advanced": {
       "file_delete_behavior": "Chování při odstraňování",
-      "file_delete_trash_hint": "Jeden soubor se přesune do koše bez potvrzení",
+      "file_delete_trash_hint": "Soubory se přesunou do koše a lze je obnovit",
+      "confirm_file_delete": "Potvrzovat před odstraněním",
+      "confirm_file_delete_hint": "Před přesunem souborů do koše nebo jejich odstraněním zobrazit potvrzení",
       "file_delete_permanent_hint": "Trvalé odstranění vždy vyžaduje potvrzení",
       "file_delete_section": "Odstraňování souborů",
       "title": "Pokročilé",

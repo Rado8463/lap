@@ -1809,7 +1809,9 @@
     "advanced": {
       "file_delete_section": "File deletion",
       "file_delete_behavior": "When deleting files",
-      "file_delete_trash_hint": "Move a single file to trash without confirmation",
+      "file_delete_trash_hint": "Files are moved to the trash and can be restored",
+      "confirm_file_delete": "Confirm before deleting",
+      "confirm_file_delete_hint": "Ask for confirmation before moving files to the trash or deleting them",
       "file_delete_permanent_hint": "Always confirm before permanent deletion",
       "title": "Advanced",
       "external_app": {

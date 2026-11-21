@@ -195,6 +195,16 @@
     />
 
     <MessageBox
+      v-if="showDeleteMsgbox"
+      :title="deletePermanentlyRequested ? $t('msgbox.file_delete.title', 1) : $t('msgbox.move_to_trash.title')"
+      :message="deleteMsgboxMessage"
+      :OkText="deletePermanentlyRequested ? $t('msgbox.file_delete.confirm', 1) : $t('msgbox.move_to_trash.ok')"
+      :cancelText="$t('msgbox.cancel')"
+      @ok="onDeleteConfirmed"
+      @cancel="showDeleteMsgbox = false"
+    />
+
+    <MessageBox
       v-if="showRenameMsgbox"
       :title="$t('msgbox.rename_file.title')"
       :showInput="true"
@@ -648,6 +658,40 @@ async function openActiveFileInExternalApp() {
   }
 }
 
+const showDeleteMsgbox = ref(false);
+const deletePermanentlyRequested = ref(false);
+const deleteTargetFile = ref<{ id: number; name: string } | null>(null);
+const deleteMsgboxMessage = computed(() => {
+  const name = deleteTargetFile.value?.name || '';
+  return deletePermanentlyRequested.value
+    ? `${t('msgbox.file_delete.permanent_summary', 1)} ${name}\n${t('msgbox.file_delete.irreversible')}`
+    : t('msgbox.move_to_trash.file_content', { file: name });
+});
+
+function openDeleteDialog(permanently: boolean) {
+  const file = getFileInfoByPane(getActivePane());
+  const id = Number(file?.id || 0);
+  if (!id || !file?.name) return;
+  if (isOriginalStorageUnavailable(file)) {
+    toast.warning(t('offline.requires_original'));
+    return;
+  }
+  deleteTargetFile.value = { id, name: file.name };
+  deletePermanentlyRequested.value = permanently;
+  showDeleteMsgbox.value = true;
+}
+
+function onDeleteConfirmed() {
+  const target = deleteTargetFile.value;
+  showDeleteMsgbox.value = false;
+  if (!target) return;
+  void emit('message-from-image-viewer', {
+    message: 'delete-file',
+    fileId: target.id,
+    permanently: deletePermanentlyRequested.value,
+  });
+}
+
 const showRenameMsgbox = ref(false);
 const renamingFileName = ref<{ name?: string; ext?: string }>({});
 const renameErrorMessage = ref('');
@@ -750,6 +794,16 @@ function handleKeyDown(event: KeyboardEvent) {
   if (matchesShortcut('file.openExternalApp', event, shortcutPlatform) && !isEditingText) {
     event.preventDefault();
     if (!event.repeat) void openActiveFileInExternalApp();
+    return;
+  }
+  if (!isEditingText && !event.repeat && matchesShortcut('file.deletePermanently', event, shortcutPlatform)) {
+    event.preventDefault();
+    openDeleteDialog(true);
+    return;
+  }
+  if (!isEditingText && !event.repeat && matchesShortcut('file.trash', event, shortcutPlatform)) {
+    event.preventDefault();
+    openDeleteDialog(false);
     return;
   }
   if (matchesShortcut('file.rename', event, shortcutPlatform) && !isEditingText) {

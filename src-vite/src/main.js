@@ -151,6 +151,9 @@ if (isMainWindow) {
   listen('settings-language-changed', (event) => {
     config.setLanguage(event.payload, { fromUser: true })
   })
+  listen('settings-confirmFileDelete-changed', (event) => {
+    config.settings.confirmFileDelete = event.payload !== false
+  })
   listen('settings-fileDeleteBehavior-changed', (event) => {
     if (event.payload === 'trash' || event.payload === 'permanent') {
       config.settings.fileDeleteBehavior = event.payload

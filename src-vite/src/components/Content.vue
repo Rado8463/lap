@@ -2720,18 +2720,20 @@ async function removeSelectedFromCollection() {
   toast.success(t('collection.removed_toast', { count: fileIds.length }));
 }
 
-const openFileDeletion = async (action: 'preference' | 'trash' | 'permanent' = 'preference') => {
+const openFileDeletion = async (action: 'preference' | 'trash' | 'permanent' = 'preference', opts: { file?: any; confirmed?: boolean } = {}) => {
   if (showTrashMsgbox.value || showTrashFailedMsgbox.value || isTrashDeleting.value || currentOriginalsUnavailable()) return;
   const preview = ++dedupDeletePreviewRequest;
   const libraryId = libConfig._libraryId;
   const requestId = currentContentRequestId;
-  const multiple = selectMode.value;
-  const files = multiple
+  const multiple = !opts.file && selectMode.value;
+  const files = opts.file
+    ? [opts.file].filter(isRealFileItem)
+    : multiple
     ? await getActionableSelectedItemsForAction()
     : [fileList.value[selectedItemIndex.value]].filter(isRealFileItem);
   if (!files?.length || preview !== dedupDeletePreviewRequest || libraryId !== libConfig._libraryId
     || requestId !== currentContentRequestId || pendingScopeSelectionChange || contentQueryRefreshPending
-    || multiple !== selectMode.value || (multiple && selectedFileIds.size > 0
+    || (!opts.file && multiple !== selectMode.value) || (multiple && selectedFileIds.size > 0
       && (files.length !== selectedFileIds.size || files.some(file => !selectedFileIds.has(Number(file.id)))))) {
     if (preview === dedupDeletePreviewRequest && libraryId === libConfig._libraryId) {
       toast.warning(t('info_panel.selection_load_failed'));
@@ -2754,7 +2756,9 @@ const openFileDeletion = async (action: 'preference' | 'trash' | 'permanent' = '
   rawPairDeleteScope.value = 'both';
   deletePermanently.value = action === 'permanent' || (action === 'preference' && config.settings.fileDeleteBehavior === 'permanent');
   const proceed = () => {
-    if (deletePermanently.value || plan.files.length > 1 || plan.files.some(file => file.companion)) {
+    const needsDialog = plan.files.some(file => file.companion)
+      || (!opts.confirmed && (deletePermanently.value || plan.files.length > 1 || config.settings.confirmFileDelete !== false));
+    if (needsDialog) {
       showFileDeleteConfirmation(plan);
       return;
     }
@@ -6764,6 +6768,15 @@ onMounted( async() => {
            }
         }
         break;
+      case 'delete-file': {
+        // Delete requested (and already confirmed) in the Image Viewer window.
+        const deleteId = Number((event.payload as any).fileId);
+        const deleteIndex = fileList.value.findIndex(item => isRealFileItem(item) && Number(item.id) === deleteId);
+        if (deleteIndex < 0) break;
+        void openFileDeletion((event.payload as any).permanently ? 'permanent' : 'trash',
+          { file: fileList.value[deleteIndex], confirmed: true });
+        break;
+      }
       case 'update-file-meta':
         const targetFileId = Number((event.payload as any).fileId);
         const changes = (event.payload as any).changes || {};

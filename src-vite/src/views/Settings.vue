@@ -677,6 +677,13 @@
                 <option value="permanent">{{ $t('msgbox.permanent_delete.title') }}</option>
               </select>
             </label>
+            <label class="flex items-start justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <span class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <span>{{ $t('settings.advanced.confirm_file_delete') }}</span>
+                <span class="text-xs text-base-content/30">{{ $t('settings.advanced.confirm_file_delete_hint') }}</span>
+              </span>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.confirmFileDelete !== false" @change="config.settings.confirmFileDelete = $event.target.checked" />
+            </label>
           </section>
 
 
@@ -1984,6 +1991,9 @@ function changeLanguage(language: string) {
   void emit('settings-language-changed', language);
   void config.setLanguage(language, { fromUser: true });
 }
+watch(() => config.settings.confirmFileDelete, (value) => {
+  void emit('settings-confirmFileDelete-changed', value !== false);
+});
 watch(() => config.settings.fileDeleteBehavior, (behavior) => {
   void emit('settings-fileDeleteBehavior-changed', behavior);
 });

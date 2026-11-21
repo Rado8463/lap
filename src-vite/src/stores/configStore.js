@@ -154,6 +154,7 @@ export const useConfigStore = defineStore('configStore', {
       showStatusBar: true,        // show status bar
       autoCheckUpdates: true,      // automatically check for updates
       fileDeleteBehavior: 'trash',
+      confirmFileDelete: true,    // ask for confirmation before deleting files (also single file to trash)
       debugMode: false,           // debug mode
 
       // navigation settings
