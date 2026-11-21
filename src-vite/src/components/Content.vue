@@ -92,11 +92,22 @@
           :defaultIndex="toolbarSortType"
           :extendOptions="toolbarSortExtendOptions"
           :defaultExtendIndex="toolbarSortOrder"
-          :extendDisabled="isRandomSort"
+          :extendDisabled="isFixedOrderSort"
           :disabled="isSortControlDisabled"
           :selected="isSmartAlbumSortOverride"
           @select="handleSortTypeSelect"
-        />
+        >
+          <template #menu-after>
+            <template v-if="isCustomSort && customOrderFolderId > 0">
+              <div class="mx-2 my-1 border-t border-base-content/10"></div>
+              <button class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
+                @click="resetFolderCustomOrder">
+                <span class="w-5"></span>
+                <span class="mr-4">{{ $t('toolbar.filter.reset_custom_order') }}</span>
+              </button>
+            </template>
+          </template>
+        </DropDownSelect>
 
         <!-- global grouping options for query-backed grid views -->
         <DropDownSelect
@@ -195,6 +206,13 @@
         <WindowControls v-if="showInlineWindowControls" class="ml-1" />
       </div>
     </div>
+
+    <!-- insertion mark while reordering files by dragging (custom order) -->
+    <div
+      v-if="reorderIndicator"
+      class="fixed z-[90] w-[3px] rounded bg-primary pointer-events-none"
+      :style="{ left: `${reorderIndicator.x - 1}px`, top: `${reorderIndicator.y}px`, height: `${reorderIndicator.height}px` }"
+    ></div>
 
     <!-- progress bar -->
     <div v-if="showTopProgressBar" class="absolute top-11 left-0 right-0 z-50">
@@ -830,7 +848,7 @@ import { getAlbum, getAllAlbums, recountAlbum, getQueryCountAndSum, getQueryTime
          copyImages, renameFile, moveFile, moveFileOutsideLibrary, copyFile, withFileTransferBatch, batchDeleteFiles, getFileThumb, getFileThumbById, getFileThumbs, getFileInfo,
          setFileRotate, setFileFavorite, setFileRating, setFileCullingFlag, batchUpdateFileMetadata, getTagsForFile, searchSimilarImages, generateEmbedding,
          revealPath, getTagName, indexAlbum, listenIndexProgress, listenIndexFinished, setAlbumCover, setDesktopWallpaper,
-         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, isCloudOnlyFile, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
+         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, isCloudOnlyFile, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
          openFilesWithApp, getAppConfig, getIndexRecoveryInfo, clearIndexRecoveryInfo, setLastSelectedItemIndex,
          dedupDelete, getQueryFilePosition, getFolderSearchExcluded,
          listCollections, createCollection, addFilesToCollection, removeFilesFromCollection, getFileCollections, getCollectionCountAndSum, getCollectionFiles, getCollectionGroupedQueryRows, getCollectionGroupFileIds, getCollectionQueryFileIds, fetchFolder, isDirectoryAccessible, checkAlbumAccessibility, addTagToFile, saveXmpMetadata } from '@/common/api';
@@ -1748,6 +1766,16 @@ const activeSmartAlbum = computed(() =>
     : null,
 );
 
+// Manual order inside a folder (sort menu entry "Custom order"); it uses the sort type below
+// while the menu lists it as the entry after the built-in ones.
+const CUSTOM_SORT = 10;
+const CUSTOM_SORT_MENU_INDEX = 9;
+const isCustomSort = computed(() =>
+  !isSmartAlbumView.value && Number(config.search.sortType) === CUSTOM_SORT
+);
+// Random and manual order have no direction and no grouping.
+const isFixedOrderSort = computed(() => isRandomSort.value || isCustomSort.value);
+
 const isRandomSort = computed(() => {
   const sortType = activeSmartAlbum.value
     ? activeSmartAlbum.value.sort?.type ?? config.search.sortType
@@ -1756,7 +1784,7 @@ const isRandomSort = computed(() => {
 });
 
 const effectiveGroupBy = computed(() => {
-  if (isRandomSort.value) return GROUP.NONE;
+  if (isFixedOrderSort.value) return GROUP.NONE;
   const smartAlbum = getActiveCustomSmartAlbum();
   return Number(
     !isCollectionPane.value && config.main.sidebarIndex === SIDEBAR.SMART_ALBUM && smartAlbum
@@ -3494,6 +3522,119 @@ function updateContentDragPosition(event: PointerEvent) {
     ?.closest('[data-file-drop-path][data-file-drop-album-id], [data-collection-drop-id], [data-collection-drop-new]') as HTMLElement | null;
   setPointerDropTarget(target);
   updateDragGhostAction(event);
+  if (canReorderByDrag.value) updateReorderTarget(event.clientX, event.clientY);
+}
+
+// ---- Custom order: reorder files in a folder by dragging them inside the grid ---------------
+const reorderIndicator = ref<{ x: number; y: number; height: number } | null>(null);
+let reorderTarget: { folderId: number; beforeFileId: number | null } | null = null;
+let reorderPointer = { x: 0, y: 0 };
+let reorderScrollFrame = 0;
+
+const customOrderFolderId = computed(() => {
+  if (!isCustomSort.value || config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.album.selected) return 0;
+  return Number(libConfig.album.folderId || 0);
+});
+
+const canReorderByDrag = computed(() =>
+  isCustomSort.value
+  && config.main.sidebarIndex === SIDEBAR.ALBUM
+  && tempViewMode.value === 'none'
+  && !isCollectionPane.value
+  && currentQuerySource.value === 'query'
+  && !isFilmstripView.value
+);
+
+function clearReorderIndicator() {
+  reorderIndicator.value = null;
+  reorderTarget = null;
+}
+
+function stopReorderAutoScroll() {
+  if (reorderScrollFrame) cancelAnimationFrame(reorderScrollFrame);
+  reorderScrollFrame = 0;
+}
+
+function updateReorderTarget(x: number, y: number) {
+  reorderPointer = { x, y };
+  if (pointerDropTarget) { clearReorderIndicator(); return; }
+  const elementAtPointer = document.elementFromPoint(x, y);
+  const itemElement = elementAtPointer?.closest('[id^="item-"]') as HTMLElement | null;
+  if (!itemElement) return;
+  const index = Number(itemElement.id.slice('item-'.length));
+  const hovered = fileList.value[index];
+  if (!Number.isInteger(index) || !isRealFileItem(hovered)) { clearReorderIndicator(); return; }
+  const rect = itemElement.getBoundingClientRect();
+  const after = x > rect.left + rect.width / 2;
+  let beforeFile: any = null;
+  let markX = rect.left;
+  if (after) {
+    const next = fileList.value[index + 1];
+    if (!next) {
+      markX = rect.right;                       // after the last file
+    } else if (isRealFileItem(next) && Number(next.folder_id) === Number(hovered.folder_id)) {
+      beforeFile = next;
+      markX = rect.right;
+    } else if (!isRealFileItem(next)) {
+      beforeFile = hovered;                     // neighbour not loaded yet: use the hovered one
+    } else {
+      markX = rect.right;                       // last file of this folder
+    }
+  } else {
+    beforeFile = hovered;
+  }
+  reorderTarget = { folderId: Number(hovered.folder_id), beforeFileId: beforeFile ? Number(beforeFile.id) : null };
+  reorderIndicator.value = { x: markX, y: rect.top + 2, height: Math.max(8, rect.height - 4) };
+}
+
+function reorderAutoScrollTick() {
+  reorderScrollFrame = 0;
+  if (!isContentInternalDrag.value || !canReorderByDrag.value) return;
+  const gridElement = (gridViewRef.value as any)?.$el as HTMLElement | undefined;
+  if (gridElement) {
+    const rect = gridElement.getBoundingClientRect();
+    const edge = 56;
+    const inside = reorderPointer.x >= rect.left && reorderPointer.x <= rect.right;
+    let delta = 0;
+    if (inside && reorderPointer.y < rect.top + edge) delta = -Math.ceil((rect.top + edge - reorderPointer.y) / 3);
+    else if (inside && reorderPointer.y > rect.bottom - edge) delta = Math.ceil((reorderPointer.y - (rect.bottom - edge)) / 3);
+    if (delta !== 0) {
+      const top = gridViewRef.value?.getScrollTop() ?? 0;
+      gridViewRef.value?.scrollToPosition(Math.max(0, top + delta));
+      updateReorderTarget(reorderPointer.x, reorderPointer.y);
+    }
+  }
+  reorderScrollFrame = requestAnimationFrame(reorderAutoScrollTick);
+}
+
+async function applyCustomReorder(
+  target: { folderId: number; beforeFileId: number | null },
+  files: Array<{ id: number; folder_id: number }>,
+) {
+  const ids = files
+    .filter((file) => Number(file.folder_id) === target.folderId)
+    .map((file) => Number(file.id))
+    .filter((id) => id > 0);
+  if (ids.length === 0 || (target.beforeFileId !== null && ids.includes(target.beforeFileId))) return;
+  if (!await moveFilesCustomOrder(target.folderId, ids, target.beforeFileId)) {
+    toast.error(t('toolbar.filter.custom_order_failed'));
+    return;
+  }
+  rememberFocusedFileForPresentationRefresh();
+  pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
+  await updateContent(true);
+}
+
+async function resetFolderCustomOrder() {
+  const folderId = customOrderFolderId.value;
+  if (folderId <= 0) return;
+  if (!await resetCustomOrder(folderId)) {
+    toast.error(t('toolbar.filter.custom_order_failed'));
+    return;
+  }
+  rememberFocusedFileForPresentationRefresh();
+  pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
+  await updateContent(true);
 }
 
 function markContentInternalDrag({
@@ -3541,6 +3682,7 @@ function markContentInternalDrag({
   document.addEventListener('keydown', updateDragGhostModifier);
   document.addEventListener('keyup', updateDragGhostModifier);
   updateContentDragPosition(event);
+  if (canReorderByDrag.value && !reorderScrollFrame) reorderScrollFrame = requestAnimationFrame(reorderAutoScrollTick);
 }
 
 async function clearContentInternalDrag(event?: PointerEvent) {
@@ -3559,6 +3701,13 @@ async function clearContentInternalDrag(event?: PointerEvent) {
   nativeDragPreview = [];
   removeDragGhost();
   void tauriEmit('content-items-drag-state', { dragging: false });
+  stopReorderAutoScroll();
+  const reorder = reorderTarget;
+  clearReorderIndicator();
+  if (shouldDrop && event && !target && reorder && files?.length && canReorderByDrag.value) {
+    await applyCustomReorder(reorder, files);
+    return;
+  }
 
   if (shouldDrop && event && target && files?.length) {
     if (usesSelection) {
@@ -11053,7 +11202,7 @@ const handleSortTypeSelect = (option: any, extendOption: any) => {
       album.sort.order = extendOption;
     }
   } else {
-    config.search.sortType = option;
+    config.search.sortType = Number(option) === CUSTOM_SORT_MENU_INDEX ? CUSTOM_SORT : option;
     config.search.sortOrder = extendOption;
   }
 };
@@ -11217,8 +11366,21 @@ const fileTypeOptions = computed(() => {
 });
 
 // sort type options
+const customOrderAvailable = computed(() =>
+  !isSmartAlbumView.value
+  && (Number(config.search.sortType) === CUSTOM_SORT
+    || (config.main.sidebarIndex === SIDEBAR.ALBUM && !config.main.diskTreeActive))
+);
+
 const sortOptions = computed(() => {
-  return getSelectOptions(localeMsg.value.toolbar.filter?.sort_type_options);
+  const options = getSelectOptions(localeMsg.value.toolbar.filter?.sort_type_options);
+  if (customOrderAvailable.value) {
+    options.push({
+      label: localeMsg.value.toolbar.filter?.custom_order || 'Custom order',
+      value: CUSTOM_SORT_MENU_INDEX,
+    });
+  }
+  return options;
 });
 
 const fixedAiSortOptions = computed(() => [{
@@ -11278,7 +11440,7 @@ const toolbarSortType = computed(() => {
   if (isSimilaritySortedResultView.value) return 0;
   return isSmartAlbumView.value
     ? Number(getActiveCustomSmartAlbum()?.sort?.type ?? 0)
-    : Number(config.search.sortType || 0);
+    : (isCustomSort.value ? CUSTOM_SORT_MENU_INDEX : Number(config.search.sortType || 0));
 });
 
 const toolbarSortOrder = computed(() => (
@@ -11318,7 +11480,7 @@ const isSortControlDisabled = computed(() =>
 
 const isGroupControlDisabled = computed(() =>
   isFixedAiResultView.value ||
-  isRandomSort.value ||
+  isFixedOrderSort.value ||
   !isGroupingControlAvailable.value ||
   isScanStreamingMode.value
 );
@@ -11337,7 +11499,7 @@ const isSmartAlbumSortOverride = computed(() => {
 });
 
 const isSmartAlbumGroupOverride = computed(() => {
-  if (!isSmartAlbumView.value || isRandomSort.value) return false;
+  if (!isSmartAlbumView.value || isFixedOrderSort.value) return false;
   const group = getActiveCustomSmartAlbum()?.group;
   return !!group && Number(group.type) !== Number(config.search.groupBy ?? GROUP.NONE);
 });

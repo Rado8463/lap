@@ -4728,6 +4728,60 @@ impl AFile {
             .map_err(|e| e.to_string())
     }
 
+    /// Moves files inside the manual order of one folder (by folder id): the given files go (in their current
+    /// order) in front of `before_file_id`, or to the end when it is None / not in the folder.
+    pub fn move_in_custom_order(
+        folder_id: i64,
+        file_ids: &[i64],
+        before_file_id: Option<i64>,
+    ) -> Result<(), String> {
+        let conn = open_conn()?;
+        let order = Self::build_order_clause_values(10, 0, 0);
+        let sql = format!(
+            "SELECT a.id FROM afiles a JOIN afolders b ON a.folder_id = b.id WHERE a.folder_id = ?1 ORDER BY {}",
+            order
+        );
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let current: Vec<i64> = stmt
+            .query_map(params![folder_id], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+
+        let moving: Vec<i64> = current.iter().copied().filter(|id| file_ids.contains(id)).collect();
+        if moving.is_empty() {
+            return Ok(());
+        }
+        let mut result: Vec<i64> = current.iter().copied().filter(|id| !file_ids.contains(id)).collect();
+        let at = before_file_id
+            .and_then(|target| result.iter().position(|id| *id == target))
+            .unwrap_or(result.len());
+        result.splice(at..at, moving);
+
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        {
+            let mut insert = tx
+                .prepare("INSERT OR REPLACE INTO afile_custom_order (file_id, position) VALUES (?1, ?2)")
+                .map_err(|e| e.to_string())?;
+            for (position, id) in result.iter().enumerate() {
+                insert.execute(params![id, position as i64]).map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())
+    }
+
+    /// Forgets the manual order of one folder (files fall back to name order).
+    pub fn reset_custom_order(folder_id: i64) -> Result<usize, String> {
+        let conn = open_conn()?;
+        conn.execute(
+            "DELETE FROM afile_custom_order WHERE file_id IN (
+                 SELECT id FROM afiles WHERE folder_id = ?1)",
+            params![folder_id],
+        )
+        .map_err(|e| e.to_string())
+    }
+
     pub fn batch_rename_names(updates: &[(i64, String, String, String)]) -> Result<(), String> {
         let mut conn = open_conn()?;
         Self::batch_rename_names_with_conn(&mut conn, updates)
@@ -6132,6 +6186,12 @@ impl AFile {
                 format!("((({id_hash} | {seed}) - ({id_hash} & {seed}))), a.id")
             }
             8 => format!("a.id {}", dir), // added order
+            // Manual order inside each folder; files without a stored position follow by name.
+            10 => "b.path ASC, \
+                   (SELECT position FROM afile_custom_order co WHERE co.file_id = a.id) IS NULL, \
+                   (SELECT position FROM afile_custom_order co WHERE co.file_id = a.id), \
+                   a.name_pinyin ASC, a.id ASC"
+                .to_string(),
             9 => "a.id ASC".to_string(), // internal: stable append order during scanning
             _ => format!("a.taken_date {}, a.id {}", dir, dir),
         }

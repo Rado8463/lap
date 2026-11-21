@@ -4452,6 +4452,22 @@ pub fn set_file_favorite(file_id: i64, is_favorite: bool) -> Result<usize, Strin
         .map_err(|e| format!("Error while setting file favorite: {}", e))
 }
 
+/// Move files within the manual order of a folder (before `before_file_id`, or to the end).
+#[tauri::command]
+pub fn move_files_custom_order(
+    folder_id: i64,
+    file_ids: Vec<i64>,
+    before_file_id: Option<i64>,
+) -> Result<(), String> {
+    AFile::move_in_custom_order(folder_id, &file_ids, before_file_id)
+}
+
+/// Remove the manual order of a folder.
+#[tauri::command]
+pub fn reset_custom_order(folder_id: i64) -> Result<usize, String> {
+    AFile::reset_custom_order(folder_id)
+}
+
 /// set a file's rating (0-5)
 #[tauri::command]
 pub fn set_file_rating(file_id: i64, rating: i32) -> Result<usize, String> {

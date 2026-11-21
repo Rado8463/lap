@@ -1606,6 +1606,27 @@ export async function setFileFavorite(fileId, isFavorite) {
 }
 
 // set file rating
+// Manual (custom) order of the files in one folder.
+export async function moveFilesCustomOrder(folderId, fileIds, beforeFileId = null) {
+  try {
+    await invoke('move_files_custom_order', { folderId, fileIds, beforeFileId });
+    return true;
+  } catch (error) {
+    console.error('Failed to change the custom order:', error);
+    return false;
+  }
+}
+
+export async function resetCustomOrder(folderId) {
+  try {
+    await invoke('reset_custom_order', { folderId });
+    return true;
+  } catch (error) {
+    console.error('Failed to reset the custom order:', error);
+    return false;
+  }
+}
+
 export async function setFileRating(fileId, rating) {
   try {
     const result = await invoke('set_file_rating', { fileId, rating });
