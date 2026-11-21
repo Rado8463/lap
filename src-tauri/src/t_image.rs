@@ -1414,6 +1414,46 @@ fn is_large_opaque_png(file_path: &str) -> bool {
     true
 }
 
+/// Big uncompressed 8/24-bit BMP (no alpha, no RLE, sRGB or no colour-space info): decoded by the
+/// backend like a big PNG, because WebView2 decodes a 100 MB bitmap slowly.
+fn is_large_bmp(file_path: &str) -> bool {
+    use std::io::Read;
+    let is_bmp = Path::new(file_path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("bmp"));
+    if !is_bmp {
+        return false;
+    }
+    let Ok(file) = std::fs::File::open(file_path) else {
+        return false;
+    };
+    let mut buf = Vec::with_capacity(160);
+    if file.take(160).read_to_end(&mut buf).is_err() || buf.len() < 54 || &buf[0..2] != b"BM" {
+        return false;
+    }
+    let u32_at = |o: usize| u32::from_le_bytes([buf[o], buf[o + 1], buf[o + 2], buf[o + 3]]);
+    let header_size = u32_at(14);
+    if header_size < 40 {
+        return false;
+    }
+    let width = (u32_at(18) as i32).unsigned_abs() as u64;
+    let height = (u32_at(22) as i32).unsigned_abs() as u64;
+    let bpp = u16::from_le_bytes([buf[28], buf[29]]);
+    let compression = u32_at(30);
+    if width * height < PNG_VIEWER_MIN_PIXELS || compression != 0 || (bpp != 24 && bpp != 8) {
+        return false;
+    }
+    if header_size >= 108 && buf.len() >= 74 {
+        // bV4/bV5 colour space type: only sRGB or "Windows default" are shown as sRGB.
+        let cs_type = u32_at(70);
+        if cs_type != 0x7352_4742 && cs_type != 0x5769_6E20 {
+            return false;
+        }
+    }
+    true
+}
+
 fn png_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
     let mut reader = ImageReader::open(file_path)
         .map_err(|e| format!("Failed to open PNG: {}", e))?
@@ -1591,13 +1631,19 @@ pub async fn get_fit_preview(file_path: &str, max_edge: u32) -> Option<Vec<u8>> 
             }
             cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge)).await
         }
+        "bmp" => {
+            if !is_large_bmp(file_path) {
+                return None;
+            }
+            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge)).await
+        }
         _ => None,
     }
 }
 
 /// Viewer preview of a big PNG as a full-resolution JPEG; None when not applicable or on failure.
 async fn png_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
-    if !is_large_opaque_png(file_path) {
+    if !is_large_opaque_png(file_path) && !is_large_bmp(file_path) {
         return None;
     }
     cached_viewer_jpeg(file_path, format!("png-{}", PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed)), png_viewer_jpeg).await

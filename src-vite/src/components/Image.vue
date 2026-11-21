@@ -746,7 +746,8 @@ const BACKEND_PNG_MIN_PIXELS = 12_000_000;
 function usesBackendPreviewFor(filePath: string, fileType: number, meta?: { width?: number; height?: number }): boolean {
   if (shouldUseBackendPreview(filePath, fileType)) return true;
   if (config.settings.pngBackendPreview === false) return false;
-  if (getFileExtension(filePath).toLowerCase() !== 'png') return false;
+  const backendExt = getFileExtension(filePath).toLowerCase();
+  if (backendExt !== 'png' && backendExt !== 'bmp') return false;
   const sameAsCurrent = filePath === props.filePath;
   const w = Number(sameAsCurrent ? props.imageWidth : meta?.width) || 0;
   const h = Number(sameAsCurrent ? props.imageHeight : meta?.height) || 0;
@@ -887,7 +888,7 @@ function isHybridCandidate(filePath: string, meta?: { id?: number; width?: numbe
   if (!((filePath === props.filePath ? props.fileId : meta?.id) > 0)) return false;
   if (Number(props.fileType || 0) === 3) return false;
   const ext = getFileExtension(filePath).toLowerCase();
-  if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'jpe' && ext !== 'png') return false;
+  if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'jpe' && ext !== 'png' && ext !== 'bmp') return false;
   const { w, h } = hybridDims(filePath, meta);
   return w * h >= HYBRID_MIN_PIXELS;
 }
