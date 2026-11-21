@@ -1043,8 +1043,11 @@ function updateHybridResolution() {
         imageSrc.value[slot] = full.src;
       }
     }).catch(() => { info.loadingFull = false; });
-  } else if (showingFull && displayed < info.bitmapWidth * 0.9) {
+  } else if (showingFull && displayed <= info.bitmapWidth * 1.02) {
     // Back at fit: the fit preview is sharper and consistent than a GPU-downscaled original.
+    // The preview is about as wide as the screen, so at fit the displayed width is ~100 % of the
+    // bitmap width (it used to need < 90 %, which a photo fitted to the screen never reaches).
+    // Swapping forward needs > 105 %, so there is no flapping in between.
     imageNaturalSize.value[slot] = { width: info.bitmapWidth, height: Math.round(info.bitmapWidth * (imageSize.value[slot].height / imageSize.value[slot].width)) };
     imageSrc.value[slot] = info.fitSrc;
   }
