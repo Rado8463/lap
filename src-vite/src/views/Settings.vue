@@ -1530,6 +1530,8 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'view.zoomOut', labelKey: 'zoom_out' },
       { actionId: 'view.zoomFit', labelKey: 'zoom_fit' },
       { actionId: 'view.zoomFitWidth', labelKey: 'zoom_fit_width' },
+      { actionId: 'view.zoomFitScreen', labelKey: 'zoom_fit_screen' },
+      { actionId: 'view.zoomActual', labelKey: 'zoom_actual' },
       { actionId: 'view.infoTip', labelKey: 'info_tip' },
       { actionId: 'view.saveViewport', labelKey: 'save_viewport' },
       { actionId: 'view.clearViewport', labelKey: 'clear_viewport' },

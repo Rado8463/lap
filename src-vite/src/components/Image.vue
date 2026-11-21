@@ -2521,6 +2521,23 @@ const toggleZoomFit = () => {
   emit('update:isZoomFit', !props.isZoomFit);
 };
 
+// Explicit "fit to screen" (not a toggle).
+const zoomFitScreen = () => {
+  if (props.isSlideShow) return;
+  zoomFit();
+  if (!props.isZoomFit) emit('update:isZoomFit', true);
+};
+
+// Explicit 1:1 (actual pixels), at the mouse position like the click-and-hold zoom.
+const zoomActualSize = () => {
+  if (props.isSlideShow) return;
+  if (props.isZoomFit) {
+    emit('update:isZoomFit', false);   // the zoom-fit watcher then resets to 1:1
+  } else {
+    zoomReset();
+  }
+};
+
 const updateZoomFit = (force: boolean = false) => {
   console.log('updateZoomFit');
   isZoomFit.value ? zoomFit(force) : zoomReset(force);
@@ -3297,6 +3314,8 @@ defineExpose({
   zoomOut,
   zoomActual,
   zoomFitWidth,
+  zoomFitScreen,
+  zoomActualSize,
   rotateView,
   getViewportState,
   applyViewportState,

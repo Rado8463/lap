@@ -1648,38 +1648,8 @@ function handleReorderOutsidePointerDown(event: PointerEvent) {
   isReorderingAlbums.value = false;
 }
 
-// Previous / next album (album selected) or sibling folder (folder selected); global shortcut.
-const navigateSibling = async (delta: number): Promise<boolean> => {
-  if (!isMainPane.value) return false;
-  const albumIdValue = selection.albumId.value;
-  if (selection.selected.value || !selection.folderPath.value) {
-    const index = albums.value.findIndex((a) => a.id === albumIdValue);
-    const target = albums.value[(index >= 0 ? index : 0) + delta];
-    if (!target || index < 0) return false;
-    selection.selectAlbum(target);
-    return true;
-  }
-  const album = getAlbumById(albumIdValue) as Album | undefined;
-  const path = selection.folderPath.value;
-  const find = (folders: Folder[] | undefined): Folder[] | null => {
-    for (const folder of folders || []) {
-      if (folder.path === path) return folders as Folder[];
-      const inner = find(folder.children);
-      if (inner) return inner;
-    }
-    return null;
-  };
-  const siblings = find(album?.children);
-  if (!siblings) return false;
-  const target = siblings[siblings.findIndex((f) => f.path === path) + delta];
-  if (!target) return false;
-  await selection.selectFolder(albumIdValue, target);
-  return true;
-};
-
 // Expose methods
 defineExpose({
-  navigateSibling,
   isCreatingFolder,
   canCreateSelectedFolder,
   selectedFolder,

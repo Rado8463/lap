@@ -1299,6 +1299,9 @@ const handleMenuOpenChange = (isOpen: boolean) => {
 const zoomIn = () => mediaRef.value?.zoomIn();
 const zoomOut = () => mediaRef.value?.zoomOut();
 const zoomActual = () => mediaRef.value?.zoomActual();
+const zoomFitWidth = () => mediaRef.value?.zoomFitWidth?.();
+const zoomFitScreen = () => mediaRef.value?.zoomFitScreen?.();
+const zoomActualSize = () => mediaRef.value?.zoomActualSize?.();
 const rotateView = (delta = 90) => mediaRef.value?.rotateView(delta);
 const togglePlay = () => mediaRef.value?.togglePlay?.();
 const getViewportState = () => mediaRef.value?.getViewportState?.();
@@ -1437,6 +1440,9 @@ defineExpose({
   zoomIn,
   zoomOut,
   zoomActual,
+  zoomFitWidth,
+  zoomFitScreen,
+  zoomActualSize,
   rotateView,
   togglePlay,
   toggleAfAreas,

@@ -5412,6 +5412,18 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  if (getActivePreviewMode() !== 'none' && matchesShortcut('view.zoomFitScreen', event, shortcutPlatform)) {
+    event.preventDefault();
+    if (!event.repeat) getActivePreviewMediaRef()?.zoomFitScreen?.();
+    return;
+  }
+
+  if (getActivePreviewMode() !== 'none' && matchesShortcut('view.zoomActual', event, shortcutPlatform)) {
+    event.preventDefault();
+    if (!event.repeat) getActivePreviewMediaRef()?.zoomActualSize?.();
+    return;
+  }
+
   if (getActivePreviewMode() !== 'none' && matchesShortcut('view.zoomIn', event, shortcutPlatform) && event.key === '=') {
     event.preventDefault();
     getActivePreviewMediaRef()?.zoomIn?.();

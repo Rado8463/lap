@@ -195,7 +195,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { isWin, isMac, isLinux, SCALE_VALUES } from '@/common/utils';
 import { matchesShortcut, ShortcutPlatform } from '@/common/shortcuts';
 import { SIDEBAR, SETTINGS_TAB, SETTINGS_BASE_WIDTH, SETTINGS_BASE_HEIGHT, PANEL_ANIMATION_MS } from '@/common/constants';
-import { getAppConfig, getLibraryVisibleCounts, switchLibrary, cancelIndexing, cancelFaceIndex } from '@/common/api';
+import { selectFolder as apiSelectFolder, getAppConfig, getLibraryVisibleCounts, switchLibrary, cancelIndexing, cancelFaceIndex } from '@/common/api';
 
 // vue components
 import Library from '@/components/Library.vue';
@@ -590,6 +590,63 @@ onBeforeUnmount(() => {
   unlistenEditAlbumRequested = null;
 });
 
+// ---- Folder / album history (Back / Forward between recently shown locations) ----------
+type FolderLocation = { albumId: number; path: string; selected: boolean };
+const LOCATION_HISTORY_MAX = 100;
+const locationHistory: FolderLocation[] = [];
+let locationIndex = -1;
+let restoringLocation = false;
+const locationKey = (l: FolderLocation) => `${l.albumId}|${l.selected ? 1 : 0}|${l.path.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase()}`;
+
+watch(
+  () => [libConfig.album.id, libConfig.album.folderPath, libConfig.album.selected],
+  () => {
+    if (restoringLocation) return;
+    const albumId = Number(libConfig.album.id || 0);
+    if (albumId <= 0) return;
+    const location: FolderLocation = {
+      albumId,
+      path: String(libConfig.album.folderPath || ''),
+      selected: !!libConfig.album.selected,
+    };
+    if (locationIndex >= 0 && locationKey(locationHistory[locationIndex]) === locationKey(location)) return;
+    locationHistory.splice(locationIndex + 1);
+    locationHistory.push(location);
+    if (locationHistory.length > LOCATION_HISTORY_MAX) locationHistory.shift();
+    locationIndex = locationHistory.length - 1;
+  },
+  { immediate: true },
+);
+
+async function stepLocationHistory(delta: number) {
+  if (config.main.sidebarIndex !== SIDEBAR.ALBUM && config.main.sidebarIndex !== SIDEBAR.DISK) return;
+  const target = locationHistory[locationIndex + delta];
+  if (!target || restoringLocation) return;
+  locationIndex += delta;
+  restoringLocation = true;
+  try {
+    libConfig.album.id = target.albumId;
+    libConfig.album.folderPath = target.path;
+    libConfig.album.selected = target.selected;
+    if (!target.selected) libConfig.album.folderId = null;
+    libConfig.activePane = 'main';
+    libConfig.album.activateTick = Number(libConfig.album.activateTick || 0) + 1;
+    uiStore.requestCountUpdate(target.selected
+      ? { source: 'album', id: target.albumId }
+      : { source: 'album-folder', path: target.path });
+    if (!target.selected) {
+      const result = await apiSelectFolder(target.albumId, target.path);
+      if (result) {
+        libConfig.album.folderId = result.id;
+        libConfig.album.folderPath = result.path;
+      }
+    }
+  } finally {
+    await nextTick();
+    restoringLocation = false;
+  }
+}
+
 function handleHomeKeyDown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null;
   if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
@@ -618,7 +675,7 @@ function handleHomeKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
     if (uiStore.inputStack.length === 0 && !libraryEmpty.value && !databaseCorrupted.value) {
-      void (panelRef.value as any)?.navigateSibling?.(folderDelta);
+      void stepLocationHistory(folderDelta);
     }
     return;
   }

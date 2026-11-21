@@ -51,7 +51,7 @@
 // folder that is not part of any album yet gets a browse-only album (not listed
 // under Albums; right-click "Add to Albums" promotes it).
 // Albums cannot nest, so a folder that contains regular albums cannot be opened.
-import { ref, computed, onMounted, reactive, nextTick } from 'vue';
+import { ref, computed, onMounted, reactive, nextTick, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { config, libConfig } from '@/common/config';
@@ -351,25 +351,13 @@ async function handleKeyDown(event: KeyboardEvent) {
   }
 }
 
-// Previous / next folder next to the current one (same parent), used by the global shortcut.
-async function navigateSibling(delta: number): Promise<boolean> {
-  const current = normalize(currentPath.value);
-  if (!current) return false;
-  let siblings: string[] | null = null;
-  for (const node of nodes.values()) {
-    if ((node.children || []).some((c) => normalize(c) === current)) { siblings = node.children; break; }
-  }
-  if (!siblings) return false;
-  const index = siblings.findIndex((c) => normalize(c) === current);
-  const target = nodes.get(siblings[index + delta] ?? '');
-  if (!target) return false;
-  await openFolder(target);
-  await nextTick();
-  listRef.value?.querySelector(`[data-disk-path="${CSS.escape(target.path)}"]`)?.scrollIntoView({ block: 'nearest' });
-  return true;
-}
-
-defineExpose({ navigateSibling });
+// Follow the selection when it changes from outside (e.g. folder history shortcuts).
+watch(currentPath, () => {
+  void expandToCurrent().then(() => nextTick(() => {
+    const path = currentPath.value;
+    if (path) listRef.value?.querySelector(`[data-disk-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: 'nearest' });
+  }));
+});
 
 onMounted(loadRoots);
 </script>
