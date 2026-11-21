@@ -1552,6 +1552,31 @@ async function restoreSelectionAfterFileListRefresh() {
   }
 }
 
+// File to focus once the list of the next history location has loaded (Back / Forward).
+let historyFocusRequest: { fileId: number; expires: number } | null = null;
+
+function requestFocusFile(fileId: number) {
+  historyFocusRequest = fileId > 0 ? { fileId, expires: Date.now() + 8000 } : null;
+}
+
+function getFocusedFileId(): number {
+  return Number(fileList.value[selectedItemIndex.value]?.id || 0);
+}
+
+async function applyHistoryFocusRequest() {
+  const request = historyFocusRequest;
+  if (!request) return;
+  if (Date.now() > request.expires) { historyFocusRequest = null; return; }
+  if (fileList.value.length === 0) return;
+  const position = await resolveRefreshedFileIndex(request.fileId);
+  if (historyFocusRequest !== request) return;
+  if (typeof position === 'number' && position >= 0) {
+    historyFocusRequest = null;
+    pendingFocusedFileId = request.fileId;
+    void restoreFocusedFileAfterListRefresh();
+  }
+}
+
 function rememberFocusedFileForPresentationRefresh() {
   const fileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
   pendingFocusedFileId = fileId > 0 ? fileId : null;
@@ -1686,6 +1711,7 @@ watch([fileList, contentReady], () => {
     ? Math.min(Math.max(selectedItemIndex.value, 0), fileList.value.length - 1)
     : -1;
   if (fileList.value.length === 0) pendingFocusedFileId = null;
+  if (historyFocusRequest) void applyHistoryFocusRequest();
   if (pendingSelectionRestore) {
     void restoreSelectionAfterFileListRefresh();
   } else if (pendingFocusedFileId && fileList.value.length > 0) {
@@ -3620,9 +3646,53 @@ async function applyCustomReorder(
     toast.error(t('toolbar.filter.custom_order_failed'));
     return;
   }
+  if (reorderLoadedFiles(ids, target.folderId, target.beforeFileId)) return;
   rememberFocusedFileForPresentationRefresh();
   pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
   await updateContent(true);
+}
+
+// Mirrors the backend move in the already loaded list so the grid does not reload.
+// Returns false when the list can't be updated reliably (unloaded slots in the way).
+function reorderLoadedFiles(ids: number[], folderId: number, beforeFileId: number | null): boolean {
+  if (groupedModeActive.value) return false;
+  const list = fileList.value;
+  const idSet = new Set(ids);
+  const byId = new Map<number, any>();
+  const movedIdx = new Set<number>();
+  list.forEach((item, i) => {
+    if (isRealFileItem(item) && idSet.has(Number(item.id))) {
+      byId.set(Number(item.id), item);
+      movedIdx.add(i);
+    }
+  });
+  if (byId.size !== ids.length) return false;
+  let target: number;
+  if (beforeFileId !== null) {
+    target = list.findIndex(item => isRealFileItem(item) && Number(item.id) === beforeFileId);
+    if (target < 0) return false;
+  } else {
+    let last = -1;
+    list.forEach((item, i) => { if (isRealFileItem(item) && Number(item.folder_id) === folderId) last = i; });
+    if (last < 0) return false;
+    target = last + 1;
+    const after = list[target];
+    if (after !== undefined && !isRealFileItem(after)) return false;
+  }
+  const sortedIdx = Array.from(movedIdx).sort((a, b) => a - b);
+  const lo = Math.min(sortedIdx[0], target);
+  const hi = Math.max(sortedIdx[sortedIdx.length - 1], target - 1);
+  for (let i = lo; i <= hi; i++) if (!isRealFileItem(list[i])) return false;
+  const focusedId = Number(list[selectedItemIndex.value]?.id || 0);
+  const kept = list.filter((_, i) => !movedIdx.has(i));
+  const insertAt = target - sortedIdx.filter(i => i < target).length;
+  kept.splice(insertAt, 0, ...ids.map(id => byId.get(id)));
+  fileList.value = kept;
+  if (focusedId > 0) {
+    const position = kept.findIndex(item => isRealFileItem(item) && Number(item.id) === focusedId);
+    if (position >= 0) selectedItemIndex.value = position;
+  }
+  return true;
 }
 
 async function resetFolderCustomOrder() {
@@ -12205,6 +12275,8 @@ defineExpose({
   focusContent: activateContentPane,
   refreshCenteredGridLayout: refreshGridLayoutPreservingScroll,
   selectAll: selectAllInCurrentList,
+  getFocusedFileId,
+  requestFocusFile,
 });
 </script>
 

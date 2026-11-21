@@ -597,7 +597,7 @@ onBeforeUnmount(() => {
 });
 
 // ---- Folder / album history (Back / Forward between recently shown locations) ----------
-type FolderLocation = { albumId: number; path: string; selected: boolean };
+type FolderLocation = { albumId: number; path: string; selected: boolean; fileId?: number };
 const LOCATION_HISTORY_MAX = 100;
 const locationHistory: FolderLocation[] = [];
 let locationIndex = -1;
@@ -610,6 +610,7 @@ watch(
     if (restoringLocation) return;
     const albumId = Number(libConfig.album.id || 0);
     if (albumId <= 0) return;
+    rememberFocusedFileInHistory();
     const location: FolderLocation = {
       albumId,
       path: String(libConfig.album.folderPath || ''),
@@ -624,13 +625,22 @@ watch(
   { immediate: true },
 );
 
+function rememberFocusedFileInHistory() {
+  const current = locationHistory[locationIndex];
+  if (!current) return;
+  const fileId = Number(contentRef.value?.getFocusedFileId?.() || 0);
+  if (fileId > 0) current.fileId = fileId;
+}
+
 async function stepLocationHistory(delta: number) {
   if (config.main.sidebarIndex !== SIDEBAR.ALBUM && config.main.sidebarIndex !== SIDEBAR.DISK) return;
   const target = locationHistory[locationIndex + delta];
   if (!target || restoringLocation) return;
+  rememberFocusedFileInHistory();
   locationIndex += delta;
   restoringLocation = true;
   try {
+    contentRef.value?.requestFocusFile?.(Number(target.fileId || 0));
     libConfig.album.id = target.albumId;
     libConfig.album.folderPath = target.path;
     libConfig.album.selected = target.selected;

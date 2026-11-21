@@ -86,7 +86,7 @@
                 <div class="text-xs text-base-content/30">{{ $t('settings.general.tree_font_size_hint') }}</div>
               </div>
               <select class="select select-bordered select-sm min-w-32" :value="Number(config.settings.treeFontScale || 100)" @change="config.settings.treeFontScale = Number($event.target.value)">
-                <option v-for="pct in [80, 90, 100, 110, 125, 150, 175, 200]" :key="pct" :value="pct">{{ pct }} %</option>
+                <option v-for="pct in [80, 85, 90, 95, 100, 110]" :key="pct" :value="pct">{{ pct }} %</option>
               </select>
             </div>
           </div>
