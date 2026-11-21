@@ -1609,6 +1609,8 @@
       "dbl_click_new_window_hint": "Dvojklik na náhled otevře Image Viewer v samostatném okně (s Shift/Ctrl náhled v okně)",
       "show_load_timing": "Zobrazit časy načítání obrázku",
       "show_load_timing_hint": "Zobrazí ve vieweru malý přehled, jak dlouho trvalo načtení, dekódování a zobrazení každé fotky (diagnostika)",
+      "raster_warm": "Předvykreslit velké fotky na pozadí",
+      "raster_warm_hint": "Nenápadně připraví další fotky a zobrazení 100 %, aby se objevily rychleji. Vypněte, pokud se fotky načítají nerovnoměrně.",
       "view_background_options": [
         "Podle motivu",
         "Černá",
@@ -1755,6 +1757,7 @@
       "external_app": {
         "section_external_apps": "Externí aplikace",
         "manage_external_apps": "Spravovat externí aplikace",
+        "manage_hint": "Vyberte program pro „Otevřít fotku v“ (Ctrl+Shift+E / Ctrl+Shift+X), např. Photoshop.",
         "external_image_editor": "Otevřít fotografii v",
         "external_video_app": "Otevřít video v",
         "external_app_not_selected": "Není vybrána žádná aplikace",

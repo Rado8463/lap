@@ -1610,6 +1610,8 @@
       "dbl_click_new_window_hint": "Double-click on a thumbnail opens the Image Viewer in its own window (hold Shift/Ctrl for in-window preview)",
       "show_load_timing": "Show image load timing",
       "show_load_timing_hint": "Shows a small overlay in the viewer with how long loading, decoding and showing each photo took (diagnostics)",
+      "raster_warm": "Pre-render large photos in the background",
+      "raster_warm_hint": "Invisibly prepares the next photos and the 100 % view so they appear faster. Turn off if photos load unevenly.",
       "view_background_options": [
         "Follow Theme",
         "Black",
@@ -1756,6 +1758,7 @@
       "external_app": {
         "section_external_apps": "External apps",
         "manage_external_apps": "Manage external apps",
+        "manage_hint": "Choose the program for “Open photo in” (Ctrl+Shift+E / Ctrl+Shift+X), e.g. Photoshop.",
         "external_image_editor": "Open photo in",
         "external_video_app": "Open video in",
         "external_app_not_selected": "No app selected",

@@ -226,6 +226,7 @@ import {
   setFileRating,
   setFileCullingFlag,
   setFileRotate,
+  openFilesWithApp,
 } from '@/common/api';
 
 import MediaViewer from '@/components/MediaViewer.vue';
@@ -607,6 +608,26 @@ onUnmounted(() => {
   unlistenAlbumAccessChanged?.();
 });
 
+async function openActiveFileInExternalApp() {
+  const file = getFileInfoByPane(getActivePane());
+  if (!file?.file_path) return;
+  if (isOriginalStorageUnavailable(file)) {
+    toast.warning(t('offline.requires_original'));
+    return;
+  }
+  const appPath = String(config.defaultExternalApp(Number(file.file_type) === 2 ? 'video' : 'image')?.path || '');
+  if (!appPath) {
+    toast.warning(t('tooltip.open_external.no_app'));
+    return;
+  }
+  try {
+    await openFilesWithApp([file.file_path], appPath);
+  } catch (error) {
+    console.error('Failed to open external app:', error);
+    toast.error(t('tooltip.open_external.failed'));
+  }
+}
+
 async function copyActiveFilePath() {
   try {
     const count = await copyFilePaths([getFileInfoByPane(getActivePane())], config.settings.groupRawJpegPairs);
@@ -661,6 +682,11 @@ function handleKeyDown(event: KeyboardEvent) {
   if (!isEditingText && matchesShortcut('view.toggleFullscreen', event, shortcutPlatform)) {
     event.preventDefault();
     if (!event.repeat) toggleNativeFullScreen();
+    return;
+  }
+  if (matchesShortcut('file.openExternalApp', event, shortcutPlatform) && !isEditingText) {
+    event.preventDefault();
+    if (!event.repeat) void openActiveFileInExternalApp();
     return;
   }
   if (matchesShortcut('file.copyPath', event, shortcutPlatform) && !isEditingText) {

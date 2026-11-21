@@ -50,6 +50,7 @@
 import { MAX_EXTERNAL_APPS } from '@/common/constants';
 import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import { getExternalAppDisplayName } from '@/common/api';
 import { config } from '@/common/config';
@@ -86,6 +87,11 @@ onBeforeUnmount(() => {
 
 function close() {
   emit('cancel');
+}
+
+// Other windows (Image Viewer) keep their own copy of the settings.
+function syncExternalApps() {
+  void tauriEmit('settings-externalApps-changed', JSON.parse(JSON.stringify(config.settings.externalApps)));
 }
 
 function handleKeyDown(event: KeyboardEvent) {
@@ -126,15 +132,18 @@ async function selectExternalApp(kind: ExternalAppKind) {
   const app = { id: `${kind}:${result}`, name: displayName, path: result };
   group.apps.push(app);
   if (!group.defaultId) group.defaultId = app.id;
+  syncExternalApps();
 }
 
 function setDefaultExternalApp(kind: ExternalAppKind, id: string) {
   config.settings.externalApps[kind].defaultId = id;
+  syncExternalApps();
 }
 
 function removeExternalApp(kind: ExternalAppKind, id: string) {
   const group = config.settings.externalApps[kind];
   group.apps = group.apps.filter((app: any) => app.id !== id);
   if (group.defaultId === id) group.defaultId = group.apps[0]?.id || null;
+  syncExternalApps();
 }
 </script>

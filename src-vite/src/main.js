@@ -244,6 +244,9 @@ if (isMainWindow) {
   listen('settings-viewBackground-changed', (event) => {
     config.setViewBackground(event.payload)
   })
+  listen('settings-rasterWarm-changed', (event) => {
+    config.settings.rasterWarm = event.payload
+  })
   listen('settings-transparencyColor-changed', (event) => {
     config.settings.transparencyColor = event.payload
   })

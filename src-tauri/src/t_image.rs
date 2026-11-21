@@ -130,6 +130,12 @@ pub fn get_image_dimensions(file_path: &str) -> Result<(u32, u32), String> {
         return t_jxl::get_jxl_dimensions(file_path);
     }
 
+    if crate::t_psd::is_psd_path(file_path) {
+        if let Ok(dimensions) = crate::t_psd::read_dimensions(file_path) {
+            return Ok(dimensions);
+        }
+    }
+
     if is_ffmpeg_backed_image_path(file_path) {
         let metadata = crate::t_video::get_video_metadata(file_path)?;
         return Ok((metadata.width, metadata.height));
@@ -683,6 +689,12 @@ pub(crate) fn get_image_thumbnail_with_encoding(
     }
     if t_jxl::is_jxl_path(file_path) {
         return t_jxl::get_jxl_thumbnail(file_path, thumbnail_size);
+    }
+
+    if crate::t_psd::is_psd_path(file_path) {
+        if let Ok(data) = psd_composite_jpeg(file_path, thumbnail_size) {
+            return Ok(Some(data));
+        }
     }
 
     if is_ffmpeg_backed_image_path(file_path) {
@@ -1304,7 +1316,25 @@ fn is_preview_only_document(file_path: &str) -> bool {
         || Path::new(file_path)
             .extension()
             .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("psd"))
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("psd") || ext.eq_ignore_ascii_case("psb"))
+}
+
+/// Longest side of a PSD/PSB composite preview shown in the viewer (never upscaled).
+const PSD_VIEWER_MAX_DIMENSION: u32 = 16384;
+
+/// Decodes the merged image of a PSD/PSB and encodes it as JPEG (no upscaling).
+fn psd_composite_jpeg(file_path: &str, max_dimension: u32) -> Result<Vec<u8>, String> {
+    let rgb = crate::t_psd::decode_composite(file_path)?;
+    resize_rgb_image_to_jpeg(rgb, max_dimension)
+}
+
+/// Full-resolution viewer preview of a PSD/PSB; None when the native reader cannot handle the file.
+async fn psd_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
+    let path = file_path.to_string();
+    tauri::async_runtime::spawn_blocking(move || psd_composite_jpeg(&path, PSD_VIEWER_MAX_DIMENSION))
+        .await
+        .ok()?
+        .ok()
 }
 
 fn should_generate_preview_for_file(file_path: &str, file_type: i64) -> bool {
@@ -1365,6 +1395,12 @@ async fn get_generated_preview_bytes(file_path: &str) -> Result<Option<Vec<u8>>,
             get_image_orientation(file_path),
             4096,
         );
+    }
+
+    if crate::t_psd::is_psd_path(file_path) {
+        if let Some(data) = psd_viewer_preview(file_path).await {
+            return Ok(Some(data));
+        }
     }
 
     if is_ffmpeg_backed_image_path(file_path) {
@@ -1934,14 +1970,22 @@ pub async fn get_file_image_bytes_cached(
         crate::t_heif::get_heif_preview(file_path, get_image_orientation(file_path), 4096)?
             .ok_or_else(|| format!("Failed to resolve HEIC preview image: {}", file_path))?
     } else if is_ffmpeg_backed_image_path(file_path) {
-        crate::t_video::get_video_thumbnail(file_path, 4096, None, None)
-            .await?
-            .ok_or_else(|| {
-                format!(
-                    "Failed to resolve FFmpeg-backed preview image: {}",
-                    file_path
-                )
-            })?
+        let native_psd = if crate::t_psd::is_psd_path(file_path) {
+            psd_viewer_preview(file_path).await
+        } else {
+            None
+        };
+        match native_psd {
+            Some(data) => data,
+            None => crate::t_video::get_video_thumbnail(file_path, 4096, None, None)
+                .await?
+                .ok_or_else(|| {
+                    format!(
+                        "Failed to resolve FFmpeg-backed preview image: {}",
+                        file_path
+                    )
+                })?,
+        }
     } else if cfg!(target_os = "linux") && is_avif_path(file_path) {
         get_image_thumbnail(file_path, get_image_orientation(file_path), 4096)?
             .ok_or_else(|| format!("Failed to resolve AVIF preview image: {}", file_path))?

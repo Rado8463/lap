@@ -184,6 +184,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     contexts: ['content'],
     defaultBindings: [
       { code: 'KeyE', modifiers: ['cmdOrCtrl', 'shift'], label: { mac: '⇧⌘E', windows: 'Ctrl+Shift+E', linux: 'Ctrl+Shift+E' } },
+      { code: 'KeyX', modifiers: ['cmdOrCtrl', 'shift'], label: { mac: '⇧⌘X', windows: 'Ctrl+Shift+X', linux: 'Ctrl+Shift+X' } },
     ],
   },
   {

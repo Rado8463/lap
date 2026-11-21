@@ -984,6 +984,7 @@ function pruneFitWarm(keepPaths: string[]) {
 }
 
 function warmFitRaster(path: string, loaded: LoadedImage) {
+  if (config.settings.rasterWarm === false) return;
   if (rasterWarmFit.has(path) || !isWarmEligible(loaded)) return;
   const host = getRasterWarmHost();
   const cw = containerSize.value.width;
@@ -1007,7 +1008,7 @@ function clearZoomWarm() {
 function scheduleZoomWarm(path: string, loaded: LoadedImage) {
   if (rasterWarmZoomPath === path && rasterWarmZoom) return;
   clearZoomWarm();
-  if (!isWarmEligible(loaded)) return;
+  if (config.settings.rasterWarm === false || !isWarmEligible(loaded)) return;
   rasterWarmZoomTimer = setTimeout(() => {
     rasterWarmZoomTimer = null;
     if (path !== props.filePath) return;
@@ -1024,6 +1025,10 @@ function scheduleZoomWarm(path: string, loaded: LoadedImage) {
     host.appendChild(rasterWarmZoom);
   }, 250);
 }
+
+watch(() => config.settings.rasterWarm, (enabled) => {
+  if (enabled === false) disposeRasterWarm();
+});
 
 function disposeRasterWarm() {
   clearZoomWarm();

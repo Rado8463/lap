@@ -32,6 +32,7 @@ mod t_image;
 mod t_af_area;
 mod t_jpeg;
 mod t_jxl;
+mod t_psd;
 mod t_lens;
 mod t_libraw;
 mod t_raw_display;

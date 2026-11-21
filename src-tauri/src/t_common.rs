@@ -12,6 +12,7 @@ pub const AFFINITY_IMGS: &[&str] = &["af", "afphoto", "afdesign", "afpub"];
 // Image formats decoded through the bundled FFmpeg sidecar.
 pub const FFMPEG_BACKED_IMGS: &[&str] = &[
     "psd", // Photoshop native format; preview only (merged composite), no edit support
+    "psb", // Photoshop large document; preview only (merged composite)
     "exr", // HDR industry standard (VFX/rendering/Resolve output)
     "hdr", "rgbe", // Radiance RGBE format; HDR panoramas and tonemapped output
     "tga",  // Legacy format; some cameras/scanners/game asset pipelines
@@ -110,6 +111,7 @@ pub(crate) fn extension_description(ext: &str) -> &'static str {
         "png" => "Portable Network Graphics",
         "af" | "afphoto" | "afdesign" | "afpub" => "Affinity Document",
         "psd" => "Photoshop Document",
+        "psb" => "Photoshop Large Document",
         "qoi" => "Quite OK Image",
         "raf" => "Fujifilm RAW",
         "raw" => "Generic Camera RAW",

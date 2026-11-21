@@ -286,6 +286,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.raster_warm') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.raster_warm_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.rasterWarm" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.transparency_color') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.transparency_color_hint') }}
@@ -484,6 +493,17 @@
 
         <!-- Advanced Tab -->
         <div v-else-if="config.settings.tabIndex === SETTINGS_TAB.ADVANCED" class="flex flex-col space-y-2">
+          <section class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm" aria-labelledby="external-apps-settings">
+            <h2 id="external-apps-settings" class="font-bold uppercase text-[10px] tracking-widest text-base-content/30">{{ $t('settings.advanced.external_app.section_external_apps') }}</h2>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.external_app.manage_external_apps') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.external_app.manage_hint') }}</div>
+              </div>
+              <button class="btn btn-sm shrink-0" @click="showExternalAppsDialog = true">{{ $t('settings.advanced.external_app.choose_app') }}</button>
+            </div>
+          </section>
+
           <section class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm" aria-labelledby="file-delete-settings">
             <h2 id="file-delete-settings" class="font-bold uppercase text-[10px] tracking-widest text-base-content/30">{{ $t('settings.advanced.file_delete_section') }}</h2>
             <label class="flex items-start justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
@@ -736,6 +756,7 @@
     </div>
 
     <StatusBarFieldsDialog v-if="showStatusBarFieldsDialog" @cancel="showStatusBarFieldsDialog = false" />
+    <ExternalAppsDialog v-if="showExternalAppsDialog" @cancel="showExternalAppsDialog = false" />
     <ModalDialog v-if="cleanupOpen" :title="$t(cleanupKey + '.title')" :width="440" hide-close>
       <div class="space-y-2 text-sm" role="status">
         <template v-if="cleanupRunning">
@@ -862,6 +883,7 @@ import SettingsAbout from '@/components/SettingsAbout.vue';
 import SettingsMetadata from '@/components/SettingsMetadata.vue';
 import MessageBox from '@/components/MessageBox.vue';
 import StatusBarFieldsDialog from '@/components/StatusBarFieldsDialog.vue';
+import ExternalAppsDialog from '@/components/ExternalAppsDialog.vue';
 import ModalDialog from '@/components/ModalDialog.vue';
 import BackupDialog from '@/components/BackupDialog.vue';
 import RestoreDialog from '@/components/RestoreDialog.vue';
@@ -972,6 +994,7 @@ const showChangeDbStorageDialog = ref(false);
 const showResetDbStorageDialog = ref(false);
 const showBackupDialog = ref(false);
 const showStatusBarFieldsDialog = ref(false);
+const showExternalAppsDialog = ref(false);
 const showRestoreDialog = ref(false);
 const isDownloadingMultilingualModel = ref(false);
 const isCancelingMultilingualModelDownload = ref(false);
@@ -1764,6 +1787,9 @@ watch(() => config.settings.navigatorViewSize, (newValue) => {
 });
 watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
   emit('settings-navigatorSharpnessGrid-changed', newValue);
+});
+watch(() => config.settings.rasterWarm, (newValue) => {
+  emit('settings-rasterWarm-changed', newValue);
 });
 watch(() => config.settings.transparencyColor, (newValue) => {
   emit('settings-transparencyColor-changed', newValue);
