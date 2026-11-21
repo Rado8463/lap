@@ -565,7 +565,14 @@ const layoutStyle = computed(() => {
 const highlightStyle = computed((): CSSProperties | undefined => {
   if (!config.settings.thumbHighlightEnabled || !props.isActive) return undefined;
   const color = config.settings.thumbHighlightColor || '#f59e0b';
-  return { borderColor: props.isContentActive ? color : `color-mix(in srgb, ${color} 50%, transparent)` };
+  const c = props.isContentActive ? color : `color-mix(in srgb, ${color} 50%, transparent)`;
+  // Thicker frame (border + inset ring) and a soft glow so the current thumbnail stands out.
+  return {
+    borderColor: c,
+    boxShadow: `inset 0 0 0 2px ${c}, 0 0 10px 1px ${c}`,
+    position: 'relative',
+    zIndex: 5,
+  };
 });
 
 const imgStyle = computed((): CSSProperties => {

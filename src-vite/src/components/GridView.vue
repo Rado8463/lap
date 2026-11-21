@@ -665,7 +665,60 @@ function onScroll(e: Event) {
   emit('scroll', e);
 }
 
+// Row tops (content coordinates) used to scroll the thumbnail list one row per wheel notch.
+const scrollRowTops = computed<number[]>(() => {
+  if (virtualScrollGeometry.value) {
+    const tops = new Set<number>();
+    for (const box of layoutGeometry.value) tops.add(Math.round(box.y));
+    return Array.from(tops).sort((a, b) => a - b);
+  }
+  return [];
+});
+let wheelRowAccum = 0;
+let wheelRowLastTime = 0;
+
+function onRowWheel(e: WheelEvent) {
+  if (e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || e.deltaY === 0) return;
+  const el = scroller.value?.$el as HTMLElement | undefined;
+  if (!el) return;
+
+  const now = performance.now();
+  if (now - wheelRowLastTime > 250) wheelRowAccum = 0;
+  wheelRowLastTime = now;
+  // Smooth (touchpad) input is accumulated so one gesture does not skip many rows.
+  wheelRowAccum += e.deltaMode === 0 ? e.deltaY : Math.sign(e.deltaY) * 100;
+  e.preventDefault();
+  if (Math.abs(wheelRowAccum) < 50) return;
+  const dir = wheelRowAccum > 0 ? 1 : -1;
+  wheelRowAccum = 0;
+
+  const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+  const current = el.scrollTop;
+  let target: number;
+  const tops = scrollRowTops.value;
+  if (tops.length > 0) {
+    let idx = 0;
+    for (let i = 0; i < tops.length; i++) {
+      if (tops[i] <= current + 1) idx = i; else break;
+    }
+    if (dir > 0) target = tops[Math.min(tops.length - 1, idx + 1)];
+    else target = current > tops[idx] + 1 ? tops[idx] : tops[Math.max(0, idx - 1)];
+  } else {
+    const rowH = itemHeight.value;
+    if (!(rowH > 0)) return;
+    const idx = Math.floor((current + 1) / rowH);
+    if (dir > 0) target = (idx + 1) * rowH;
+    else target = current > idx * rowH + 1 ? idx * rowH : Math.max(0, idx - 1) * rowH;
+  }
+  el.scrollTop = Math.min(maxScroll, Math.max(0, target));
+}
+
 function onWheel(e: WheelEvent) {
+  if (!isFilmstripView.value && scroller.value) {
+    onRowWheel(e);
+    return;
+  }
   if (isFilmstripView.value && scroller.value) {
     const isHorizontal = config.settings.grid.previewPosition < 2;
     if (isHorizontal) {
