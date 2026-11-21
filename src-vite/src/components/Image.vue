@@ -1013,8 +1013,22 @@ function updateHybridResolution() {
   if (!showingFull && displayed > info.bitmapWidth * 1.05) {
     if (info.loadingFull) return;
     info.loadingFull = true;
+    const tNeed = performance.now();
+    const alreadyRequested = fullCache.has(info.path);
     loadHybridFull(info).then((full) => {
       info.loadingFull = false;
+      if (config.settings.showLoadTiming) {
+        const tReady = performance.now();
+        const p = full.perf;
+        const backend = p ? `fetch ${Math.round(p.loaded - p.start)} ms, decode ${Math.round(p.decoded - p.loaded)} ms` : 'n/a';
+        const waited = Math.round(tReady - tNeed);
+        const ago = p ? Math.round(tNeed - p.start) : 0;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const painted = Math.round(performance.now() - tNeed);
+          loadTimingText.value = `FULL: ${alreadyRequested ? 'prefetched' : 'requested late'} ${ago} ms before need | ${backend} | waited ${waited} ms | painted +${painted} ms | ${full.naturalWidth}x${full.naturalHeight}`;
+          console.info('[lap-full]', info.path, loadTimingText.value);
+        }));
+      }
       if (hybridSlot.value[slot] !== info || imageFilePath.value[slot] !== info.path) return;
       info.fullSrc = full.src;
       const stillNeeded = scale.value[slot] * dpr * info.layoutWidth > info.bitmapWidth * 1.05;
