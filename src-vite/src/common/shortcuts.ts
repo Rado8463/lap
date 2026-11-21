@@ -478,12 +478,12 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   {
     id: 'view.zoomFitScreen',
     contexts: ['content', 'media-viewer', 'image-viewer'],
-    defaultBindings: [{ code: 'KeyE', label: 'E' }],
+    defaultBindings: [{ code: 'Digit0', modifiers: ['alt'], label: { mac: '⌥0', windows: 'Alt+0', linux: 'Alt+0' } }],
   },
   {
     id: 'view.zoomActual',
     contexts: ['content', 'media-viewer', 'image-viewer'],
-    defaultBindings: [{ code: 'KeyA', label: 'A' }],
+    defaultBindings: [{ code: 'Digit1', modifiers: ['alt'], label: { mac: '⌥1', windows: 'Alt+1', linux: 'Alt+1' } }],
   },
   {
     id: 'view.infoTip',
