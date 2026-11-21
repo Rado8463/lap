@@ -316,6 +316,22 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_sharpness') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_sharpness_hint') }}
+                </div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.hybridSharpness">
+                <option :value="0">0 ({{ $t('settings.image_view.hybrid_sharpness_soft') }})</option>
+                <option :value="20">20</option>
+                <option :value="40">40</option>
+                <option :value="60">60</option>
+                <option :value="80">80</option>
+                <option :value="100">100 ({{ $t('settings.image_view.hybrid_sharpness_sharp') }})</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.png_backend_preview') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.png_backend_preview_hint') }}
@@ -1957,6 +1973,9 @@ watch(() => config.settings.navigatorViewSize, (newValue) => {
 });
 watch(() => config.settings.navigatorSharpnessGrid, (newValue) => {
   emit('settings-navigatorSharpnessGrid-changed', newValue);
+});
+watch(() => config.settings.hybridSharpness, (newValue) => {
+  emit('settings-hybridSharpness-changed', newValue);
 });
 watch(() => config.settings.hybridPreview, (newValue) => {
   emit('settings-hybridPreview-changed', newValue !== false);

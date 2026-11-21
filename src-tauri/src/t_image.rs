@@ -1490,7 +1490,7 @@ fn flatten_for_viewer(decoded: DynamicImage) -> Result<RgbImage, String> {
 
 /// Native full-resolution decode of a TIFF (any size) as a high-quality JPEG; fails for
 /// files the `image` crate cannot read (e.g. CMYK), in which case the old path is used.
-fn tiff_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
+fn tiff_decode_rgb(file_path: &str) -> Result<RgbImage, String> {
     use image::ImageDecoder;
     let mut reader = ImageReader::open(file_path)
         .map_err(|e| format!("Failed to open TIFF: {}", e))?
@@ -1506,8 +1506,27 @@ fn tiff_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
     let mut decoded = DynamicImage::from_decoder(decoder)
         .map_err(|e| format!("Failed to decode TIFF: {}", e))?;
     decoded.apply_orientation(orientation);
-    let rgb = flatten_for_viewer(decoded)?;
+    flatten_for_viewer(decoded)
+}
+
+fn tiff_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
+    let rgb = tiff_decode_rgb(file_path)?;
     crate::t_jpeg::encode_rgb8_ex(&rgb, PNG_VIEWER_JPEG_QUALITY, true)
+}
+
+fn tiff_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
+    fit_resize_encode(tiff_decode_rgb(file_path)?, max_edge, sharp)
+}
+
+fn psd_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
+    fit_resize_encode(crate::t_psd::decode_composite(file_path)?, max_edge, sharp)
+}
+
+/// True when the image header says the picture has at least the hybrid-mode pixel count.
+fn is_big_by_header(file_path: &str) -> bool {
+    imagesize::size(file_path)
+        .map(|s| (s.width as u64) * (s.height as u64) >= PNG_VIEWER_MIN_PIXELS)
+        .unwrap_or(false)
 }
 
 async fn tiff_viewer_preview(file_path: &str) -> Option<Vec<u8>> {
@@ -1558,7 +1577,46 @@ fn jpeg_fit_eligible(file_path: &str) -> bool {
 }
 
 /// Lanczos-resizes to `max_edge` on the long side (never upscales) and encodes a 4:4:4 JPEG.
-fn fit_resize_encode(rgb: RgbImage, max_edge: u32) -> Result<Vec<u8>, String> {
+/// Mild unsharp mask (3x1 / 1x3 binomial blur) to bring a Lanczos-downscaled preview closer to the
+/// crispness of a GPU downscale. `amount_pct` 0 disables it; 100 adds the full detail difference once.
+fn unsharp_rgb8(raw: &mut [u8], w: usize, h: usize, amount_pct: u32) {
+    if amount_pct == 0 || w < 3 || h < 3 || raw.len() != w * h * 3 {
+        return;
+    }
+    let stride = w * 3;
+    // Horizontal pass (kept at x4 scale to avoid rounding): [1 2 1].
+    let mut horiz = vec![0u16; raw.len()];
+    for y in 0..h {
+        let row = &raw[y * stride..(y + 1) * stride];
+        let out = &mut horiz[y * stride..(y + 1) * stride];
+        for x in 0..w {
+            let l = if x == 0 { 0 } else { x - 1 };
+            let r = if x + 1 == w { x } else { x + 1 };
+            for c in 0..3 {
+                out[x * 3 + c] =
+                    row[l * 3 + c] as u16 + 2 * row[x * 3 + c] as u16 + row[r * 3 + c] as u16;
+            }
+        }
+    }
+    let amount = amount_pct as i32;
+    // Vertical pass gives blur x16; combine with the source in one go.
+    let mut out_rows = vec![0u8; raw.len()];
+    for y in 0..h {
+        let u = if y == 0 { 0 } else { y - 1 };
+        let d = if y + 1 == h { y } else { y + 1 };
+        for i in 0..stride {
+            let blur16 = horiz[u * stride + i] as i32 + 2 * horiz[y * stride + i] as i32 + horiz[d * stride + i] as i32;
+            let src = raw[y * stride + i] as i32;
+            // detail = src - blur; result = src + amount% * detail  (blur16 is blur * 16)
+            let detail16 = src * 16 - blur16;
+            let v = src + (detail16 * amount) / (16 * 100);
+            out_rows[y * stride + i] = v.clamp(0, 255) as u8;
+        }
+    }
+    raw.copy_from_slice(&out_rows);
+}
+
+fn fit_resize_encode(rgb: RgbImage, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
     let (src_w, src_h) = rgb.dimensions();
     let long = src_w.max(src_h);
     if long <= max_edge {
@@ -1576,12 +1634,14 @@ fn fit_resize_encode(rgb: RgbImage, max_edge: u32) -> Result<Vec<u8>, String> {
     resizer
         .resize(&src_image, &mut dst_image, &options)
         .map_err(|e| format!("Failed to resize preview: {}", e))?;
-    let resized = RgbImage::from_raw(dst_w, dst_h, dst_image.into_vec())
+    let mut buffer = dst_image.into_vec();
+    unsharp_rgb8(&mut buffer, dst_w as usize, dst_h as usize, sharp);
+    let resized = RgbImage::from_raw(dst_w, dst_h, buffer)
         .ok_or_else(|| "Failed to build resized image".to_string())?;
     crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)
 }
 
-fn jpeg_fit_jpeg(file_path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
+fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
     let size = imagesize::size(file_path).map_err(|e| format!("Failed to read JPEG size: {}", e))?;
     let (w, h) = (size.width as u32, size.height as u32);
     let ratio = (max_edge as f64 / w.max(h).max(1) as f64).min(1.0);
@@ -1591,10 +1651,10 @@ fn jpeg_fit_jpeg(file_path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
     let (pixels, pw, ph) = crate::t_jpeg::decode_rgb8_scaled(file_path, target_w, target_h)?;
     let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG pixel buffer".to_string())?;
     let oriented = apply_orientation(DynamicImage::ImageRgb8(rgb), get_image_orientation(file_path));
-    fit_resize_encode(oriented.into_rgb8(), max_edge)
+    fit_resize_encode(oriented.into_rgb8(), max_edge, sharp)
 }
 
-fn png_fit_jpeg(file_path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
+fn png_fit_jpeg(file_path: &str, max_edge: u32, sharp: u32) -> Result<Vec<u8>, String> {
     let mut reader = ImageReader::open(file_path)
         .map_err(|e| format!("Failed to open PNG: {}", e))?
         .with_guessed_format()
@@ -1603,12 +1663,12 @@ fn png_fit_jpeg(file_path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
     let decoded = reader
         .decode()
         .map_err(|e| format!("Failed to decode PNG: {}", e))?;
-    fit_resize_encode(flatten_for_viewer(decoded)?, max_edge)
+    fit_resize_encode(flatten_for_viewer(decoded)?, max_edge, sharp)
 }
 
 /// Screen-sized preview (long side `max_edge`) of a big JPEG or PNG for the viewer's hybrid
 /// mode. None means "not applicable": the caller then serves the original file.
-pub async fn get_fit_preview(file_path: &str, max_edge: u32) -> Option<Vec<u8>> {
+pub async fn get_fit_preview(file_path: &str, max_edge: u32, sharp: u32) -> Option<Vec<u8>> {
     if !(512..=16384).contains(&max_edge) {
         return None;
     }
@@ -1617,25 +1677,38 @@ pub async fn get_fit_preview(file_path: &str, max_edge: u32) -> Option<Vec<u8>> 
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())?;
     let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
-    let tag = format!("fit-{}-{}", max_edge, bg);
+    let sharp = sharp.min(100);
+    let tag = format!("fit-{}-{}-{}", max_edge, bg, sharp);
     match ext.as_str() {
         "jpg" | "jpeg" | "jpe" => {
             if !jpeg_fit_eligible(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| jpeg_fit_jpeg(p, max_edge)).await
+            cached_viewer_jpeg(file_path, tag, move |p| jpeg_fit_jpeg(p, max_edge, sharp)).await
         }
         "png" => {
             if !is_large_opaque_png(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge)).await
+            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge, sharp)).await
         }
         "bmp" => {
             if !is_large_bmp(file_path) {
                 return None;
             }
-            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge)).await
+            cached_viewer_jpeg(file_path, tag, move |p| png_fit_jpeg(p, max_edge, sharp)).await
+        }
+        "tif" | "tiff" => {
+            if !is_big_by_header(file_path) {
+                return None;
+            }
+            cached_viewer_jpeg(file_path, tag, move |p| tiff_fit_jpeg(p, max_edge, sharp)).await
+        }
+        "psd" | "psb" => {
+            if !is_big_by_header(file_path) {
+                return None;
+            }
+            cached_viewer_jpeg(file_path, tag, move |p| psd_fit_jpeg(p, max_edge, sharp)).await
         }
         _ => None,
     }

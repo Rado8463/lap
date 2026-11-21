@@ -289,8 +289,12 @@ pub fn register_protocols(builder: Builder<Wry>) -> Builder<Wry> {
                 let fit_edge = request.uri().query().unwrap_or_default().split('&')
                     .find_map(|param| param.strip_prefix("fit="))
                     .and_then(|value| value.parse::<u32>().ok());
+                let fit_sharp = request.uri().query().unwrap_or_default().split('&')
+                    .find_map(|param| param.strip_prefix("sharp="))
+                    .and_then(|value| value.parse::<u32>().ok())
+                    .unwrap_or(50);
                 if let Some(edge) = fit_edge {
-                    if let Some(data) = t_image::get_fit_preview(&file_path, edge).await {
+                    if let Some(data) = t_image::get_fit_preview(&file_path, edge, fit_sharp).await {
                         responder.respond(image_response(data));
                         return;
                     }

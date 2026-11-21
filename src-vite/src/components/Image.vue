@@ -115,7 +115,7 @@
           transform: `translate(${position[activeImage].x}px, ${position[activeImage].y}px) 
                       scale(${scale[activeImage]}) 
                       rotate(${imageRotate[activeImage]}deg)`,
-          transition: (!isDraggingImage || loupeAnimating) && !noTransition && !isResizingContainer ? (isDraggingNavBox ? 'transform 0.2s ease-out' : 'transform 0.3s ease-in-out') : 'none',
+          transition: (!isDraggingImage || loupeAnimating) && !noTransition && !isResizingContainer ? (isDraggingNavBox ? 'transform 0.2s ease-out' : (loupeAnimating ? 'transform 0.15s ease-out' : 'transform 0.3s ease-in-out')) : 'none',
         }"
       >
         <div
@@ -497,7 +497,7 @@ const getImageStyle = (index: number) => ({
               scale(${scale.value[index]})
               rotate(${imageRotate.value[index]}deg)`,
   transition: !isSliding.value && (!isDraggingImage.value || loupeAnimating.value) && !noTransition.value && !isResizingContainer.value && !isWheelZooming.value
-    ? (isDraggingNavBox.value ? 'transform 0.2s ease-out' : 'transform 0.3s ease-in-out')
+    ? (isDraggingNavBox.value ? 'transform 0.2s ease-out' : (loupeAnimating.value ? 'transform 0.15s ease-out' : 'transform 0.3s ease-in-out'))
     : 'none',
   willChange: 'transform',
   backfaceVisibility: 'hidden',
@@ -888,7 +888,7 @@ function isHybridCandidate(filePath: string, meta?: { id?: number; width?: numbe
   if (!((filePath === props.filePath ? props.fileId : meta?.id) > 0)) return false;
   if (Number(props.fileType || 0) === 3) return false;
   const ext = getFileExtension(filePath).toLowerCase();
-  if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'jpe' && ext !== 'png' && ext !== 'bmp') return false;
+  if (!['jpg', 'jpeg', 'jpe', 'png', 'bmp', 'tif', 'tiff', 'psd', 'psb'].includes(ext)) return false;
   const { w, h } = hybridDims(filePath, meta);
   return w * h >= HYBRID_MIN_PIXELS;
 }
@@ -941,7 +941,14 @@ function markHybridSlot(slot: number, filePath: string, src: string, bitmapWidth
   info.prefetchTimer = setTimeout(() => {
     info.prefetchTimer = null;
     if (hybridSlot.value[slot] === info) void loadHybridFull(info);
-  }, 900);
+  }, 350);
+}
+
+// Called when a zoom to a high magnification is likely (press on the photo): start loading the
+// full resolution right away so the swap is as early as possible.
+function prefetchActiveHybridFull() {
+  const info = hybridSlot.value[activeImage.value];
+  if (info && imageFilePath.value[activeImage.value] === info.path) void loadHybridFull(info);
 }
 
 function loadHybridFull(info: HybridInfo): Promise<LoadedImage> {
@@ -1075,7 +1082,8 @@ function loadImageResource(filePath?: string, meta?: { id?: number; version?: nu
     if (hybrid) {
       const base = getPreviewUrl(meta?.id ?? props.fileId, filePath, false, meta?.version ?? props.fileVersion);
       if (base) {
-        src = withQuery(base, `fit=${hybridFitEdge()}`);
+        const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
+        src = withQuery(base, `fit=${hybridFitEdge()}&sharp=${sharp}`);
         img.src = src;
         return;
       }
@@ -1684,7 +1692,7 @@ const updatePosition = () => {
 
 // Preloaded next images must not retain a different RAW display policy.
 watch(rawDisplayKey, () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); }, { flush: 'sync' });
-watch(() => config.settings.hybridPreview, () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); });
+watch(() => [config.settings.hybridPreview, config.settings.hybridSharpness], () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); });
 
 async function showOfflinePreview(filePath: string, loadingId: number) {
   if (loadingId !== currentLoadingId.value) return;
@@ -2444,7 +2452,7 @@ let loupeAnimTimer: ReturnType<typeof setTimeout> | null = null;
 function startLoupeAnimation() {
   loupeAnimating.value = true;
   if (loupeAnimTimer) clearTimeout(loupeAnimTimer);
-  loupeAnimTimer = setTimeout(() => { loupeAnimating.value = false; loupeAnimTimer = null; }, 320);
+  loupeAnimTimer = setTimeout(() => { loupeAnimating.value = false; loupeAnimTimer = null; }, 190);
 }
 
 function cancelLoupeTimer() {
@@ -2456,6 +2464,7 @@ function startLoupeTimer(event: MouseEvent) {
   cancelLoupeTimer();
   loupeStart = { x: event.clientX, y: event.clientY };
   if (props.isSlideShow || loadError.value || isLoading.value) return;
+  prefetchActiveHybridFull();
   loupeTimer = setTimeout(() => {
     loupeTimer = null;
     beginLoupe();
