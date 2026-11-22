@@ -909,6 +909,22 @@ const hybridSlot = ref<(HybridInfo | null)[]>([null, null]);
 const fullCache = new Map<string, Promise<LoadedImage>>();
 const HYBRID_MIN_PIXELS = 12_000_000;
 const FULL_CACHE_LIMIT = 3;
+// Huge photos (one decoded copy is ~4 bytes per pixel, e.g. 270 MP = ~1 GB) are not prefetched,
+// not kept after zooming back to fit, and the cache stays within a decoded-pixel budget; otherwise
+// the memory pressure makes the compositor drop tiles and even the overlays.
+const HUGE_FULL_PIXELS = 100_000_000;
+const FULL_CACHE_PIXEL_BUDGET = 200_000_000;
+const fullPixels = new Map<string, number>();
+
+function releaseFull(path: string) {
+  fullCache.delete(path);
+  fullPixels.delete(path);
+}
+
+function hybridPixels(info: HybridInfo): number {
+  const { w, h } = hybridDims(info.path, info.meta);
+  return w * h;
+}
 
 function hybridDims(filePath: string, meta?: { width?: number; height?: number }): { w: number; h: number } {
   const sameAsCurrent = filePath === props.filePath;
@@ -987,7 +1003,7 @@ function markHybridSlot(slot: number, filePath: string, src: string, bitmapWidth
   info.prefetchTimer = setTimeout(() => {
     info.prefetchTimer = null;
     // hybridSlot is a ref: reading it returns a reactive proxy, so compare the raw objects.
-    if (toRaw(hybridSlot.value[slot]) === info) void loadHybridFull(info);
+    if (toRaw(hybridSlot.value[slot]) === info && hybridPixels(info) < HUGE_FULL_PIXELS) void loadHybridFull(info);
   }, 0);
 }
 
@@ -1003,11 +1019,23 @@ function loadHybridFull(info: HybridInfo): Promise<LoadedImage> {
   if (!promise) {
     promise = loadImageResource(info.path, info.meta, { full: true });
     fullCache.set(info.path, promise);
-    promise.catch(() => fullCache.delete(info.path));
+    promise.then((loaded) => {
+      if (fullCache.get(info.path) !== promise) return;
+      fullPixels.set(info.path, loaded.naturalWidth * loaded.naturalHeight);
+      let total = 0;
+      for (const px of fullPixels.values()) total += px;
+      // Evict the oldest entries (never the one just loaded) while over the count or pixel budget.
+      for (const key of Array.from(fullCache.keys())) {
+        if (key === info.path) continue;
+        if (fullCache.size <= FULL_CACHE_LIMIT && total <= FULL_CACHE_PIXEL_BUDGET) break;
+        total -= fullPixels.get(key) || 0;
+        releaseFull(key);
+      }
+    }).catch(() => releaseFull(info.path));
     while (fullCache.size > FULL_CACHE_LIMIT) {
       const oldest = fullCache.keys().next().value;
       if (oldest === undefined) break;
-      fullCache.delete(oldest);
+      releaseFull(oldest);
     }
   }
   return promise;
@@ -1054,6 +1082,11 @@ function updateHybridResolution() {
     // Swapping forward needs > 105 %, so there is no flapping in between.
     imageNaturalSize.value[slot] = { width: info.bitmapWidth, height: Math.round(info.bitmapWidth * (imageSize.value[slot].height / imageSize.value[slot].width)) };
     imageSrc.value[slot] = info.fitSrc;
+    // A huge original is dropped at fit (its decoded copy would stay in memory); zooming in loads it again.
+    if (hybridPixels(info) >= HUGE_FULL_PIXELS) {
+      releaseFull(info.path);
+      info.fullSrc = null;
+    }
   }
 }
 watch(() => [activeImage.value, scale.value[activeImage.value]], updateHybridResolution);
@@ -1829,8 +1862,8 @@ const updatePosition = () => {
 };
 
 // Preloaded next images must not retain a different RAW display policy.
-watch(rawDisplayKey, () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); }, { flush: 'sync' });
-watch(() => [config.settings.hybridPreview, config.settings.hybridSharpness, config.settings.hybridFilter], () => { preloadCache.clear(); fullCache.clear(); hybridLayouts.clear(); });
+watch(rawDisplayKey, () => { preloadCache.clear(); fullCache.clear(); fullPixels.clear(); hybridLayouts.clear(); }, { flush: 'sync' });
+watch(() => [config.settings.hybridPreview, config.settings.hybridSharpness, config.settings.hybridFilter], () => { preloadCache.clear(); fullCache.clear(); fullPixels.clear(); hybridLayouts.clear(); });
 
 async function showOfflinePreview(filePath: string, loadingId: number) {
   if (loadingId !== currentLoadingId.value) return;
