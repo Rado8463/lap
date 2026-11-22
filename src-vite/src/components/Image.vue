@@ -1030,8 +1030,13 @@ function onTileViewChange() {
     if (tilePreTimer) clearTimeout(tilePreTimer);
     tilePreTimer = setTimeout(() => {
       tilePreTimer = null;
-      const size = imageSize.value[activeImage.value];
-      prefetchTileAround(size.width / 2, size.height / 2);
+      if (config.settings.hybridTileCenter === true) {
+        const size = imageSize.value[activeImage.value];
+        prefetchTileAround(size.width / 2, size.height / 2);
+      } else if (tileLastCursor) {
+        // Not the centre: the region under the cursor (if it rests on the photo).
+        prefetchTileAtCursor(tileLastCursor);
+      }
     }, 400);
     return;
   }
@@ -1117,14 +1122,18 @@ function useTilePrefetched(): boolean {
 // Cursor resting on the preview of a tiled photo: prepare the 100 % region under it.
 let tileHoverTimer: ReturnType<typeof setTimeout> | null = null;
 let tileHoverArmed = false;
+let tileLastCursor: { clientX: number; clientY: number } | null = null;
 let tileHoverStart = { x: 0, y: 0 };
 function clearTileHover() {
   if (tileHoverTimer) { clearTimeout(tileHoverTimer); tileHoverTimer = null; }
   tileHoverArmed = false;
+  tileLastCursor = null;
 }
 function onTileHover(event: MouseEvent) {
+  tileLastCursor = { clientX: event.clientX, clientY: event.clientY };
   const ms = Number(config.settings.hybridTileHoverMs ?? 1000);
   if (!(ms > 0) || config.settings.hybridTilePrefetch === false || isDraggingImage.value) { clearTileHover(); return; }
+  tileLastCursor = { clientX: event.clientX, clientY: event.clientY };
   const radius = Math.max(1, Number(config.settings.hybridTileHoverRadius ?? 20));
   // Still inside the radius of the point where the wait started: keep waiting (or stay done).
   if (tileHoverArmed && Math.hypot(event.clientX - tileHoverStart.x, event.clientY - tileHoverStart.y) <= radius) return;

@@ -1665,6 +1665,8 @@
       "hybrid_tiles_hint": "JPEGs above this size are never opened at full resolution by the browser. Instead the visible part is decoded by the app and shown over the preview when you zoom in (fixes missing blocks and blank zoom steps of huge photos).",
       "hybrid_tiles_off": "Off",
       "hybrid_tile_prefetch": "Prepare the 100 % view of huge JPEGs in advance",
+      "hybrid_tile_center": "Also prepare the photo centre",
+      "hybrid_tile_center_hint": "When off, the 100 % region is prepared only under the cursor (after the photo appears and when the cursor rests). When on, it is prepared around the photo centre instead.",
       "hybrid_tile_prefetch_hint": "In tiled mode the part around the photo centre (twice the screen size) and around the cursor when you press is decoded ahead, so zooming to 100 % shows sharp pixels at once. Uses some CPU while viewing.",
       "hybrid_tile_hover": "Prepare the region under a resting cursor",
       "hybrid_tile_hover_hint": "On the preview of a huge JPEG, when the cursor rests this long the 100 % region under it is decoded ahead.",

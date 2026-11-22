@@ -456,6 +456,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_tile_center') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_tile_center_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridTileCenter === true" @change="config.settings.hybridTileCenter = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_tile_hover') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.hybrid_tile_hover_hint') }}
@@ -2224,6 +2233,9 @@ watch(() => config.settings.hybridTileHoverMs, (newValue) => {
 });
 watch(() => config.settings.hybridTileHoverRadius, (newValue) => {
   emit('settings-hybridTileHoverRadius-changed', newValue);
+});
+watch(() => config.settings.hybridTileCenter, (newValue) => {
+  emit('settings-hybridTileCenter-changed', newValue === true);
 });
 watch(() => config.settings.hybridTilePrefetch, (newValue) => {
   emit('settings-hybridTilePrefetch-changed', newValue !== false);
