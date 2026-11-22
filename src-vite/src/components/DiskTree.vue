@@ -338,6 +338,24 @@ async function openFolder(node: DiskNode) {
   // 1. already inside an album: just select it there
   let album = albums.value.find((a) => isInside(node.path, a.path));
 
+  // A subfolder the album excludes ("this folder only") was never indexed and would look empty:
+  // drop the exclusion so it gets indexed. (Albums cannot nest, so it cannot be its own album.)
+  if (album && Array.isArray(album.excluded_folders) && album.excluded_folders.length > 0
+      && normalize(node.path) !== normalize(album.path)) {
+    const first = node.path.slice(album.path.length).split(/[\\/]/).filter(Boolean)[0];
+    if (first && album.excluded_folders.includes(first)) {
+      const remaining = album.excluded_folders.filter((f: string) => f !== first);
+      await editAlbum(album.id, album.name, album.description || '', {
+        fileTypes: album.file_types ?? 7, smallImageFilter: album.small_image_filter ?? 0, excludedFolders: remaining,
+      });
+      album.excluded_folders = remaining;
+      if (libConfig.index.albumQueue.indexOf(album.id) === -1) libConfig.index.albumQueue.push(album.id);
+      libConfig.index.status = 1;
+      await tauriEmit('albums-refreshed');
+      toast.success(t('disk_tree.exclusion_removed', { folder: first, name: album.name }));
+    }
+  }
+
   // 2. not covered by an album: add it as a *browse-only* album (not listed
   //    under Albums). Albums cannot nest, so browse-only albums inside the new
   //    folder are merged into it; real albums inside it block the action.
