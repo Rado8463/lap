@@ -10,6 +10,11 @@ html, body {
   overscroll-behavior: none;
 }
 
+.narrow-scrollbar {
+  /* scrollbar-color / scrollbar-width (inherited from :root, e.g. daisyUI) disable the ::-webkit-scrollbar rules */
+  scrollbar-color: auto;
+  scrollbar-width: auto;
+}
 .narrow-scrollbar::-webkit-scrollbar {
   width: 4px;
   height: 4px;
