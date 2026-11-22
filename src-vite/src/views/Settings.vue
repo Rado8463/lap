@@ -456,6 +456,37 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_tile_hover') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_tile_hover_hint') }}
+                </div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.hybridTileHoverMs">
+                <option :value="0">{{ $t('settings.image_view.hybrid_tiles_off') }}</option>
+                <option :value="500">0.5 s</option>
+                <option :value="1000">1 s</option>
+                <option :value="1500">1.5 s</option>
+                <option :value="2000">2 s</option>
+                <option :value="3000">3 s</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_tile_hover_radius') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_tile_hover_radius_hint') }}
+                </div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.hybridTileHoverRadius">
+                <option :value="10">10 px</option>
+                <option :value="20">20 px</option>
+                <option :value="30">30 px</option>
+                <option :value="50">50 px</option>
+                <option :value="100">100 px</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_tiles') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.hybrid_tiles_hint') }}
@@ -2187,6 +2218,12 @@ function toggleInfoTipField(line: 1 | 2 | 3, field: string, on: boolean) {
 }
 watch(() => config.settings.hybridFilter, (newValue) => {
   emit('settings-hybridFilter-changed', newValue);
+});
+watch(() => config.settings.hybridTileHoverMs, (newValue) => {
+  emit('settings-hybridTileHoverMs-changed', newValue);
+});
+watch(() => config.settings.hybridTileHoverRadius, (newValue) => {
+  emit('settings-hybridTileHoverRadius-changed', newValue);
 });
 watch(() => config.settings.hybridTilePrefetch, (newValue) => {
   emit('settings-hybridTilePrefetch-changed', newValue !== false);

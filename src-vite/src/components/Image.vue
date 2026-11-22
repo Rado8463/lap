@@ -1083,11 +1083,13 @@ function prefetchTileAround(u: number, v: number) {
   const src = tileRegionUrl(info, x0, y0, x0 + w, y0 + h, w);
   if (!src) return;
   tilePreBusyKey = key;
+  const startedAt = performance.now();
   const img = new Image();
   img.decoding = 'async';
   img.src = src;
   const promise: Promise<void> = img.decode().then(() => {
     if (imageFilePath.value[activeImage.value] !== info.path) return;
+    noteTileTiming('ahead', startedAt, w, h);
     tilePre = { path: info.path, src, x0, y0, x1: x0 + w, y1: y0 + h, outW: w };
     tilePreImg = img;
   }).catch(() => {}).finally(() => {
@@ -1112,8 +1114,44 @@ function useTilePrefetched(): boolean {
   return true;
 }
 
+// Cursor resting on the preview of a tiled photo: prepare the 100 % region under it.
+let tileHoverTimer: ReturnType<typeof setTimeout> | null = null;
+let tileHoverArmed = false;
+let tileHoverStart = { x: 0, y: 0 };
+function clearTileHover() {
+  if (tileHoverTimer) { clearTimeout(tileHoverTimer); tileHoverTimer = null; }
+  tileHoverArmed = false;
+}
+function onTileHover(event: MouseEvent) {
+  const ms = Number(config.settings.hybridTileHoverMs ?? 1000);
+  if (!(ms > 0) || config.settings.hybridTilePrefetch === false || isDraggingImage.value) { clearTileHover(); return; }
+  const radius = Math.max(1, Number(config.settings.hybridTileHoverRadius ?? 20));
+  // Still inside the radius of the point where the wait started: keep waiting (or stay done).
+  if (tileHoverArmed && Math.hypot(event.clientX - tileHoverStart.x, event.clientY - tileHoverStart.y) <= radius) return;
+  clearTileHover();
+  const slot = activeImage.value;
+  const info = hybridSlot.value[slot];
+  if (!info || imageFilePath.value[slot] !== info.path || !usesTiles(info.path, info.meta)) return;
+  if (computeTileRequest(slot) !== 'hide') return; // only while the preview is shown
+  tileHoverArmed = true;
+  tileHoverStart = { x: event.clientX, y: event.clientY };
+  const point = { clientX: event.clientX, clientY: event.clientY };
+  tileHoverTimer = setTimeout(() => {
+    tileHoverTimer = null;
+    if (computeTileRequest(activeImage.value) === 'hide') prefetchTileAtCursor(point);
+  }, ms);
+}
+
+// Duration of the last tile region, shown with the load timings.
+function noteTileTiming(kind: string, startedAt: number, w: number, h: number) {
+  if (!config.settings.showLoadTiming) return;
+  const part = `TILE ${kind} ${Math.round(performance.now() - startedAt)} ms ${w}x${h}`;
+  const base = loadTimingText.value.replace(/ ?\| TILE .*$|^TILE .*$/, '');
+  loadTimingText.value = base ? `${base} | ${part}` : part;
+}
+
 // Button pressed on the photo: a zoom to 100 % around the cursor may follow.
-function prefetchTileAtCursor(event: MouseEvent) {
+function prefetchTileAtCursor(event: { clientX: number; clientY: number }) {
   const slot = activeImage.value;
   const size = imageSize.value[slot];
   const s = scale.value[slot];
@@ -1146,10 +1184,12 @@ async function runTileOverlay() {
     const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
     const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
     const src = withQuery(base, `region=${req.x0},${req.y0},${req.x1},${req.y1}&out=${req.outW}&sharp=${sharp}&filter=${filter}`);
+    const startedAt = performance.now();
     const img = new Image();
     img.decoding = 'async';
     img.src = src;
     await img.decode();
+    noteTileTiming('view', startedAt, req.outW, Math.round(req.outW * (req.y1 - req.y0) / (req.x1 - req.x0)));
     if (seq === tileSeq && imageFilePath.value[activeImage.value] === info.path) {
       tileOverlay.value = { path: info.path, src, x0: req.x0, y0: req.y0, x1: req.x1, y1: req.y1, outW: req.outW };
     }
@@ -3010,6 +3050,7 @@ const handleImageMouseMove = (event: MouseEvent) => {
   // update mouse position
   mousePosition.value = { x: event.clientX, y: event.clientY };
   updatePosition();
+  onTileHover(event);
 
   if (!isDraggingImage.value) return;
 
@@ -3053,6 +3094,7 @@ function finishImageMouseDrag(navigate: boolean) {
 // mouse leave
 // reset mouse position to the center when leaving the container
 const handleImageMouseLeave = () => {
+  clearTileHover();
   // purpose: when clicking zoom fit/reset, the image will be centered
   // and the mouse position will be set to the center of the container
   const container = containerSize.value;
