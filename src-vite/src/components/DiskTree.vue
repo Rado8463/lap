@@ -440,6 +440,13 @@ watch(currentPath, () => {
 
 onMounted(async () => {
   await loadRoots();
+  // The folder shown on start (restored selection) may have lost its browse-only album, which is
+  // removed when Lap closes: open it again, otherwise its file list would never load.
+  const cur = currentPath.value;
+  if (cur && !albumFor(cur)) {
+    const node = nodes.get(cur) || ({ path: cur, name: cur.split(/[\\/]/).filter(Boolean).pop() || cur } as any);
+    await openFolder(node);
+  }
   await cleanupDiskAlbums(currentPath.value);
 });
 </script>

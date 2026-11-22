@@ -31,8 +31,12 @@ export async function cleanupAllDiskAlbums(): Promise<void> {
       const path = (m.diskAlbumPaths || {})[String(id)] ?? album?.path;
       if (album && path && norm(album.path) === norm(path)) await removeAlbum(id);
     }
-    m.diskAlbumIds = [];
-    m.diskAlbumPaths = {};
+    // Only what was handled here: an album registered meanwhile (opened at startup) stays.
+    const left = (m.diskAlbumIds || []).map(Number).filter((id) => !ids.includes(id));
+    m.diskAlbumIds = left;
+    const paths = { ...(m.diskAlbumPaths || {}) };
+    for (const id of ids) delete paths[String(id)];
+    m.diskAlbumPaths = paths;
   } catch (error) {
     console.error('[diskAlbums] cleanup failed:', error);
   }
