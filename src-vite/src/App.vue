@@ -16,7 +16,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useConfigStore } from '@/stores/configStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useUIStore } from '@/stores/uiStore';
-import { clearIndexRecoveryInfo } from '@/common/api';
+import { clearIndexRecoveryInfo, getAllAlbums } from '@/common/api';
 import { isMac, SCALE_VALUES } from '@/common/utils';
 import { useAppTheme } from '@/composables/useAppearance';
 import { matchesShortcut } from '@/common/shortcuts';
@@ -128,6 +128,16 @@ onMounted(async () => {
   // Initialize library state from backend
   try {
     await libConfig.init();
+    // A saved album that no longer exists (removed while Lap was closing) must not be restored.
+    if (isMainWindow && Number(libConfig.album.id) > 0) {
+      const known = (await getAllAlbums()) || [];
+      if (!known.some((a: any) => Number(a.id) === Number(libConfig.album.id))) {
+        libConfig.album.id = 0;
+        libConfig.album.folderId = null;
+        libConfig.album.folderPath = '';
+        libConfig.album.selected = false;
+      }
+    }
   } catch (error) {
     console.error('[App] Library initialization failed:', error);
     // Continue anyway - user can retry from UI
