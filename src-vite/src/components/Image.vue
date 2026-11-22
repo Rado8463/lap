@@ -908,12 +908,12 @@ type HybridInfo = {
 const hybridSlot = ref<(HybridInfo | null)[]>([null, null]);
 const fullCache = new Map<string, Promise<LoadedImage>>();
 const HYBRID_MIN_PIXELS = 12_000_000;
-const FULL_CACHE_LIMIT = 3;
-// Huge photos (one decoded copy is ~4 bytes per pixel, e.g. 270 MP = ~1 GB) are not prefetched,
-// not kept after zooming back to fit, and the cache stays within a decoded-pixel budget; otherwise
-// the memory pressure makes the compositor drop tiles and even the overlays.
-const HUGE_FULL_PIXELS = 100_000_000;
-const FULL_CACHE_PIXEL_BUDGET = 200_000_000;
+const FULL_CACHE_LIMIT = 4;
+// Photos wider or taller than this render broken at full resolution (missing tiles, even the
+// overlays disappear; 19190 x 7971 is fine, 34092 x 7887 is not). They are not prefetched and not kept
+// after zooming back to fit. The cache of full-resolution copies stays within a decoded-pixel budget.
+const HUGE_FULL_EDGE = 20_000;
+const FULL_CACHE_PIXEL_BUDGET = 500_000_000;
 const fullPixels = new Map<string, number>();
 
 function releaseFull(path: string) {
@@ -921,9 +921,9 @@ function releaseFull(path: string) {
   fullPixels.delete(path);
 }
 
-function hybridPixels(info: HybridInfo): number {
+function isHugeFull(info: { path: string; meta?: HybridInfo['meta'] }): boolean {
   const { w, h } = hybridDims(info.path, info.meta);
-  return w * h;
+  return Math.max(w, h) >= HUGE_FULL_EDGE;
 }
 
 function hybridDims(filePath: string, meta?: { width?: number; height?: number }): { w: number; h: number } {
@@ -1003,7 +1003,7 @@ function markHybridSlot(slot: number, filePath: string, src: string, bitmapWidth
   info.prefetchTimer = setTimeout(() => {
     info.prefetchTimer = null;
     // hybridSlot is a ref: reading it returns a reactive proxy, so compare the raw objects.
-    if (toRaw(hybridSlot.value[slot]) === info && hybridPixels(info) < HUGE_FULL_PIXELS) void loadHybridFull(info);
+    if (toRaw(hybridSlot.value[slot]) === info && !isHugeFull(info)) void loadHybridFull(info);
   }, 0);
 }
 
@@ -1083,7 +1083,7 @@ function updateHybridResolution() {
     imageNaturalSize.value[slot] = { width: info.bitmapWidth, height: Math.round(info.bitmapWidth * (imageSize.value[slot].height / imageSize.value[slot].width)) };
     imageSrc.value[slot] = info.fitSrc;
     // A huge original is dropped at fit (its decoded copy would stay in memory); zooming in loads it again.
-    if (hybridPixels(info) >= HUGE_FULL_PIXELS) {
+    if (isHugeFull(info)) {
       releaseFull(info.path);
       info.fullSrc = null;
     }
@@ -1328,6 +1328,7 @@ function getNeighborPaths(): string[] {
 // work to happen early: neighbours at fit size (instant navigation) and the
 // current image at 1:1 (instant first zoom to 100 %).
 const PRELOAD_BACKEND_COUNT = 6;
+const NEIGHBOR_FULL_COUNT = 2;
 const RASTER_WARM_MIN_PIXELS = 4_000_000;
 const RASTER_WARM_NEIGHBORS = 4;
 let rasterWarmHost: HTMLDivElement | null = null;
@@ -1502,6 +1503,12 @@ function warmNeighbors() {
         const loaded = await loadImageResource(path, meta);
         pixels += (loaded.naturalWidth || 0) * (loaded.naturalHeight || 0);
         if (!isStale() && paths.indexOf(path) < RASTER_WARM_NEIGHBORS) warmFitRaster(path, loaded);
+        // The nearest neighbours also get their full resolution prepared, so a drag to 100 % right
+        // after stepping to them does not show the enlarged preview first.
+        if (!isStale() && paths.indexOf(path) < NEIGHBOR_FULL_COUNT && isHybridCandidate(path, meta)
+          && hybridLayouts.has(loaded.src) && !isHugeFull({ path, meta })) {
+          void loadHybridFull({ path, meta } as HybridInfo).catch(() => {});
+        }
       } catch {
         // Ignore preload failures and let the main load path surface errors.
       }
