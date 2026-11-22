@@ -1147,13 +1147,27 @@ impl AFolder {
         album_id: i64,
         folder_path: &str,
     ) -> Result<Self, String> {
-        if let Ok(Some(folder)) = Self::fetch_with_conn(conn, folder_path) {
+        // The folder row must belong to this album: the same path may also exist in another
+        // (nested or overlapping) album, whose row must never be reused here.
+        let in_album = |conn: &Connection| -> Result<Option<Self>, String> {
+            conn.query_row(
+                "SELECT id, album_id, name, path, created_at, modified_at, is_favorite, COALESCE(is_excluded_from_search, 0), has_subfolders
+                FROM afolders
+                WHERE album_id = ?1 AND path = ?2
+                LIMIT 1",
+                params![album_id, folder_path],
+                Self::from_row,
+            )
+            .optional()
+            .map_err(|e| e.to_string())
+        };
+        if let Some(folder) = in_album(conn)? {
             Self::update_inode_with_conn(conn, album_id, folder_path)?;
             return Ok(folder);
         }
         Self::new(album_id, folder_path)?.insert_with_conn(conn)?;
         Self::update_inode_with_conn(conn, album_id, folder_path)?;
-        let new_folder = Self::fetch_with_conn(conn, folder_path)?;
+        let new_folder = in_album(conn)?;
         new_folder.ok_or_else(|| "Inserted folder could not be read back".to_string())
     }
 
