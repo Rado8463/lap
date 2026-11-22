@@ -952,7 +952,7 @@ function usesTiles(filePath: string, meta?: { width?: number; height?: number })
   const mp = Number(config.settings.hybridTileMegapixels ?? 36);
   if (!(mp > 0)) return false;
   const ext = getFileExtension(filePath).toLowerCase();
-  if (!['jpg', 'jpeg', 'jpe'].includes(ext)) return false;
+  if (!['jpg', 'jpeg', 'jpe', 'tif', 'tiff', 'psd', 'psb'].includes(ext)) return false;
   const { w, h } = hybridDims(filePath, meta);
   return w * h >= Math.max(mp, 12) * 1_000_000;
 }

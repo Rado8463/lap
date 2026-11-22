@@ -1812,6 +1812,11 @@ fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opt
     let (pixels, pw, ph) = crate::t_jpeg::decode_region_rgb8(file_path, rx0, ry0, rx1 - rx0, ry1 - ry0, denom)?;
     let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG region buffer".to_string())?;
     let oriented = apply_orientation(DynamicImage::ImageRgb8(rgb), orientation).into_rgb8();
+    resize_region_encode(oriented, reg_w, out_w, out_h, opts)
+}
+
+/// Resizes a decoded region to `out_w` x `out_h` (sharpening only when really downscaled) and encodes it.
+fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
     let (cw, ch) = oriented.dimensions();
     if cw == out_w && ch == out_h {
         return crate::t_jpeg::encode_rgb8_ex(&oriented, FIT_PREVIEW_JPEG_QUALITY, true);
@@ -1838,6 +1843,27 @@ fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opt
     crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)
 }
 
+/// Region of an already decoded (oriented) RGB image, for PSD/PSB/TIFF.
+fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+    let (w, h) = rgb.dimensions();
+    let (x0, y0) = (rect.0.min(w.saturating_sub(1)), rect.1.min(h.saturating_sub(1)));
+    let (x1, y1) = (rect.2.min(w), rect.3.min(h));
+    if x1 <= x0 || y1 <= y0 {
+        return Err("Empty region".to_string());
+    }
+    let (reg_w, reg_h) = (x1 - x0, y1 - y0);
+    let out_w = out_w.clamp(1, reg_w);
+    let out_h = ((reg_h as f64 * out_w as f64 / reg_w as f64).round() as u32).max(1);
+    let src = rgb.as_raw();
+    let mut buf = Vec::with_capacity(reg_w as usize * reg_h as usize * 3);
+    for y in y0..y1 {
+        let start = (y as usize * w as usize + x0 as usize) * 3;
+        buf.extend_from_slice(&src[start..start + reg_w as usize * 3]);
+    }
+    let region = RgbImage::from_raw(reg_w, reg_h, buf).ok_or_else(|| "Bad region buffer".to_string())?;
+    resize_region_encode(region, reg_w, out_w, out_h, opts)
+}
+
 /// Viewer region preview (hybrid mode, tiled): a rectangle of a big JPEG in source pixels of the
 /// oriented image, `out_w` pixels wide. None means "not applicable" (not a plain sRGB JPEG, or a failure).
 pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Option<Vec<u8>> {
@@ -1845,9 +1871,12 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
         return None;
     }
     let ext = Path::new(file_path).extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase())?;
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "jpe") {
-        return None;
-    }
+    let kind = match ext.as_str() {
+        "jpg" | "jpeg" | "jpe" => 0u8,
+        "tif" | "tiff" => 1,
+        "psd" | "psb" => 2,
+        _ => return None,
+    };
     let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: false };
     // The last few regions are kept: a repeated zoom to the same place is instant.
     let cache_key = psd_cache_key(file_path).map(|(mtime, len)| {
@@ -1862,10 +1891,28 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
     }
     let path = file_path.to_string();
     let data = tauri::async_runtime::spawn_blocking(move || {
-        if !jpeg_fit_eligible(&path) {
-            return None;
+        match kind {
+            0 => {
+                if !jpeg_fit_eligible(&path) {
+                    return None;
+                }
+                jpeg_region_jpeg(&path, rect, out_w, opts).ok()
+            }
+            1 => {
+                if !is_big_by_header(&path) {
+                    return None;
+                }
+                let rgb = tiff_decode_shared(&path).ok()?;
+                rgb_region_jpeg(&rgb, rect, out_w, opts).ok()
+            }
+            _ => {
+                if !is_big_by_header(&path) {
+                    return None;
+                }
+                let rgb = psd_decode_shared(&path).ok()?;
+                rgb_region_jpeg(&rgb, rect, out_w, opts).ok()
+            }
         }
-        jpeg_region_jpeg(&path, rect, out_w, opts).ok()
     })
     .await
     .ok()
