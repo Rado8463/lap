@@ -1077,7 +1077,9 @@ impl AFolder {
         conn.query_row(
             "SELECT id, album_id, name, path, created_at, modified_at, is_favorite, COALESCE(is_excluded_from_search, 0), has_subfolders
             FROM afolders
-            WHERE path = ?1",
+            WHERE path = ?1
+            ORDER BY (SELECT LENGTH(albums.path) FROM albums WHERE albums.id = afolders.album_id) DESC
+            LIMIT 1",
             params![folder_path],
             Self::from_row,
         )

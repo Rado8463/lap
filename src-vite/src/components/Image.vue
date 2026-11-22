@@ -526,6 +526,9 @@ function handleSlotLoad(index: number, event: Event) {
   el.decode().then(done, done);
 }
 
+// A will-change: transform layer keeps the highest raster scale it has had, so after a zoom to 100 %
+// a huge photo at fit would be rasterised at full size (160 MP+ of tiles: black blocks, vanishing overlays).
+const isHugeLayout = (index: number) => imageSize.value[index].width * imageSize.value[index].height >= 60_000_000;
 const getImageStyle = (index: number) => ({
   position: 'absolute',
   // RAW placeholders and full previews can have different intrinsic sizes.
@@ -539,8 +542,8 @@ const getImageStyle = (index: number) => ({
   transition: !isSliding.value && (!isDraggingImage.value || loupeAnimating.value) && !noTransition.value && !isResizingContainer.value && !isWheelZooming.value
     ? (isDraggingNavBox.value ? 'transform 0.2s ease-out' : (loupeAnimating.value ? 'transform 0.15s ease-out' : 'transform 0.3s ease-in-out'))
     : 'none',
-  willChange: 'transform',
-  backfaceVisibility: 'hidden',
+  willChange: isHugeLayout(index) ? 'auto' : 'transform',
+  backfaceVisibility: isHugeLayout(index) ? 'visible' : 'hidden',
   pointerEvents: 'auto',
   // Visible only through transparent pixels (PNG, PSD, TIFF ...).
   backgroundColor: slotDecoded.value[index]
@@ -1052,6 +1055,7 @@ async function runTileOverlay() {
     }
   } catch {
     // The region could not be made: the preview stays.
+    if (config.settings.showLoadTiming) loadTimingText.value = `TILE failed: region ${req.x0},${req.y0}-${req.x1},${req.y1} out ${req.outW}px`;
   } finally {
     tileBusy = false;
     // Always look again: the view may have moved while the region was decoded.
