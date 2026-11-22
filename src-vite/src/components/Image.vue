@@ -8,11 +8,13 @@
 
     <div
       v-if="infoTipLines.length > 0"
-      class="absolute left-2 top-2 z-[60] max-w-[80%] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono pointer-events-none select-none"
+      class="absolute left-2 top-2 z-[60] max-w-[95%] flex flex-col items-start gap-1 pointer-events-none select-none"
     >
-      <!-- row 0: load timings (diagnostics), only while they are enabled -->
-      <div v-if="loadTimingText" class="text-amber-300 whitespace-normal break-words">{{ loadTimingText }}</div>
-      <div v-for="(line, i) in infoTipLines" :key="i" class="whitespace-nowrap overflow-hidden text-ellipsis">{{ line }}</div>
+      <!-- separate tooltip above the info tooltip: load timings (diagnostics), only while enabled -->
+      <div v-if="loadTimingText" class="max-w-full px-2 py-1 rounded bg-black/70 text-amber-300 text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis">{{ loadTimingText }}</div>
+      <div class="max-w-[85%] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono">
+        <div v-for="(line, i) in infoTipLines" :key="i" class="whitespace-nowrap overflow-hidden text-ellipsis">{{ line }}</div>
+      </div>
     </div>
 
     <div
