@@ -30,6 +30,7 @@ drag = { path = "vendor/drag" }
 tauri = { version = "2", features = [
     "macos-private-api",
     "protocol-asset",
+    "image-png",
 ] }
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-shell = "2.3.5"

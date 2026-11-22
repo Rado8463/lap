@@ -71,6 +71,15 @@ async fn main() {
         None => builder,
     };
 
+    // Window icon for every window (also those created from the frontend). Without it Windows shows
+    // a generic icon in the classic Alt+Tab switcher, which reads the icon of the window itself.
+    #[allow(unused_mut)]
+    let mut context = tauri::generate_context!();
+    #[cfg(not(target_os = "macos"))]
+    if let Ok(icon) = tauri::image::Image::from_bytes(include_bytes!("../icons/window-icon.png")) {
+        context.set_default_window_icon(Some(icon));
+    }
+
     let run_result = builder
         .plugin(
             tauri_plugin_window_state::Builder::default()
@@ -460,7 +469,7 @@ async fn main() {
             t_cmds::parse_backup_file,
             t_cmds::restore_databases,
         ])
-        .build(tauri::generate_context!());
+                .build(context);
 
     match run_result {
         Ok(app) => {

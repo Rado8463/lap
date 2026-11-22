@@ -1,5 +1,6 @@
 {
-  "productName": "Lap",
+  "productName": "Lap Photo Studio",
+  "mainBinaryName": "Lap",
   "version": "0.4.1",
   "identifier": "com.julyx10.lap",
   "build": {

@@ -25,19 +25,20 @@
           'relative flex my-1 ml-1 z-10 select-none outline-none',
           !leftPanelLayoutExpanded && isMac ? 'mt-12 mb-8': '',
         ]"
-        :style="{ width: leftPanelLayoutExpanded ? leftPanelWidth : '4rem' }"
+        :style="{ width: leftPanelLayoutExpanded ? leftPanelWidth : '3.5rem' }"
         data-tauri-drag-region
         @focus="uiStore.setActivePane('left-sidebar')"
       >
           <div
             class="absolute inset-y-0 left-0 bg-base-200 rounded-box"
             :class="isDraggingSplitter ? '' : 'transition-[width] duration-200 ease-in-out'"
-            :style="{ width: leftPanelVisualExpanded ? leftPanelWidth : '4rem' }"
+            :style="{ width: leftPanelVisualExpanded ? leftPanelWidth : '3.5rem' }"
           ></div>
 
           <!-- side bar -->
           <div 
-            class="fixed top-14 min-w-16 bottom-10 z-10 flex flex-col items-center space-y-1" 
+            class="fixed top-14 min-w-14 z-10 flex flex-col items-center space-y-1" 
+            :class="isMac ? 'bottom-10' : 'bottom-2'"
             data-tauri-drag-region
           >
             <div v-for="item in visibleButtons" :key="item.index">
@@ -70,7 +71,7 @@
           <!-- library title -->
           <div
             v-if="leftPanelMounted || databaseCorrupted"
-            class="absolute top-0 left-[68px] right-0 z-10 h-10 flex items-center"
+            class="absolute top-0 left-[60px] right-0 z-10 h-10 flex items-center"
             data-tauri-drag-region
           >
             <ContextMenu :menuItems="getLibraryMenuItems">
@@ -101,9 +102,9 @@
           <!-- panel-->
           <div
             v-if="leftPanelMounted || libraryEmpty"
-            class="absolute inset-y-0 left-16 pt-10 px-1 border-l border-base-content/5 flex flex-col overflow-hidden transition-[transform,opacity] duration-200 ease-in-out"
+            class="absolute inset-y-0 left-14 pt-10 px-1 border-l border-base-content/5 flex flex-col overflow-hidden transition-[transform,opacity] duration-200 ease-in-out"
             :class="leftPanelVisualExpanded ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'"
-            :style="{ width: `calc(${Number(config.leftPanel.width || 260) / 16}rem - 4rem)` }"
+            :style="{ width: `calc(${Number(config.leftPanel.width || 260) / 16}rem - 3.5rem)` }"
           >
 
             <!-- Component panel (flex-1 to fill remaining space) -->
