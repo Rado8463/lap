@@ -261,6 +261,7 @@ if (isMainWindow) {
     config.settings.infoTipEnabled = event.payload.enabled
     config.settings.infoTipLine1 = event.payload.line1
     config.settings.infoTipLine2 = event.payload.line2
+    config.settings.infoTipLine3 = event.payload.line3 ?? ''
   })
   listen('settings-shiftAdvanceMetadata-changed', (event) => {
     config.settings.shiftAdvanceMetadata = event.payload

@@ -204,6 +204,7 @@ export const useConfigStore = defineStore('configStore', {
       infoTipEnabled: true,     // info tooltip (top left) in the viewers
       infoTipLine1: 'name',     // comma separated fields of the tooltip's first line
       infoTipLine2: 'dimensions,bitDepth,size,zoom,flags', // ... and second line (empty = no second line)
+      infoTipLine3: '',         // ... and third line (empty by default = not shown)
       hybridDiskCache: true,    // keep hybrid fit previews on disk for faster reopening
       hybridDiskCacheAlbumsOnly: true, // ... but not for photos browsed via the Disk tab
       hybridFilter: 0,          // resize filter of the hybrid preview: 0 Lanczos, 1 Catmull-Rom (cubic), 2 Mitchell

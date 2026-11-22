@@ -10,11 +10,13 @@
       v-if="infoTipLines.length > 0"
       class="absolute left-2 top-2 z-[60] max-w-[80%] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono pointer-events-none select-none"
     >
+      <!-- row 0: load timings (diagnostics), only while they are enabled -->
+      <div v-if="loadTimingText" class="text-amber-300 whitespace-normal break-words">{{ loadTimingText }}</div>
       <div v-for="(line, i) in infoTipLines" :key="i" class="whitespace-nowrap overflow-hidden text-ellipsis">{{ line }}</div>
     </div>
 
     <div
-      v-if="loadTimingText"
+      v-if="loadTimingText && infoTipLines.length === 0"
       class="absolute left-2 bottom-2 z-[60] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono pointer-events-none select-none"
     >{{ loadTimingText }}</div>
 
@@ -1124,7 +1126,8 @@ const infoTipLines = computed<string[]>(() => {
   if (!props.filePath || loadError.value) return [];
   const line1 = buildInfoTipLine(parseInfoTipFields(config.settings.infoTipLine1, INFO_TIP_DEFAULT_LINE1));
   const line2 = buildInfoTipLine(parseInfoTipFields(config.settings.infoTipLine2, INFO_TIP_DEFAULT_LINE2));
-  return [line1, line2].filter((line) => line.length > 0);
+  const line3 = buildInfoTipLine(parseInfoTipFields(config.settings.infoTipLine3, ''));
+  return [line1, line2, line3].filter((line) => line.length > 0);
 });
 
 // ---- Load timing (diagnostics, enabled by settings.showLoadTiming) ----------

@@ -381,11 +381,11 @@
               <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.infoTipEnabled !== false" @change="config.settings.infoTipEnabled = $event.target.checked" />
             </div>
             <template v-if="config.settings.infoTipEnabled !== false">
-            <div v-for="line in [1, 2]" :key="`infotip-${line}`" class="flex flex-col gap-1 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+            <div v-for="line in [1, 2, 3]" :key="`infotip-${line}`" class="flex flex-col gap-1 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="text-sm leading-5">{{ $t(`settings.image_view.info_tip_line${line}`) }}</div>
               <div class="flex flex-wrap gap-x-4 gap-y-1">
                 <label v-for="field in infoTipFieldList" :key="`${line}-${field}`" class="flex items-center gap-1.5 text-xs cursor-pointer">
-                  <input type="checkbox" class="checkbox checkbox-xs" :checked="infoTipHas(line as 1 | 2, field)" @change="toggleInfoTipField(line as 1 | 2, field, ($event.target as HTMLInputElement).checked)" />
+                  <input type="checkbox" class="checkbox checkbox-xs" :checked="infoTipHas(line as 1 | 2 | 3, field)" @change="toggleInfoTipField(line as 1 | 2 | 3, field, ($event.target as HTMLInputElement).checked)" />
                   {{ $t(`settings.image_view.info_tip_field_${field}`) }}
                 </label>
               </div>
@@ -2138,17 +2138,18 @@ watch(() => config.settings.treeFontScale, (value) => {
 watch(() => config.settings.titleBarHidden, (hidden) => {
   emit('settings-titleBarHidden-changed', hidden !== false);
 });
-watch(() => [config.settings.infoTipEnabled, config.settings.infoTipLine1, config.settings.infoTipLine2], ([enabled, line1, line2]) => {
-  emit('settings-infoTip-changed', { enabled: enabled !== false, line1: String(line1 ?? ''), line2: String(line2 ?? '') });
+watch(() => [config.settings.infoTipEnabled, config.settings.infoTipLine1, config.settings.infoTipLine2, config.settings.infoTipLine3], ([enabled, line1, line2, line3]) => {
+  emit('settings-infoTip-changed', { enabled: enabled !== false, line1: String(line1 ?? ''), line2: String(line2 ?? ''), line3: String(line3 ?? '') });
 });
 const infoTipFieldList = INFO_TIP_FIELDS as readonly string[];
-function infoTipHas(line: 1 | 2, field: string): boolean {
-  const key = line === 1 ? 'infoTipLine1' : 'infoTipLine2';
-  return parseInfoTipFields((config.settings as any)[key], line === 1 ? INFO_TIP_DEFAULT_LINE1 : INFO_TIP_DEFAULT_LINE2).includes(field as any);
+const infoTipLineKey = (line: 1 | 2 | 3) => (['infoTipLine1', 'infoTipLine2', 'infoTipLine3'] as const)[line - 1];
+const infoTipLineDefault = (line: 1 | 2 | 3) => [INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, ''][line - 1];
+function infoTipHas(line: 1 | 2 | 3, field: string): boolean {
+  return parseInfoTipFields((config.settings as any)[infoTipLineKey(line)], infoTipLineDefault(line)).includes(field as any);
 }
-function toggleInfoTipField(line: 1 | 2, field: string, on: boolean) {
-  const key = line === 1 ? 'infoTipLine1' : 'infoTipLine2';
-  const current = new Set<string>(parseInfoTipFields((config.settings as any)[key], line === 1 ? INFO_TIP_DEFAULT_LINE1 : INFO_TIP_DEFAULT_LINE2));
+function toggleInfoTipField(line: 1 | 2 | 3, field: string, on: boolean) {
+  const key = infoTipLineKey(line);
+  const current = new Set<string>(parseInfoTipFields((config.settings as any)[key], infoTipLineDefault(line)));
   if (on) current.add(field); else current.delete(field);
   (config.settings as any)[key] = infoTipFieldList.filter((f) => current.has(f)).join(',');
 }
