@@ -8259,7 +8259,7 @@ function handleVisibleRangeUpdate({ startIndex, endIndex }: { startIndex: number
     return;
   }
 
-  const buffer = Math.max(40, Math.min(visibleItemCount.value, 120));
+  const buffer = thumbnailPrefetchBuffer();
   const seqId = ++visibleRangeSeqId;
 
   // Phase 1: viewport thumbnails first (immediately visible)
@@ -11910,11 +11910,17 @@ function invalidateThumbnailRequests() {
   thumbnailScheduler.refresh();
 }
 
+// How many items above and below the viewport get their thumbnails preloaded (a few screens,
+// so that scrolling quickly meets already cached thumbnails).
+function thumbnailPrefetchBuffer() {
+  return Math.max(80, Math.min(visibleItemCount.value * 3, 240));
+}
+
 function refreshThumbnailViewport() {
   const start = Math.max(0, lastVisibleRange.start);
   const end = lastVisibleRange.end >= start ? lastVisibleRange.end
     : start + Math.max(1, visibleItemCount.value) - 1;
-  const buffer = Math.max(40, Math.min(visibleItemCount.value, 120));
+  const buffer = thumbnailPrefetchBuffer();
   const rows = gridRows.value;
   const priorities = new Map<number, number>();
   for (let index = Math.max(0, start - buffer); index <= Math.min(rows.length - 1, end + buffer); index++) {
