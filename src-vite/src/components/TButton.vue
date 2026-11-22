@@ -14,6 +14,7 @@
             'btn-xs hover:bg-base-100/30': buttonSize === 'small',
             'btn-sm hover:bg-base-100/30': buttonSize === 'medium',
             'btn-lg hover:bg-base-100/30': buttonSize === 'large',
+            'w-10! h-10! min-h-10!': compact,
             'bg-base-100/30': selected,
             'pointer-events-none cursor-default text-base-content/30 hover:text-base-content/30': disabled,
           }
@@ -76,6 +77,11 @@ import { config } from '@/common/config';
 import type { Component } from 'vue';
 
 const props = defineProps({
+  // Smaller square (2.5rem) for the narrow sidebar; the icon keeps its size.
+  compact: {
+    type: Boolean,
+    default: false
+  },
   buttonSize: {
     type: String,
     default: 'medium'         // 'small', 'medium'(default), 'large'

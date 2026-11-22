@@ -25,25 +25,26 @@
           'relative flex my-1 ml-1 z-10 select-none outline-none',
           !leftPanelLayoutExpanded && isMac ? 'mt-12 mb-8': '',
         ]"
-        :style="{ width: leftPanelLayoutExpanded ? leftPanelWidth : '3.5rem' }"
+        :style="{ width: leftPanelLayoutExpanded ? leftPanelWidth : '2.75rem' }"
         data-tauri-drag-region
         @focus="uiStore.setActivePane('left-sidebar')"
       >
           <div
             class="absolute inset-y-0 left-0 bg-base-200 rounded-box"
             :class="isDraggingSplitter ? '' : 'transition-[width] duration-200 ease-in-out'"
-            :style="{ width: leftPanelVisualExpanded ? leftPanelWidth : '3.5rem' }"
+            :style="{ width: leftPanelVisualExpanded ? leftPanelWidth : '2.75rem' }"
           ></div>
 
           <!-- side bar -->
           <div 
-            class="fixed top-14 min-w-14 z-10 flex flex-col items-center space-y-1" 
+            class="fixed top-14 min-w-11 z-10 flex flex-col items-center space-y-1" 
             :class="isMac ? 'bottom-10' : 'bottom-0'"
             data-tauri-drag-region
           >
             <div v-for="item in visibleButtons" :key="item.index">
               <TButton
                 :buttonSize="'large'"
+                compact
                 :icon="item.icon"
                 text=""
                 :tooltip="(item as any).tooltip || item.text"
@@ -60,6 +61,7 @@
               class="mt-auto"
               :class="showDebugBadge ? 'text-warning': ''"
               :buttonSize="'large'" 
+              compact
               :icon="IconSettings" 
               text=""
               :tooltip="$t('sidebar.settings')"
@@ -71,7 +73,7 @@
           <!-- library title -->
           <div
             v-if="leftPanelMounted || databaseCorrupted"
-            class="absolute top-0 left-[60px] right-0 z-10 h-10 flex items-center"
+            class="absolute top-0 left-[48px] right-0 z-10 h-10 flex items-center"
             data-tauri-drag-region
           >
             <ContextMenu :menuItems="getLibraryMenuItems">
@@ -102,9 +104,9 @@
           <!-- panel-->
           <div
             v-if="leftPanelMounted || libraryEmpty"
-            class="absolute inset-y-0 left-14 pt-10 px-1 border-l border-base-content/5 flex flex-col overflow-hidden transition-[transform,opacity] duration-200 ease-in-out"
+            class="absolute inset-y-0 left-11 pt-10 px-1 border-l border-base-content/5 flex flex-col overflow-hidden transition-[transform,opacity] duration-200 ease-in-out"
             :class="leftPanelVisualExpanded ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'"
-            :style="{ width: `calc(${Number(config.leftPanel.width || 260) / 16}rem - 3.5rem)` }"
+            :style="{ width: `calc(${Number(config.leftPanel.width || 260) / 16}rem - 2.75rem)` }"
           >
 
             <!-- Component panel (flex-1 to fill remaining space) -->
