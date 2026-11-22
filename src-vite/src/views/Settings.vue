@@ -155,6 +155,13 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.scrollbar_narrow') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.grid.scrollbar_narrow_hint') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.scrollbarNarrow" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.grid.highlight_bar') }}</div>
                 <div class="text-xs text-base-content/30">{{ $t('settings.grid.highlight_bar_hint') }}</div>
               </div>
@@ -1309,13 +1316,15 @@ const wheelOptions = computed(() => {
 const thumbnailQualityOptions = computed(() => {
   const labels = localeMsg.value.settings.advanced.thumbnail_cache.thumbnail_quality_options || [
     'Low(256px)',
+    'Compact(384px)',
     'Standard(512px)',
     'High(1024px)',
   ];
   return [
     { value: 256, label: labels[0] },
-    { value: 512, label: labels[1] },
-    { value: 1024, label: labels[2] },
+    { value: 384, label: labels[1] },
+    { value: 512, label: labels[2] },
+    { value: 1024, label: labels[3] },
   ];
 });
 
@@ -2168,6 +2177,9 @@ watch(() => config.settings.loadingBackgroundColor, (newValue) => {
 });
 watch(() => [config.settings.thumbHighlightEnabled, config.settings.thumbHighlightColor], ([enabled, color]) => {
   emit('settings-thumbHighlight-changed', { enabled, color });
+});
+watch(() => config.settings.scrollbarNarrow, (value) => {
+  emit('settings-scrollbarNarrow-changed', value !== false);
 });
 watch(() => config.settings.thumbHighlightBar, (value) => {
   emit('settings-thumbHighlightBar-changed', value !== false);

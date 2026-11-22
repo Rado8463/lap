@@ -1529,6 +1529,8 @@
     "grid": {
       "title": "Layout",
       "section_grid": "Grid",
+      "scrollbar_narrow": "Narrow scrollbar",
+      "scrollbar_narrow_hint": "Thin 4 px scrollbar in the thumbnail grid, without the page arrows",
       "highlight_bar": "Bottom bar on the current thumbnail",
       "highlight_bar_hint": "A thick line along the bottom edge of the current thumbnail (uses the highlight colour, or the theme colour)",
       "highlight_current": "Custom highlight for the current thumbnail",
@@ -1879,6 +1881,7 @@
         "thumbnail_quality_hint": "Higher settings look sharper but take longer to generate and use more disk space",
         "thumbnail_quality_options": [
           "Low (256 px)",
+          "Compact (384 px)",
           "Standard (512 px)",
           "High (1024 px)"
         ],

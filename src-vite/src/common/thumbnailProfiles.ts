@@ -1,5 +1,7 @@
 export const THUMBNAIL_PROFILES = {
   256: { minGridSize: 60, maxGridSize: 180 },
+  // 384 keeps the 512 grid range: cells up to 360 px still fit the stored thumbnail without upscaling
+  384: { minGridSize: 120, maxGridSize: 360 },
   512: { minGridSize: 120, maxGridSize: 360 },
   1024: { minGridSize: 240, maxGridSize: 720 },
 } as const;
@@ -8,7 +10,7 @@ export type ThumbnailSize = keyof typeof THUMBNAIL_PROFILES;
 
 export function normalizeThumbnailSize(value: unknown): ThumbnailSize {
   const size = Number(value);
-  return size === 256 || size === 1024 ? size : 512;
+  return size === 256 || size === 384 || size === 1024 ? size : 512;
 }
 
 export function thumbnailProfile(value: unknown) {

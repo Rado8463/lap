@@ -2,10 +2,11 @@
   <div 
     :class="[
       'h-full flex flex-col items-end justify-center',
-      isGroupingMarkers ? 'w-10' : (markers.length > 0 ? 'w-14' : 'w-4.5')
+      isGroupingMarkers ? 'w-10' : (markers.length > 0 ? 'w-14' : (narrow ? 'w-2.5' : 'w-4.5'))
     ]"
   >
     <IconScrollUp 
+      v-if="!narrow"
       :class="[
         'w-4 h-4 text-base-content/30',
         total > pageSize ? 'hover:text-base-content/70 cursor-pointer' : '' 
@@ -72,7 +73,7 @@
       <!-- Track Area (Right) -->
       <div ref="trackRef" 
         :class="[
-          'w-3 relative rounded-full ml-1 mr-0.5', 
+          narrow ? 'w-1 relative rounded-full ml-1 mr-0.5' : 'w-3 relative rounded-full ml-1 mr-0.5', 
           total > pageSize ? 'bg-base-200 cursor-pointer' : 'bg-base-200/30'
         ]" 
         @mousedown="handleTrackClick"
@@ -80,7 +81,8 @@
         <!-- Thumb -->
         <div v-if="total > pageSize"
           ref="thumbRef"
-          class="absolute w-3 rounded-full bg-base-content/30 hover:bg-base-content/50 transition-colors duration-200 ease-in-out" 
+          :class="narrow ? 'w-1' : 'w-3'"
+          class="absolute rounded-full bg-base-content/30 hover:bg-base-content/50 transition-colors duration-200 ease-in-out" 
           :style="{ top: thumbTop + 'px', height: thumbHeight + 'px' }"
           @mousedown.stop="handleThumbMouseDown"
         ></div>
@@ -89,6 +91,7 @@
     </div>
 
     <IconScrollDown 
+      v-if="!narrow"
       :class="[
         'w-4 h-4 text-base-content/30',
         total > pageSize ? 'hover:text-base-content/70 cursor-pointer' : '' 
@@ -102,6 +105,9 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { IconScrollUp, IconScrollDown } from '@/common/icons';
 import { formatDate } from '@/common/utils';
+import { config } from '@/common/config';
+
+const narrow = computed(() => config.settings.scrollbarNarrow !== false);
 
 const props = defineProps({
   total: {

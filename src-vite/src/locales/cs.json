@@ -1528,6 +1528,8 @@
     "grid": {
       "title": "Rozvržení",
       "section_grid": "Mřížka",
+      "scrollbar_narrow": "Úzký posuvník",
+      "scrollbar_narrow_hint": "Tenký 4 px posuvník v mřížce náhledů, bez šipek pro stránkování",
       "highlight_bar": "Spodní proužek u aktuálního náhledu",
       "highlight_bar_hint": "Silná čára na spodní hraně aktuálního náhledu (použije barvu zvýraznění, jinak barvu motivu)",
       "highlight_current": "Vlastní zvýraznění aktuálního náhledu",
@@ -1868,6 +1870,7 @@
         "thumbnail_quality_hint": "Vyšší nastavení poskytuje ostřejší obraz, ale generování trvá déle a zabírá více místa na disku",
         "thumbnail_quality_options": [
           "Nízká (256 px)",
+          "Kompaktní (384 px)",
           "Standardní (512 px)",
           "Vysoká (1024 px)"
         ],

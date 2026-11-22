@@ -174,7 +174,7 @@ export const useConfigStore = defineStore('configStore', {
       rawPreviewSource: 'embedded', // embedded | rendered | brightened
       
       // grid view settings
-      thumbnailSize: 512,         // gallery thumbnail quality: 256, 512, or 1024
+      thumbnailSize: 512,         // gallery thumbnail quality: 256, 384, 512, or 1024
       mapProvider: 'global',      // global | tianditu
       tiandituToken: '',
       mapMarkerSize: 64,          // map photo marker size in px
@@ -213,6 +213,7 @@ export const useConfigStore = defineStore('configStore', {
       panBeyondEdges: false,    // allow dragging a zoomed photo past the screen edges (like ZPS)
       stageBeforeShow: true,    // keep the old photo until the new big photo is decoded and rendered
       loadingBackgroundColor: '#000000', // colour of a photo's area before its pixels are loaded
+      scrollbarNarrow: true,        // thin (4 px) scrollbar in the main grid, without the page arrows
       thumbHighlightBar: true,      // thick bar on the bottom edge of the current thumbnail
       thumbHighlightEnabled: false, // use a custom colour for the current thumbnail's border
       thumbHighlightColor: '#f59e0b', // border colour of the current thumbnail (when enabled)
