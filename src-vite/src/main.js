@@ -311,6 +311,9 @@ if (isMainWindow) {
   listen('settings-showLoadTiming-changed', (event) => {
     config.settings.showLoadTiming = event.payload
   })
+  listen('settings-albumCoverIcons-changed', (event) => {
+    config.settings.albumCoverIcons = event.payload
+  })
   listen('settings-scrollbarNarrow-changed', (event) => {
     config.settings.scrollbarNarrow = event.payload
   })

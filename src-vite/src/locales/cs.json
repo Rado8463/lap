@@ -1530,6 +1530,8 @@
       "section_grid": "Mřížka",
       "scrollbar_narrow": "Úzký posuvník",
       "scrollbar_narrow_hint": "Tenký 4 px posuvník v mřížce náhledů, bez šipek pro stránkování",
+      "album_cover_icons": "Obálky alb z fotek",
+      "album_cover_icons_hint": "V seznamu alb zobrazit jako ikonu náhled fotky. Vypnuto: obyčejná ikona složky jako na záložce Disk.",
       "highlight_bar": "Spodní proužek u aktuálního náhledu",
       "highlight_bar_hint": "Silná čára na spodní hraně aktuálního náhledu (použije barvu zvýraznění, jinak barvu motivu)",
       "highlight_current": "Vlastní zvýraznění aktuálního náhledu",

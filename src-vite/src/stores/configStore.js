@@ -217,6 +217,7 @@ export const useConfigStore = defineStore('configStore', {
       panBeyondEdges: false,    // allow dragging a zoomed photo past the screen edges (like ZPS)
       stageBeforeShow: true,    // keep the old photo until the new big photo is decoded and rendered
       loadingBackgroundColor: '#000000', // colour of a photo's area before its pixels are loaded
+      albumCoverIcons: true,        // album list shows a photo thumbnail as the album icon (off: plain folder icon)
       scrollbarNarrow: true,        // thin (4 px) scrollbar in the main grid, without the page arrows
       thumbHighlightBar: true,      // thick bar on the bottom edge of the current thumbnail
       thumbHighlightEnabled: false, // use a custom colour for the current thumbnail's border

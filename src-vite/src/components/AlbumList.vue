@@ -158,7 +158,7 @@
                 </div>
                 <!-- Cover -->
                 <img
-                  v-else-if="album.cover_file_id && albumCovers[album.id] && !albumCoverErrors[album.id]"
+                  v-else-if="config.settings.albumCoverIcons !== false && album.cover_file_id && albumCovers[album.id] && !albumCoverErrors[album.id]"
                   :src="albumCovers[album.id]"
                   class="w-full h-full object-cover"
                   @error="albumCoverErrors[album.id] = true"
@@ -169,7 +169,8 @@
                   class="w-full h-full flex items-center justify-center cursor-pointer"
                   @click="clickAlbum(album)"
                 >
-                  <IconFolders class="w-6 h-6" />
+                  <IconFolder v-if="config.settings.albumCoverIcons === false" class="w-6 h-6" />
+                  <IconFolders v-else class="w-6 h-6" />
                 </div>
               </div>
 
@@ -345,6 +346,7 @@ import {
   IconDragHandle,
   IconOrder,
   IconFolders,
+  IconFolder,
   IconSearch,
   IconClose,
   IconHeart,

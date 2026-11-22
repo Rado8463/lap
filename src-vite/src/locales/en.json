@@ -1531,6 +1531,8 @@
       "section_grid": "Grid",
       "scrollbar_narrow": "Narrow scrollbar",
       "scrollbar_narrow_hint": "Thin 4 px scrollbar in the thumbnail grid, without the page arrows",
+      "album_cover_icons": "Album covers from photos",
+      "album_cover_icons_hint": "Show a photo thumbnail as the album icon in the album list. Off: a plain folder icon, like in the Disk tab.",
       "highlight_bar": "Bottom bar on the current thumbnail",
       "highlight_bar_hint": "A thick line along the bottom edge of the current thumbnail (uses the highlight colour, or the theme colour)",
       "highlight_current": "Custom highlight for the current thumbnail",
