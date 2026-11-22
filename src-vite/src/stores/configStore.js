@@ -14,6 +14,8 @@ export const useConfigStore = defineStore('configStore', {
       sidebarIndex: SIDEBAR.ALBUM, // toolbar index
       diskTreeActive: false,       // left panel shows the disk tree instead of the album list
       diskAlbumIds: [],            // albums created only to browse a folder from the disk tree (hidden in the album list)
+      diskAlbumPaths: {},          // id -> folder path of those albums (guards the cleanup against reused ids)
+      diskAlbumLibraryId: '',      // library the browse-only albums belong to
       maxLibraryCount: 20,        // max library count
       maxCollectionCount: 100,    // max collection count
       selectionChunkSize: 200,    // virtual list fetch chunk size

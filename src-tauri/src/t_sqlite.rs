@@ -421,6 +421,11 @@ impl Album {
         let new_path = Path::new(path);
         for album in Self::get_all_albums()? {
             let existing_path = Path::new(&album.path);
+            // A folder inside a subfolder the existing album excludes is outside its scope, so it can
+            // be an album of its own (e.g. a temporary browse album of the Disk tab).
+            if new_path != existing_path && new_path.starts_with(existing_path) && album.excludes_path(new_path) {
+                continue;
+            }
             if new_path != existing_path
                 && (new_path.starts_with(existing_path) || existing_path.starts_with(new_path))
             {

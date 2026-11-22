@@ -60,6 +60,7 @@ import { getAllAlbums, addAlbum, editAlbum, removeAlbum, listAlbumSubfolders } f
 import ContextMenu from '@/components/ContextMenu.vue';
 import { useAlbumSelectionProvider } from '@/composables/useAlbumSelection';
 import { useToast } from '@/common/toast';
+import { registerDiskAlbum } from '@/common/diskAlbums';
 import { IconRight, IconFolder, IconFolderExpanded, IconOk } from '@/common/icons';
 
 defineProps({
@@ -95,6 +96,16 @@ const isInside = (child: string, parent: string) => {
   const p = normalize(parent);
   return c === p || c.startsWith(p + SEP) || c.startsWith(p + '/');
 };
+// True when the album does not cover `path` because it lies in one of the album's excluded first-level subfolders.
+const albumExcludes = (album: any, path: string) => {
+  const list: string[] = Array.isArray(album?.excluded_folders) ? album.excluded_folders : [];
+  if (!list.length || normalize(path) === normalize(album.path)) return false;
+  const first = path.slice(album.path.length).split(/[\\/]/).filter(Boolean)[0];
+  return !!first && list.some((f) => (isWin ? f.toLowerCase() : f) === (isWin ? first.toLowerCase() : first));
+};
+// The album that really holds the folder (an album nested in an excluded folder wins over its parent).
+const albumFor = (path: string) =>
+  albums.value.find((a) => isInside(path, a.path) && !albumExcludes(a, path));
 const joinPath = (parent: string, name: string) =>
   parent.endsWith('\\') || parent.endsWith('/') ? parent + name : parent + SEP + name;
 
@@ -122,8 +133,8 @@ const isDiskAlbum = (id: number) => ((config.main as any).diskAlbumIds || []).ma
 
 function refreshAlbumMarks() {
   for (const node of nodes.values()) {
-    const album = albums.value.find((a) => isInside(node.path, a.path) && !isDiskAlbum(a.id));
-    node.albumId = album && !node.isRoot ? album.id : 0;
+    const album = albumFor(node.path);
+    node.albumId = album && !isDiskAlbum(album.id) && !node.isRoot ? album.id : 0;
   }
 }
 
@@ -225,7 +236,7 @@ const menuItems = computed(() => {
   const node = menuNode.value;
   const items: any[] = [];
   if (node && !node.isRoot) {
-    const album = albums.value.find((a) => isInside(node.path, a.path));
+    const album = albumFor(node.path);
     if (!album || isDiskAlbum(album.id)) {          // not in Albums yet
       items.push({ label: t('disk_tree.add_to_albums'), action: () => addToAlbums(node) });
       items.push({ label: t('disk_tree.add_to_albums_flat'), action: () => addToAlbumsFlat(node) });
@@ -254,11 +265,11 @@ async function openRowMenu(node: DiskNode, event: MouseEvent) {
 
 async function addToAlbums(node: DiskNode) {
   albums.value = (await getAllAlbums()) || [];
-  let album = albums.value.find((a) => isInside(node.path, a.path));
+  let album = albumFor(node.path);
   if (!album) {
     await openFolder(node);                          // creates the browse-only album
     albums.value = (await getAllAlbums()) || [];
-    album = albums.value.find((a) => isInside(node.path, a.path));
+    album = albumFor(node.path);
   }
   if (!album) return;
   config.main.diskAlbumIds = ((config.main as any).diskAlbumIds || []).filter((id: number) => Number(id) !== Number(album.id));
@@ -271,7 +282,7 @@ async function addToAlbums(node: DiskNode) {
 // (the album exclusion works on first-level subfolders, with their whole content).
 async function addToAlbumsFlat(node: DiskNode) {
   albums.value = (await getAllAlbums()) || [];
-  const covering = albums.value.find((a) => isInside(node.path, a.path));
+  const covering = albumFor(node.path);
   if (covering && !isDiskAlbum(covering.id)) {
     toast.error(t('disk_tree.already_in_albums', { name: covering.name }));
     return;
@@ -336,25 +347,7 @@ async function openFolder(node: DiskNode) {
   albums.value = (await getAllAlbums()) || [];
 
   // 1. already inside an album: just select it there
-  let album = albums.value.find((a) => isInside(node.path, a.path));
-
-  // A subfolder the album excludes ("this folder only") was never indexed and would look empty:
-  // drop the exclusion so it gets indexed. (Albums cannot nest, so it cannot be its own album.)
-  if (album && Array.isArray(album.excluded_folders) && album.excluded_folders.length > 0
-      && normalize(node.path) !== normalize(album.path)) {
-    const first = node.path.slice(album.path.length).split(/[\\/]/).filter(Boolean)[0];
-    if (first && album.excluded_folders.includes(first)) {
-      const remaining = album.excluded_folders.filter((f: string) => f !== first);
-      await editAlbum(album.id, album.name, album.description || '', {
-        fileTypes: album.file_types ?? 7, smallImageFilter: album.small_image_filter ?? 0, excludedFolders: remaining,
-      });
-      album.excluded_folders = remaining;
-      if (libConfig.index.albumQueue.indexOf(album.id) === -1) libConfig.index.albumQueue.push(album.id);
-      libConfig.index.status = 1;
-      await tauriEmit('albums-refreshed');
-      toast.success(t('disk_tree.exclusion_removed', { folder: first, name: album.name }));
-    }
-  }
+  let album = albumFor(node.path);
 
   // 2. not covered by an album: add it as a *browse-only* album (not listed
   //    under Albums). Albums cannot nest, so browse-only albums inside the new
@@ -378,6 +371,7 @@ async function openFolder(node: DiskNode) {
       return;
     }
     (config.main as any).diskAlbumIds = [...((config.main as any).diskAlbumIds || []), album.id];
+    registerDiskAlbum(album);
     albums.value.push(album);
     await tauriEmit('albums-refreshed');
     await tauriEmit('library-total-refreshed');

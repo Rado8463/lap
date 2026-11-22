@@ -21,6 +21,7 @@ import { isMac, SCALE_VALUES } from '@/common/utils';
 import { useAppTheme } from '@/composables/useAppearance';
 import { matchesShortcut } from '@/common/shortcuts';
 import ToastContainer from '@/components/ToastContainer.vue';
+import { cleanupAllDiskAlbums } from '@/common/diskAlbums';
 
 const libConfig = useLibraryStore();
 const isReady = ref(false);
@@ -87,6 +88,8 @@ onMounted(async () => {
               if (libConfig.index.status === 1) {
                 libConfig.index.status = 2;
               }
+              // Temporary Disk-tab albums do not outlive the session.
+              await cleanupAllDiskAlbums();
               // Normal close → clear recovery trace (crash leaves it intact)
               await clearIndexRecoveryInfo();
               await libConfig.save();
@@ -130,6 +133,8 @@ onMounted(async () => {
     // Continue anyway - user can retry from UI
   } finally {
     isReady.value = true;
+    // Leftovers of a crashed or killed session (the normal close already removes them).
+    if (win.label === 'main') void cleanupAllDiskAlbums();
     if (win.label === 'main') {
       performance.mark('startup-library-state-ready');
       void invoke('record_startup_stage', { stage: 'library-state-ready' }).catch(console.error);
