@@ -343,8 +343,22 @@ async function cleanupDiskAlbums(keepPath: string) {
   }
 }
 
+// While a new browse-only album is being scanned its whole content (= the opened folder) is shown
+// as the album, which streams files in as they are indexed. When the scan ends the view switches
+// back to the folder itself.
+function followScanThenSelectFolder(albumId: number, node: DiskNode) {
+  const isQueued = () => (libConfig.index.albumQueue as any[]).some((id) => Number(id) === albumId);
+  const stop = watch(isQueued, async (queued) => {
+    if (queued) return;
+    stop();
+    if (Number(selection.albumId.value) !== albumId || !selection.selected.value) return; // user went elsewhere
+    await selection.selectFolder(albumId, { id: 0, name: node.name, path: node.path } as any);
+  });
+}
+
 async function openFolder(node: DiskNode) {
   albums.value = (await getAllAlbums()) || [];
+  let createdNow = false;
 
   // 1. already inside an album: just select it there
   let album = albumFor(node.path);
@@ -378,9 +392,16 @@ async function openFolder(node: DiskNode) {
     // queue indexing, same as the album list does after adding an album
     if (libConfig.index.albumQueue.indexOf(album.id) === -1) libConfig.index.albumQueue.push(album.id);
     libConfig.index.status = 1;
+    createdNow = normalize(album.path) === normalize(node.path);
   }
   refreshAlbumMarks();
 
+  if (createdNow) {
+    selection.selectAlbum(album);
+    followScanThenSelectFolder(Number(album.id), node);
+    void cleanupDiskAlbums(node.path);
+    return;
+  }
   // Always select the folder itself (never the whole album) so a root folder
   // shows only its own files unless "Show files from subfolders" is on.
   await selection.selectFolder(album.id, { id: 0, name: node.name, path: node.path } as any);
