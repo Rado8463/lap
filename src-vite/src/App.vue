@@ -131,7 +131,7 @@ onMounted(async () => {
     // A saved album that no longer exists (removed while Lap was closing) must not be restored.
     if (isMainWindow && Number(libConfig.album.id) > 0) {
       const known = (await getAllAlbums()) || [];
-      if (!known.some((a: any) => Number(a.id) === Number(libConfig.album.id))) {
+      if (!known.some((a) => Number(a.id) === Number(libConfig.album.id))) {
         libConfig.album.id = 0;
         libConfig.album.folderId = null;
         libConfig.album.folderPath = '';
