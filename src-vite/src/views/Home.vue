@@ -58,7 +58,7 @@
             <div class="flex-1"></div>
 
             <TButton 
-              class="mt-auto"
+              class="mt-auto mb-[3px]"
               :class="showDebugBadge ? 'text-warning': ''"
               :buttonSize="'large'" 
               compact
