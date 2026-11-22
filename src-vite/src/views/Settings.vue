@@ -447,6 +447,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_tile_prefetch') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_tile_prefetch_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridTilePrefetch !== false" @change="config.settings.hybridTilePrefetch = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_tiles') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.hybrid_tiles_hint') }}
@@ -2178,6 +2187,9 @@ function toggleInfoTipField(line: 1 | 2 | 3, field: string, on: boolean) {
 }
 watch(() => config.settings.hybridFilter, (newValue) => {
   emit('settings-hybridFilter-changed', newValue);
+});
+watch(() => config.settings.hybridTilePrefetch, (newValue) => {
+  emit('settings-hybridTilePrefetch-changed', newValue !== false);
 });
 watch(() => config.settings.hybridTileMegapixels, (newValue) => {
   emit('settings-hybridTileMegapixels-changed', newValue);

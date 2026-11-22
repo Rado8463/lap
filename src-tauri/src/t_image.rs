@@ -1849,8 +1849,19 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
         return None;
     }
     let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: false };
+    // The last few regions are kept: a repeated zoom to the same place is instant.
+    let cache_key = psd_cache_key(file_path).map(|(mtime, len)| {
+        format!("{}\u{0}{}\u{0}{}\u{0}{:?}\u{0}{}\u{0}{}\u{0}{}", file_path, mtime, len, rect, out_w, opts.sharp, opts.filter)
+    });
+    if let Some(key) = &cache_key {
+        if let Ok(cache) = REGION_CACHE.lock() {
+            if let Some((_, data)) = cache.iter().find(|(k, _)| k == key) {
+                return Some(data.as_ref().clone());
+            }
+        }
+    }
     let path = file_path.to_string();
-    tauri::async_runtime::spawn_blocking(move || {
+    let data = tauri::async_runtime::spawn_blocking(move || {
         if !jpeg_fit_eligible(&path) {
             return None;
         }
@@ -1858,8 +1869,22 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
     })
     .await
     .ok()
-    .flatten()
+    .flatten()?;
+    if let Some(key) = cache_key {
+        if let Ok(mut cache) = REGION_CACHE.lock() {
+            cache.retain(|(k, _)| k != &key);
+            cache.push((key, std::sync::Arc::new(data.clone())));
+            while cache.len() > REGION_CACHE_ENTRIES {
+                cache.remove(0);
+            }
+        }
+    }
+    Some(data)
 }
+
+const REGION_CACHE_ENTRIES: usize = 8;
+static REGION_CACHE: Lazy<std::sync::Mutex<Vec<(String, std::sync::Arc<Vec<u8>>)>>> =
+    Lazy::new(|| std::sync::Mutex::new(Vec::new()));
 
 fn png_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
     let rgb = png_decode_shared(file_path)?;

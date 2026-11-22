@@ -1663,6 +1663,8 @@
       "hybrid_tiles": "Dlaždicové zobrazení velmi velkých JPEG",
       "hybrid_tiles_hint": "JPEG nad touto velikostí prohlížeč nikdy neotevírá v plném rozlišení. Aplikace místo toho dekóduje viditelnou část a při přiblížení ji zobrazí nad náhledem (řeší chybějící bloky a prázdné kroky zoomu u obřích fotek).",
       "hybrid_tiles_off": "Vypnuto",
+      "hybrid_tile_prefetch": "Předem připravit 100% pohled obřích JPEG",
+      "hybrid_tile_prefetch_hint": "V dlaždicovém režimu se předem dekóduje část kolem středu fotky (dvojnásobek obrazovky) a kolem kurzoru při stisku, takže zoom na 100 % ukáže ostré pixely hned. Při prohlížení spotřebuje trochu CPU.",
       "hybrid_sharpness_soft": "měkké",
       "hybrid_sharpness_sharp": "ostré",
       "png_backend_preview": "Rychlé zobrazení velkých PNG",

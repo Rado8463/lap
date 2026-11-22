@@ -1021,13 +1021,107 @@ function onTileViewChange() {
   const slot = activeImage.value;
   const info = hybridSlot.value[slot];
   if (tileOverlay.value && tileOverlay.value.path !== imageFilePath.value[slot]) tileOverlay.value = null;
+  if (tilePre && tilePre.path !== imageFilePath.value[slot]) { tilePre = null; tilePreImg = null; }
   if (!info || imageFilePath.value[slot] !== info.path || !usesTiles(info.path, info.meta)) return;
   if (computeTileRequest(slot) === 'hide') {
     tileOverlay.value = null;
     if (tileTimer) { clearTimeout(tileTimer); tileTimer = null; }
+    // At rest in the fit view: prepare the 100 % region around the centre.
+    if (tilePreTimer) clearTimeout(tilePreTimer);
+    tilePreTimer = setTimeout(() => {
+      tilePreTimer = null;
+      const size = imageSize.value[activeImage.value];
+      prefetchTileAround(size.width / 2, size.height / 2);
+    }, 400);
     return;
   }
+  if (useTilePrefetched()) return;
   scheduleTileOverlay();
+}
+
+// ---- Tiled mode: regions prepared in advance ------------------------------------
+// One region of twice the window size at 100 % (1 source pixel per device pixel) is kept ready, made
+// around the photo centre at rest and around the cursor when the button goes down. It serves any zoom
+// whose visible part lies inside it, so the first zoom shows sharp pixels at once.
+let tilePre: TileOverlay | null = null;
+let tilePreImg: HTMLImageElement | null = null; // keeps the decoded bitmap alive
+let tilePrePromise: Promise<void> | null = null;
+let tilePreBusyKey = '';
+let tilePreTimer: ReturnType<typeof setTimeout> | null = null;
+
+function tileRegionUrl(info: HybridInfo, x0: number, y0: number, x1: number, y1: number, outW: number): string {
+  const base = getPreviewUrl(info.meta?.id ?? props.fileId, info.path, false, info.meta?.version ?? props.fileVersion);
+  if (!base) return '';
+  const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
+  const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
+  return withQuery(base, `region=${x0},${y0},${x1},${y1}&out=${outW}&sharp=${sharp}&filter=${filter}`);
+}
+
+function prefetchTileAround(u: number, v: number) {
+  const slot = activeImage.value;
+  const info = hybridSlot.value[slot];
+  if (config.settings.hybridTilePrefetch === false || !info || imageFilePath.value[slot] !== info.path || !usesTiles(info.path, info.meta)) return;
+  if ((imageRotate.value[slot] || 0) % 360 !== 0) return;
+  const size = imageSize.value[slot];
+  const cont = containerSize.value;
+  if (!(size.width > 0) || !(size.height > 0) || !(cont.width > 0)) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.min(Math.round(size.width), Math.round(2 * cont.width * dpr));
+  const h = Math.min(Math.round(size.height), Math.round(2 * cont.height * dpr));
+  // What a 100 % view around this point needs.
+  const needW = cont.width * dpr;
+  const needH = cont.height * dpr;
+  const nx0 = Math.max(0, u - needW / 2);
+  const nx1 = Math.min(size.width, u + needW / 2);
+  const ny0 = Math.max(0, v - needH / 2);
+  const ny1 = Math.min(size.height, v + needH / 2);
+  if (tilePre && tilePre.path === info.path && nx0 >= tilePre.x0 && nx1 <= tilePre.x1 && ny0 >= tilePre.y0 && ny1 <= tilePre.y1) return;
+  const x0 = Math.round(Math.min(Math.max(0, u - w / 2), size.width - w));
+  const y0 = Math.round(Math.min(Math.max(0, v - h / 2), size.height - h));
+  const key = `${info.path}|${x0},${y0},${w},${h}`;
+  if (tilePreBusyKey === key) return;
+  const src = tileRegionUrl(info, x0, y0, x0 + w, y0 + h, w);
+  if (!src) return;
+  tilePreBusyKey = key;
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = src;
+  const promise: Promise<void> = img.decode().then(() => {
+    if (imageFilePath.value[activeImage.value] !== info.path) return;
+    tilePre = { path: info.path, src, x0, y0, x1: x0 + w, y1: y0 + h, outW: w };
+    tilePreImg = img;
+  }).catch(() => {}).finally(() => {
+    if (tilePreBusyKey === key) tilePreBusyKey = '';
+    if (tilePrePromise === promise) tilePrePromise = null;
+  });
+  tilePrePromise = promise;
+}
+
+// Shows the prepared region when it holds what the view needs; true when it is (now) on screen.
+function useTilePrefetched(): boolean {
+  const slot = activeImage.value;
+  const o = tilePre;
+  if (!o || o.path !== imageFilePath.value[slot]) return false;
+  const req = computeTileRequest(slot);
+  if (req === 'hide') return false;
+  if (tileOverlay.value?.src === o.src) return true;
+  if (tileCovers(req)) return false; // the overlay on screen already does the job
+  if (req.vx0 < o.x0 || req.vy0 < o.y0 || req.vx1 > o.x1 || req.vy1 > o.y1) return false;
+  if (o.outW / (o.x1 - o.x0) < (req.outW / (req.x1 - req.x0)) * 0.95) return false;
+  tileOverlay.value = o;
+  return true;
+}
+
+// Button pressed on the photo: a zoom to 100 % around the cursor may follow.
+function prefetchTileAtCursor(event: MouseEvent) {
+  const slot = activeImage.value;
+  const size = imageSize.value[slot];
+  const s = scale.value[slot];
+  const p = position.value[slot];
+  if (!(s > 0) || !(size.width > 0)) return;
+  const X = event.clientX - containerPos.value.x;
+  const Y = event.clientY - containerPos.value.y;
+  prefetchTileAround((X - p.x - size.width / 2) / s + size.width / 2, (Y - p.y - size.height / 2) / s + size.height / 2);
 }
 
 async function runTileOverlay() {
@@ -1037,6 +1131,12 @@ async function runTileOverlay() {
   const req = computeTileRequest(slot);
   if (req === 'hide') { tileOverlay.value = null; return; }
   if (tileCovers(req)) return;
+  // A region being prepared may be just what is needed: wait for it instead of decoding twice.
+  if (tilePrePromise) {
+    await tilePrePromise;
+    if (useTilePrefetched()) return;
+    if (computeTileRequest(slot) === 'hide') return;
+  }
   if (tileBusy) { tileDirty = true; return; }
   const base = getPreviewUrl(info.meta?.id ?? props.fileId, info.path, false, info.meta?.version ?? props.fileVersion);
   if (!base) return;
@@ -2833,6 +2933,7 @@ function startLoupeTimer(event: MouseEvent) {
   loupeStart = { x: event.clientX, y: event.clientY };
   if (props.isSlideShow || loadError.value || isLoading.value) return;
   prefetchActiveHybridFull();
+  prefetchTileAtCursor(event);
   loupeTimer = setTimeout(() => {
     loupeTimer = null;
     beginLoupe();

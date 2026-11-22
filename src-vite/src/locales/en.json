@@ -1664,6 +1664,8 @@
       "hybrid_tiles": "Tiled display of very large JPEGs",
       "hybrid_tiles_hint": "JPEGs above this size are never opened at full resolution by the browser. Instead the visible part is decoded by the app and shown over the preview when you zoom in (fixes missing blocks and blank zoom steps of huge photos).",
       "hybrid_tiles_off": "Off",
+      "hybrid_tile_prefetch": "Prepare the 100 % view of huge JPEGs in advance",
+      "hybrid_tile_prefetch_hint": "In tiled mode the part around the photo centre (twice the screen size) and around the cursor when you press is decoded ahead, so zooming to 100 % shows sharp pixels at once. Uses some CPU while viewing.",
       "hybrid_sharpness_soft": "soft",
       "hybrid_sharpness_sharp": "sharp",
       "png_backend_preview": "Fast display of big PNG files",
