@@ -1,7 +1,7 @@
 <template>
   <div
     :class="[
-      'border-2 flex flex-col items-center cursor-pointer group',
+      'border-2 flex flex-col items-center cursor-pointer group relative',
       thumbnailCornerClass,
       isTransitionDisabled ? 'transition-none' : 'transition-[background-color,color] ease-in-out duration-150 ',
       config.settings.grid.style === 0 ? 'p-1 w-fit h-fit' : 'w-full h-full',
@@ -15,6 +15,12 @@
     @dblclick="handleDoubleClick"
     @contextmenu="handleContextMenu"
   >
+    <!-- current thumbnail: thick bar on the bottom edge -->
+    <div
+      v-if="showHighlightBar"
+      class="absolute left-0 right-0 bottom-0 h-[6px] pointer-events-none z-10"
+      :style="highlightBarStyle"
+    />
     <div
       ref="containerRef"
       data-thumbnail-container
@@ -559,6 +565,15 @@ const layoutStyle = computed(() => {
   if (style === 0) return { width: `${size}px`, height: `${size}px` };
   if (style === 1) return { width: '100%', height: `${size}px` };
   return { width: '100%', height: '100%' };
+});
+
+// Optional thick bar along the bottom edge of the current thumbnail (full colour, easy to spot).
+const showHighlightBar = computed(() => props.isActive && config.settings.thumbHighlightBar !== false);
+const highlightBarStyle = computed((): CSSProperties => {
+  const color = config.settings.thumbHighlightEnabled
+    ? (config.settings.thumbHighlightColor || '#f59e0b')
+    : 'var(--color-primary)';
+  return { background: props.isContentActive ? color : `color-mix(in srgb, ${color} 60%, transparent)` };
 });
 
 // Optional custom colour for the border around the current thumbnail.

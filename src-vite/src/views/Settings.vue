@@ -155,6 +155,13 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.highlight_bar') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.grid.highlight_bar_hint') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.thumbHighlightBar" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.grid.style') }}</div>
               </div>
               <select class="select select-bordered select-sm min-w-32" v-model="config.settings.grid.style">
@@ -2161,6 +2168,9 @@ watch(() => config.settings.loadingBackgroundColor, (newValue) => {
 });
 watch(() => [config.settings.thumbHighlightEnabled, config.settings.thumbHighlightColor], ([enabled, color]) => {
   emit('settings-thumbHighlight-changed', { enabled, color });
+});
+watch(() => config.settings.thumbHighlightBar, (value) => {
+  emit('settings-thumbHighlightBar-changed', value !== false);
 });
 watch(() => config.settings.rasterWarm, (newValue) => {
   emit('settings-rasterWarm-changed', newValue);

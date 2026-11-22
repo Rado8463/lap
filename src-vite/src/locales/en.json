@@ -1529,6 +1529,8 @@
     "grid": {
       "title": "Layout",
       "section_grid": "Grid",
+      "highlight_bar": "Bottom bar on the current thumbnail",
+      "highlight_bar_hint": "A thick line along the bottom edge of the current thumbnail (uses the highlight colour, or the theme colour)",
       "highlight_current": "Custom highlight for the current thumbnail",
       "highlight_current_hint": "When on, the border around the current thumbnail uses the colour you choose.",
       "style": "Style",

@@ -304,6 +304,9 @@ if (isMainWindow) {
   listen('settings-loadingBackgroundColor-changed', (event) => {
     config.settings.loadingBackgroundColor = event.payload
   })
+  listen('settings-thumbHighlightBar-changed', (event) => {
+    config.settings.thumbHighlightBar = event.payload
+  })
   listen('settings-thumbHighlight-changed', (event) => {
     config.settings.thumbHighlightEnabled = event.payload.enabled
     config.settings.thumbHighlightColor = event.payload.color
