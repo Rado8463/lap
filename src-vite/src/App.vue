@@ -18,6 +18,7 @@ import { useLibraryStore } from '@/stores/libraryStore';
 import { useUIStore } from '@/stores/uiStore';
 import { clearIndexRecoveryInfo, getAllAlbums } from '@/common/api';
 import { isMac, SCALE_VALUES } from '@/common/utils';
+import { SIDEBAR } from '@/common/constants';
 import { useAppTheme } from '@/composables/useAppearance';
 import { matchesShortcut } from '@/common/shortcuts';
 import ToastContainer from '@/components/ToastContainer.vue';
@@ -134,8 +135,9 @@ onMounted(async () => {
       if (!known.some((a) => Number(a.id) === Number(libConfig.album.id))) {
         libConfig.album.id = 0;
         libConfig.album.folderId = null;
-        libConfig.album.folderPath = '';
         libConfig.album.selected = false;
+        // In the Disk tab the folder path stays: the tree reopens that folder (new browse-only album).
+        if (config.main.sidebarIndex !== SIDEBAR.DISK) libConfig.album.folderPath = '';
       }
     }
   } catch (error) {
