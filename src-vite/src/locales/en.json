@@ -6,6 +6,7 @@
     "added": "Folder “{name}” added as an album and is being indexed",
     "add_to_albums_flat": "Add to Albums (this folder only)",
     "already_in_albums": "This folder is already part of the album “{name}”.",
+    "exclusion_removed": "Folder “{folder}” was excluded from the album “{name}”. The exclusion was removed and the folder is being indexed.",
     "add_to_albums": "Add to Albums",
     "added_to_albums": "Folder “{name}” was added to Albums"
   },

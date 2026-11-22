@@ -6,6 +6,7 @@
     "added": "Složka „{name}“ byla přidána jako album a indexuje se",
     "add_to_albums_flat": "Přidat do Albums (jen tato složka)",
     "already_in_albums": "Tato složka už je součástí alba „{name}“.",
+    "exclusion_removed": "Složka „{folder}“ byla z alba „{name}“ vyloučena. Vyloučení bylo zrušeno a složka se indexuje.",
     "add_to_albums": "Přidat do Albums",
     "added_to_albums": "Složka „{name}“ byla přidána do Albums"
   },
