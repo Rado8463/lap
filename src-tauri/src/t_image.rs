@@ -1769,6 +1769,98 @@ fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8
     fit_resize_encode(oriented.into_rgb8(), max_edge, opts)
 }
 
+/// Maps a pixel (x, y) of the EXIF-oriented image to the raw (stored) image of size rw x rh.
+fn oriented_to_raw(orientation: i32, ox: u32, oy: u32, rw: u32, rh: u32) -> (u32, u32) {
+    match orientation {
+        2 => (rw - 1 - ox, oy),
+        3 => (rw - 1 - ox, rh - 1 - oy),
+        4 => (ox, rh - 1 - oy),
+        5 => (oy, ox),
+        6 => (oy, rh - 1 - ox),
+        7 => (rw - 1 - oy, rh - 1 - ox),
+        8 => (rw - 1 - oy, ox),
+        _ => (ox, oy),
+    }
+}
+
+/// A rectangle (x0, y0)-(x1, y1) of the EXIF-oriented JPEG, resized to `out_w` pixels wide
+/// (never upscaled) and encoded as JPEG. Only that rectangle is decoded (and at a DCT
+/// downscale when the output is much smaller), so it works for photos of any size.
+fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+    let size = imagesize::size(file_path).map_err(|e| format!("Failed to read JPEG size: {}", e))?;
+    let (rw, rh) = (size.width as u32, size.height as u32);
+    let orientation = get_image_orientation(file_path);
+    let (ow, oh) = if (5..=8).contains(&orientation) { (rh, rw) } else { (rw, rh) };
+    let (x0, y0) = (rect.0.min(ow.saturating_sub(1)), rect.1.min(oh.saturating_sub(1)));
+    let (x1, y1) = (rect.2.min(ow), rect.3.min(oh));
+    if x1 <= x0 || y1 <= y0 {
+        return Err("Empty region".to_string());
+    }
+    let (reg_w, reg_h) = (x1 - x0, y1 - y0);
+    let out_w = out_w.clamp(1, reg_w);
+    let out_h = ((reg_h as f64 * out_w as f64 / reg_w as f64).round() as u32).max(1);
+    // Largest DCT downscale that still leaves at least the output size.
+    let mut denom = 1u32;
+    while denom < 8 && reg_w >= out_w * denom * 2 && reg_h >= out_h * denom * 2 {
+        denom *= 2;
+    }
+    // Rectangle in the stored (unrotated) image.
+    let (ax, ay) = oriented_to_raw(orientation, x0, y0, rw, rh);
+    let (bx, by) = oriented_to_raw(orientation, x1 - 1, y1 - 1, rw, rh);
+    let (rx0, rx1) = (ax.min(bx), ax.max(bx) + 1);
+    let (ry0, ry1) = (ay.min(by), ay.max(by) + 1);
+    let (pixels, pw, ph) = crate::t_jpeg::decode_region_rgb8(file_path, rx0, ry0, rx1 - rx0, ry1 - ry0, denom)?;
+    let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG region buffer".to_string())?;
+    let oriented = apply_orientation(DynamicImage::ImageRgb8(rgb), orientation).into_rgb8();
+    let (cw, ch) = oriented.dimensions();
+    if cw == out_w && ch == out_h {
+        return crate::t_jpeg::encode_rgb8_ex(&oriented, FIT_PREVIEW_JPEG_QUALITY, true);
+    }
+    let src_image = fir::images::Image::from_vec_u8(cw, ch, oriented.into_raw(), fir::PixelType::U8x3)
+        .map_err(|e| format!("Failed to prepare region for resize: {}", e))?;
+    let mut dst_image = fir::images::Image::new(out_w, out_h, fir::PixelType::U8x3);
+    let mut resizer = fir::Resizer::new();
+    let options = fir::ResizeOptions::new()
+        .resize_alg(fir::ResizeAlg::Convolution(match opts.filter {
+            1 => fir::FilterType::CatmullRom,
+            2 => fir::FilterType::Mitchell,
+            _ => fir::FilterType::Lanczos3,
+        }));
+    resizer
+        .resize(&src_image, &mut dst_image, &options)
+        .map_err(|e| format!("Failed to resize region: {}", e))?;
+    let mut buffer = dst_image.into_vec();
+    // Sharpen only when the region really was downscaled.
+    if (reg_w as f64) > out_w as f64 * 1.05 {
+        unsharp_rgb8(&mut buffer, out_w as usize, out_h as usize, opts.sharp);
+    }
+    let resized = RgbImage::from_raw(out_w, out_h, buffer).ok_or_else(|| "Failed to build region image".to_string())?;
+    crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)
+}
+
+/// Viewer region preview (hybrid mode, tiled): a rectangle of a big JPEG in source pixels of the
+/// oriented image, `out_w` pixels wide. None means "not applicable" (not a plain sRGB JPEG, or a failure).
+pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Option<Vec<u8>> {
+    if !(1..=16384).contains(&out_w) {
+        return None;
+    }
+    let ext = Path::new(file_path).extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase())?;
+    if !matches!(ext.as_str(), "jpg" | "jpeg" | "jpe") {
+        return None;
+    }
+    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: false };
+    let path = file_path.to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        if !jpeg_fit_eligible(&path) {
+            return None;
+        }
+        jpeg_region_jpeg(&path, rect, out_w, opts).ok()
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 fn png_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
     let rgb = png_decode_shared(file_path)?;
     fit_resize_encode((*rgb).clone(), max_edge, opts)

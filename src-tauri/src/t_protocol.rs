@@ -297,6 +297,26 @@ pub fn register_protocols(builder: Builder<Wry>) -> Builder<Wry> {
                     .find_map(|param| param.strip_prefix("filter="))
                     .and_then(|value| value.parse::<u32>().ok())
                     .unwrap_or(0);
+                // Tiled mode: a rectangle (source pixels) of a big JPEG, `out` pixels wide.
+                let region = request.uri().query().unwrap_or_default().split('&')
+                    .find_map(|param| param.strip_prefix("region="))
+                    .and_then(|value| {
+                        let parts: Vec<u32> = value.split(',').filter_map(|p| p.parse::<u32>().ok()).collect();
+                        if parts.len() == 4 { Some((parts[0], parts[1], parts[2], parts[3])) } else { None }
+                    });
+                if let Some(rect) = region {
+                    let out_w = request.uri().query().unwrap_or_default().split('&')
+                        .find_map(|param| param.strip_prefix("out="))
+                        .and_then(|value| value.parse::<u32>().ok())
+                        .unwrap_or(0);
+                    let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter, disk: false };
+                    let response = match t_image::get_region_preview(&file_path, rect, out_w, opts).await {
+                        Some(data) => image_response(data),
+                        None => text_response(http::StatusCode::NOT_FOUND, "region not available"),
+                    };
+                    responder.respond(response);
+                    return;
+                }
                 if let Some(edge) = fit_edge {
                     let fit_disk = request.uri().query().unwrap_or_default().split('&')
                         .find_map(|param| param.strip_prefix("cache="))

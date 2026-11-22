@@ -234,6 +234,130 @@ int lap_jpeg_decode_rgb8(const char *file_path, unsigned int target_width,
   return 1;
 }
 
+// Decodes only a rectangle of a JPEG. (x, y, w, h) is in source pixels; scale_denom (1, 2, 4, 8)
+// selects the DCT downscale. The result is the rectangle at 1/scale_denom size:
+// out_width = ceil((x + w) / d) - floor(x / d), likewise for the height. Rows above the
+// rectangle are only entropy-decoded (jpeg_skip_scanlines), so it is far cheaper than a full decode.
+int lap_jpeg_decode_region_rgb8(const char *file_path, unsigned int x,
+                                unsigned int y, unsigned int w, unsigned int h,
+                                unsigned int scale_denom,
+                                unsigned int *out_width,
+                                unsigned int *out_height,
+                                unsigned char **out_data, char *err_buf,
+                                size_t err_buf_len) {
+  if (!file_path || !out_width || !out_height || !out_data || w == 0 ||
+      h == 0) {
+    if (err_buf && err_buf_len > 0) {
+      std::snprintf(err_buf, err_buf_len, "Invalid JPEG region arguments");
+    }
+    return 0;
+  }
+  *out_data = nullptr;
+  if (scale_denom != 1 && scale_denom != 2 && scale_denom != 4 &&
+      scale_denom != 8) {
+    scale_denom = 1;
+  }
+
+  std::vector<unsigned char> file_data;
+  if (!lap_read_file(file_path, file_data) || file_data.empty()) {
+    if (err_buf && err_buf_len > 0) {
+      std::snprintf(err_buf, err_buf_len, "Could not read file: %s", file_path);
+    }
+    return 0;
+  }
+
+  jpeg_decompress_struct cinfo;
+  std::memset(&cinfo, 0, sizeof(cinfo));
+  LapJpegErrorManager jerr;
+  cinfo.err = jpeg_std_error(&jerr.pub);
+  jerr.pub.error_exit = lap_jpeg_error_exit;
+  jerr.message[0] = '\0';
+
+  unsigned char *volatile row_buf = nullptr;  // volatile: modified after setjmp
+  if (setjmp(jerr.setjmp_buffer)) {
+    jpeg_destroy_decompress(&cinfo);
+    if (row_buf) {
+      std::free(row_buf);
+    }
+    if (*out_data) {
+      std::free(*out_data);
+      *out_data = nullptr;
+    }
+    if (err_buf && err_buf_len > 0) {
+      std::snprintf(err_buf, err_buf_len, "%s", jerr.message);
+    }
+    return 0;
+  }
+
+  jpeg_create_decompress(&cinfo);
+  jpeg_mem_src(&cinfo, file_data.data(),
+               static_cast<unsigned long>(file_data.size()));
+  jpeg_read_header(&cinfo, TRUE);
+  cinfo.scale_num = 1;
+  cinfo.scale_denom = scale_denom;
+  cinfo.out_color_space = JCS_RGB;
+  cinfo.do_fancy_upsampling = TRUE;  // required by jpeg_crop_scanline
+  jpeg_start_decompress(&cinfo);
+
+  const unsigned int full_w = cinfo.output_width;
+  const unsigned int full_h = cinfo.output_height;
+  unsigned int sx0 = x / scale_denom;
+  unsigned int sy0 = y / scale_denom;
+  unsigned int sx1 = (x + w + scale_denom - 1) / scale_denom;
+  unsigned int sy1 = (y + h + scale_denom - 1) / scale_denom;
+  if (sx1 > full_w) sx1 = full_w;
+  if (sy1 > full_h) sy1 = full_h;
+  if (sx0 >= sx1 || sy0 >= sy1) {
+    jpeg_destroy_decompress(&cinfo);
+    if (err_buf && err_buf_len > 0) {
+      std::snprintf(err_buf, err_buf_len, "JPEG region outside the image");
+    }
+    return 0;
+  }
+
+  // The decoder widens the crop to whole iMCUs (xoff moves left); the requested part is copied out below.
+  JDIMENSION xoff = sx0;
+  JDIMENSION crop_w = sx1 - sx0;
+  jpeg_crop_scanline(&cinfo, &xoff, &crop_w);
+  if (sy0 > 0) {
+    jpeg_skip_scanlines(&cinfo, sy0);
+  }
+
+  const size_t out_w = sx1 - sx0;
+  const size_t out_h = sy1 - sy0;
+  const size_t row_stride = static_cast<size_t>(cinfo.output_width) * 3;
+  row_buf = static_cast<unsigned char *>(std::malloc(row_stride));
+  *out_data = static_cast<unsigned char *>(std::malloc(out_w * out_h * 3));
+  if (!row_buf || !(*out_data)) {
+    if (row_buf) std::free(row_buf);
+    if (*out_data) {
+      std::free(*out_data);
+      *out_data = nullptr;
+    }
+    jpeg_destroy_decompress(&cinfo);
+    if (err_buf && err_buf_len > 0) {
+      std::snprintf(err_buf, err_buf_len, "Memory allocation failed for JPEG region");
+    }
+    return 0;
+  }
+
+  const size_t skip_bytes = static_cast<size_t>(sx0 - xoff) * 3;
+  for (size_t row = 0; row < out_h; ++row) {
+    unsigned char *buffer_array[1];
+    buffer_array[0] = row_buf;
+    jpeg_read_scanlines(&cinfo, buffer_array, 1);
+    std::memcpy(*out_data + row * out_w * 3, row_buf + skip_bytes, out_w * 3);
+  }
+
+  std::free(row_buf);
+  row_buf = nullptr;
+  *out_width = static_cast<unsigned int>(out_w);
+  *out_height = static_cast<unsigned int>(out_h);
+  // Not all scanlines were read on purpose, so the decoder is destroyed without jpeg_finish_decompress.
+  jpeg_destroy_decompress(&cinfo);
+  return 1;
+}
+
 void lap_jpeg_free_buffer(unsigned char *data) {
   if (data) {
     std::free(data);

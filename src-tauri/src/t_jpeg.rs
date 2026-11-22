@@ -35,7 +35,75 @@ unsafe extern "C" {
         err_buf: *mut c_char,
         err_buf_len: usize,
     ) -> c_int;
+    fn lap_jpeg_decode_region_rgb8(
+        file_path: *const c_char,
+        x: u32,
+        y: u32,
+        w: u32,
+        h: u32,
+        scale_denom: u32,
+        out_width: *mut u32,
+        out_height: *mut u32,
+        out_data: *mut *mut u8,
+        err_buf: *mut c_char,
+        err_buf_len: usize,
+    ) -> c_int;
     fn lap_jpeg_free_buffer(data: *mut u8);
+}
+
+/// Decodes the rectangle (x, y, w, h) (source pixels) of a JPEG at 1/`scale_denom` size
+/// (1, 2, 4 or 8). Returns RGB pixels and the size of the decoded rectangle.
+pub fn decode_region_rgb8(
+    file_path: &str,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    scale_denom: u32,
+) -> Result<(Vec<u8>, u32, u32), String> {
+    let mut out_data: *mut u8 = std::ptr::null_mut();
+    let mut out_width: u32 = 0;
+    let mut out_height: u32 = 0;
+    let mut err_buf = vec![0 as c_char; 512];
+    let c_path = std::ffi::CString::new(file_path).map_err(|e| e.to_string())?;
+
+    let ok = unsafe {
+        lap_jpeg_decode_region_rgb8(
+            c_path.as_ptr(),
+            x,
+            y,
+            w,
+            h,
+            scale_denom,
+            &mut out_width,
+            &mut out_height,
+            &mut out_data,
+            err_buf.as_mut_ptr(),
+            err_buf.len(),
+        )
+    };
+
+    if ok == 0 {
+        let err = unsafe { CStr::from_ptr(err_buf.as_ptr()) }
+            .to_string_lossy()
+            .trim()
+            .to_string();
+        return Err(if err.is_empty() {
+            "libjpeg-turbo region decode failed".to_string()
+        } else {
+            format!("libjpeg-turbo region decode failed: {}", err)
+        });
+    }
+    if out_data.is_null() || out_width == 0 || out_height == 0 {
+        return Err("libjpeg-turbo returned an empty region".to_string());
+    }
+    let bytes = unsafe {
+        let len = (out_width as usize) * (out_height as usize) * 3;
+        let result = std::slice::from_raw_parts(out_data, len).to_vec();
+        lap_jpeg_free_buffer(out_data);
+        result
+    };
+    Ok((bytes, out_width, out_height))
 }
 
 pub fn decode_rgb8_scaled(

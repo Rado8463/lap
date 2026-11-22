@@ -209,6 +209,7 @@ export const useConfigStore = defineStore('configStore', {
       hybridDiskCacheAlbumsOnly: true, // ... but not for photos browsed via the Disk tab
       hybridFilter: 0,          // resize filter of the hybrid preview: 0 Lanczos, 1 Catmull-Rom (cubic), 2 Mitchell
       hybridSharpness: 40,      // sharpening (0-100) of the Lanczos-downscaled hybrid preview
+      hybridTileMegapixels: 36, // JPEGs above this many megapixels are shown tiled (0 = off)
       hybridPreview: true,      // big JPEG/PNG shown as a screen-sized preview, full resolution only when zoomed in
       pngBackendPreview: true,  // big lossless PNGs shown via backend JPEG (fast), instead of WebView decoding
       panBeyondEdges: false,    // allow dragging a zoomed photo past the screen edges (like ZPS)

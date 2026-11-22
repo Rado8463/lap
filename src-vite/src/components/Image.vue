@@ -97,6 +97,11 @@
           @dblclick.stop="toggleZoomFit"
           @contextmenu.prevent.stop="$emit('context-menu', $event)"
         />
+        <!-- Tiled mode (huge JPEG): the visible part decoded by the backend, over the preview. -->
+        <div v-if="tileOverlay && index === activeImage && tileOverlay.path === imageFilePath[index]"
+          :style="{ ...getImageStyle(index), pointerEvents: 'none', backgroundColor: 'transparent' }" aria-hidden="true">
+          <img :src="tileOverlay.src" draggable="false" :style="tileOverlayImgStyle(index)" />
+        </div>
         <!-- AF areas share the image buffer's layout and outer transition. -->
         <div v-if="showAfAreas && !loadError && index === activeImage && imageFilePath[index] === filePath"
           class="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -922,8 +927,137 @@ function releaseFull(path: string) {
 }
 
 function isHugeFull(info: { path: string; meta?: HybridInfo['meta'] }): boolean {
+  // Photos shown tiled never load their original in the browser.
+  if (usesTiles(info.path, info.meta)) return true;
   const { w, h } = hybridDims(info.path, info.meta);
   return Math.max(w, h) >= HUGE_FULL_EDGE;
+}
+
+// ---- Tiled mode (very big JPEG) ----------------------------------------------------
+// The browser never decodes the original. When the zoom needs more pixels than the fit preview
+// has, the backend decodes just the visible part (plus a margin) at the needed resolution and it is
+// shown over the preview; it is replaced a moment after zooming or panning stops.
+type TileOverlay = { path: string; src: string; x0: number; y0: number; x1: number; y1: number; outW: number };
+const tileOverlay = ref<TileOverlay | null>(null);
+let tileTimer: ReturnType<typeof setTimeout> | null = null;
+let tileBusy = false;
+let tileDirty = false;
+let tileSeq = 0;
+const TILE_MARGIN = 0.25;
+
+function usesTiles(filePath: string, meta?: { width?: number; height?: number }): boolean {
+  const mp = Number(config.settings.hybridTileMegapixels ?? 36);
+  if (!(mp > 0)) return false;
+  const ext = getFileExtension(filePath).toLowerCase();
+  if (!['jpg', 'jpeg', 'jpe'].includes(ext)) return false;
+  const { w, h } = hybridDims(filePath, meta);
+  return w * h >= Math.max(mp, 12) * 1_000_000;
+}
+
+function tileOverlayImgStyle(index: number) {
+  const o = tileOverlay.value;
+  const size = imageSize.value[index];
+  if (!o || !(size.width > 0) || !(size.height > 0)) return {};
+  return {
+    position: 'absolute',
+    maxWidth: 'none',
+    left: `${(o.x0 / size.width) * 100}%`,
+    top: `${(o.y0 / size.height) * 100}%`,
+    width: `${((o.x1 - o.x0) / size.width) * 100}%`,
+    height: `${((o.y1 - o.y0) / size.height) * 100}%`,
+  };
+}
+
+// Region (layout = source pixels) the viewer needs now, or 'hide' when the preview is sharp enough.
+function computeTileRequest(slot: number): 'hide' | { x0: number; y0: number; x1: number; y1: number; outW: number; vx0: number; vy0: number; vx1: number; vy1: number } {
+  const info = hybridSlot.value[slot];
+  const size = imageSize.value[slot];
+  const cont = containerSize.value;
+  const s = scale.value[slot];
+  const p = position.value[slot];
+  if (!info || !(size.width > 0) || !(size.height > 0) || !(cont.width > 0) || !(s > 0)) return 'hide';
+  if ((imageRotate.value[slot] || 0) % 360 !== 0) return 'hide';
+  const dpr = window.devicePixelRatio || 1;
+  if (s * dpr * size.width <= info.bitmapWidth * 1.02) return 'hide';
+  // Layout x of container x: u = (X - p.x - W / 2) / s + W / 2 (the box is scaled about its centre).
+  const toU = (X: number) => (X - p.x - size.width / 2) / s + size.width / 2;
+  const toV = (Y: number) => (Y - p.y - size.height / 2) / s + size.height / 2;
+  const clampX = (v: number) => Math.min(size.width, Math.max(0, v));
+  const clampY = (v: number) => Math.min(size.height, Math.max(0, v));
+  const vx0 = clampX(toU(0));
+  const vx1 = clampX(toU(cont.width));
+  const vy0 = clampY(toV(0));
+  const vy1 = clampY(toV(cont.height));
+  if (!(vx1 > vx0) || !(vy1 > vy0)) return 'hide';
+  const mx = cont.width * TILE_MARGIN / s;
+  const my = cont.height * TILE_MARGIN / s;
+  const x0 = Math.floor(clampX(toU(0) - mx));
+  const x1 = Math.ceil(clampX(toU(cont.width) + mx));
+  const y0 = Math.floor(clampY(toV(0) - my));
+  const y1 = Math.ceil(clampY(toV(cont.height) + my));
+  if (x1 - x0 < 1 || y1 - y0 < 1) return 'hide';
+  const outW = Math.max(1, Math.min(x1 - x0, Math.round((x1 - x0) * s * dpr)));
+  return { x0, y0, x1, y1, outW, vx0, vy0, vx1, vy1 };
+}
+
+function tileCovers(req: Exclude<ReturnType<typeof computeTileRequest>, 'hide'>): boolean {
+  const o = tileOverlay.value;
+  if (!o) return false;
+  if (req.vx0 < o.x0 || req.vy0 < o.y0 || req.vx1 > o.x1 || req.vy1 > o.y1) return false;
+  const have = o.outW / (o.x1 - o.x0);
+  const need = req.outW / (req.x1 - req.x0);
+  return have >= need * 0.95;
+}
+
+function scheduleTileOverlay() {
+  if (tileTimer) clearTimeout(tileTimer);
+  tileTimer = setTimeout(() => { tileTimer = null; void runTileOverlay(); }, 120);
+}
+
+function onTileViewChange() {
+  const slot = activeImage.value;
+  const info = hybridSlot.value[slot];
+  if (tileOverlay.value && tileOverlay.value.path !== imageFilePath.value[slot]) tileOverlay.value = null;
+  if (!info || imageFilePath.value[slot] !== info.path || !usesTiles(info.path, info.meta)) return;
+  if (computeTileRequest(slot) === 'hide') {
+    tileOverlay.value = null;
+    if (tileTimer) { clearTimeout(tileTimer); tileTimer = null; }
+    return;
+  }
+  scheduleTileOverlay();
+}
+
+async function runTileOverlay() {
+  const slot = activeImage.value;
+  const info = hybridSlot.value[slot];
+  if (!info || imageFilePath.value[slot] !== info.path || !usesTiles(info.path, info.meta)) return;
+  const req = computeTileRequest(slot);
+  if (req === 'hide') { tileOverlay.value = null; return; }
+  if (tileCovers(req)) return;
+  if (tileBusy) { tileDirty = true; return; }
+  const base = getPreviewUrl(info.meta?.id ?? props.fileId, info.path, false, info.meta?.version ?? props.fileVersion);
+  if (!base) return;
+  tileBusy = true;
+  const seq = ++tileSeq;
+  try {
+    const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
+    const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
+    const src = withQuery(base, `region=${req.x0},${req.y0},${req.x1},${req.y1}&out=${req.outW}&sharp=${sharp}&filter=${filter}`);
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = src;
+    await img.decode();
+    if (seq === tileSeq && imageFilePath.value[activeImage.value] === info.path) {
+      tileOverlay.value = { path: info.path, src, x0: req.x0, y0: req.y0, x1: req.x1, y1: req.y1, outW: req.outW };
+    }
+  } catch {
+    // The region could not be made: the preview stays.
+  } finally {
+    tileBusy = false;
+    // Always look again: the view may have moved while the region was decoded.
+    tileDirty = false;
+    scheduleTileOverlay();
+  }
 }
 
 function hybridDims(filePath: string, meta?: { width?: number; height?: number }): { w: number; h: number } {
@@ -1011,7 +1145,7 @@ function markHybridSlot(slot: number, filePath: string, src: string, bitmapWidth
 // full resolution right away so the swap is as early as possible.
 function prefetchActiveHybridFull() {
   const info = hybridSlot.value[activeImage.value];
-  if (info && imageFilePath.value[activeImage.value] === info.path) void loadHybridFull(info);
+  if (info && imageFilePath.value[activeImage.value] === info.path && !isHugeFull(info)) void loadHybridFull(info);
 }
 
 function loadHybridFull(info: HybridInfo): Promise<LoadedImage> {
@@ -1047,6 +1181,7 @@ function updateHybridResolution() {
   if (!info || imageFilePath.value[slot] !== info.path) return;
   const dpr = window.devicePixelRatio || 1;
   const displayed = scale.value[slot] * dpr * info.layoutWidth;
+  if (usesTiles(info.path, info.meta)) return; // tiled mode: handled by onTileViewChange
   const showingFull = info.fullSrc !== null && imageSrc.value[slot] === info.fullSrc;
   if (!showingFull && displayed > info.bitmapWidth * 1.05) {
     if (info.loadingFull) return;
@@ -1090,6 +1225,17 @@ function updateHybridResolution() {
   }
 }
 watch(() => [activeImage.value, scale.value[activeImage.value]], updateHybridResolution);
+watch(() => [
+  activeImage.value,
+  imageFilePath.value[activeImage.value],
+  scale.value[activeImage.value],
+  position.value[activeImage.value]?.x,
+  position.value[activeImage.value]?.y,
+  imageRotate.value[activeImage.value],
+  containerSize.value.width,
+  containerSize.value.height,
+  hybridSlot.value[activeImage.value]?.path,
+], onTileViewChange);
 
 // ---- Info tooltip (top left): file name and details ------------------------------
 function formatInfoTipSize(bytes: number): string {
@@ -1149,7 +1295,8 @@ function buildInfoTipLine(fields: InfoTipField[]): string {
         if (zoomLocked.value) segments.push('LOCK');
         if (hasSavedViewport.value) segments.push('VIEWPORT');
         // Hybrid mode: the screen-sized preview is shown (full resolution not swapped in yet).
-        if (imageNaturalSize.value[index].width > 0 && imageNaturalSize.value[index].width < imageSize.value[index].width * 0.98) segments.push('PREVIEW');
+        if (tileOverlay.value && tileOverlay.value.path === imageFilePath.value[index]) segments.push('TILES');
+        else if (imageNaturalSize.value[index].width > 0 && imageNaturalSize.value[index].width < imageSize.value[index].width * 0.98) segments.push('PREVIEW');
         break;
     }
   }

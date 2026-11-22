@@ -290,6 +290,9 @@ if (isMainWindow) {
   listen('settings-hybridSharpness-changed', (event) => {
     config.settings.hybridSharpness = event.payload
   })
+  listen('settings-hybridTileMegapixels-changed', (event) => {
+    config.settings.hybridTileMegapixels = event.payload
+  })
   listen('settings-hybridPreview-changed', (event) => {
     config.settings.hybridPreview = event.payload
   })
