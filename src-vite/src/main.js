@@ -305,6 +305,9 @@ if (isMainWindow) {
   listen('settings-loadingBackgroundColor-changed', (event) => {
     config.settings.loadingBackgroundColor = event.payload
   })
+  listen('settings-showLoadTiming-changed', (event) => {
+    config.settings.showLoadTiming = event.payload
+  })
   listen('settings-scrollbarNarrow-changed', (event) => {
     config.settings.scrollbarNarrow = event.payload
   })

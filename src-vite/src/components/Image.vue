@@ -12,7 +12,7 @@
     >
       <!-- separate tooltip above the info tooltip: load timings (diagnostics), only while enabled -->
       <div v-if="loadTimingText" class="max-w-full px-2 py-1 rounded bg-black/70 text-amber-300 text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis">{{ loadTimingText }}</div>
-      <div class="max-w-[85%] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono">
+      <div class="max-w-full px-2 py-1 rounded bg-black/70 text-white text-xs font-mono">
         <div v-for="(line, i) in infoTipLines" :key="i" class="whitespace-nowrap overflow-hidden text-ellipsis">{{ line }}</div>
       </div>
     </div>

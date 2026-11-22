@@ -5,7 +5,7 @@
 
     <div class="flex flex-1 overflow-hidden relative">
       <!-- Sidebar -->
-      <div class="w-40 m-1 p-2 bg-base-200/30 flex flex-col rounded-box overflow-y-auto shrink-0 select-none">
+      <div class="w-40 m-1 p-2 bg-base-200/30 flex flex-col rounded-box overflow-y-auto narrow-scrollbar shrink-0 select-none">
         <div
           v-for="tab in settingsTabs"
           :key="tab.id"
@@ -22,7 +22,7 @@
       </div>
 
       <!-- Main Content -->
-      <div class="p-2 mr-1 mb-2 flex-1 overflow-y-auto scrollbar-hide bg-base-300 cursor-default select-none">
+      <div class="p-2 mr-1 mb-2 flex-1 overflow-y-auto narrow-scrollbar bg-base-300 cursor-default select-none">
           
         <!-- General Tab -->
         <div v-if="config.settings.tabIndex === SETTINGS_TAB.GENERAL" class="flex flex-col space-y-2">
@@ -997,7 +997,7 @@
           <p v-else-if="!cleanupFailures.length">{{ $t(cleanupKey + '.empty') }}</p>
           <template v-if="cleanupFailures.length">
             <p class="text-error">{{ $t(cleanupKey + '.failed') }}</p>
-            <ul class="max-h-32 overflow-y-auto list-disc pl-5 break-words">
+            <ul class="max-h-32 overflow-y-auto narrow-scrollbar list-disc pl-5 break-words">
               <li v-for="failure in cleanupFailures" :key="failure.id">{{ failure.name }} — {{ failure.error }}</li>
             </ul>
           </template>
@@ -2178,6 +2178,9 @@ watch(() => config.settings.loadingBackgroundColor, (newValue) => {
 });
 watch(() => [config.settings.thumbHighlightEnabled, config.settings.thumbHighlightColor], ([enabled, color]) => {
   emit('settings-thumbHighlight-changed', { enabled, color });
+});
+watch(() => config.settings.showLoadTiming, (value) => {
+  emit('settings-showLoadTiming-changed', value === true);
 });
 watch(() => config.settings.scrollbarNarrow, (value) => {
   emit('settings-scrollbarNarrow-changed', value !== false);
