@@ -296,6 +296,9 @@ if (isMainWindow) {
   listen('settings-hybridTileHoverRadius-changed', (event) => {
     config.settings.hybridTileHoverRadius = event.payload
   })
+  listen('settings-infoInWindow-changed', (event) => {
+    config.settings.infoInWindow = event.payload
+  })
   listen('settings-hybridTileCenter-changed', (event) => {
     config.settings.hybridTileCenter = event.payload
   })

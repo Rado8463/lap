@@ -1666,6 +1666,8 @@
       "hybrid_tiles_hint": "Photos (JPEG, PSD/PSB, TIFF) above this size are never opened at full resolution by the browser. Instead the visible part is decoded by the app and shown over the preview when you zoom in (fixes missing blocks and blank zoom steps of huge photos).",
       "hybrid_tiles_off": "Off",
       "hybrid_tile_prefetch": "Prepare the 100 % view of large JPEG, PSD/PSB and TIFF in advance",
+      "info_in_window": "Open Image Info in a window",
+      "info_in_window_hint": "When on, the Info button and Alt+I open Image Info in a separate window instead of the side panel.",
       "hybrid_tile_center": "Also prepare the photo centre",
       "hybrid_tile_center_hint": "When off, the 100 % region is prepared only under the cursor (after the photo appears and when the cursor rests). When on, it is prepared around the photo centre instead.",
       "hybrid_tile_prefetch_hint": "In tiled mode the part under the cursor (twice the screen size; optionally around the photo centre) is prepared ahead, so zooming to 100 % shows sharp pixels at once. Uses some CPU while viewing.",

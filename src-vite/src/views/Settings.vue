@@ -353,6 +353,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.info_in_window') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.info_in_window_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.infoInWindow" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.show_load_timing') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.show_load_timing_hint') }}
@@ -2234,6 +2243,9 @@ watch(() => config.settings.hybridTileHoverMs, (newValue) => {
 });
 watch(() => config.settings.hybridTileHoverRadius, (newValue) => {
   emit('settings-hybridTileHoverRadius-changed', newValue);
+});
+watch(() => config.settings.infoInWindow, (newValue) => {
+  emit('settings-infoInWindow-changed', newValue === true);
 });
 watch(() => config.settings.hybridTileCenter, (newValue) => {
   emit('settings-hybridTileCenter-changed', newValue === true);

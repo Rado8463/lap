@@ -210,7 +210,7 @@
             :tooltip="$t('toolbar.tooltip.info')"
             :shortcut="shortcut('meta.info')"
             :selected="isInfoPanelOpen"
-            @click="toggleInfoPanel"
+            @click="config.settings.infoInWindow ? toggleInfoWindow() : toggleInfoPanel()"
           />
         </div>
 
@@ -5294,7 +5294,7 @@ function handleItemAction(payload: { action: string, index: number }) {
     'remove-selected-from-collection': () => void removeSelectedFromCollection(),
     'favorite': toggleFavorite,
     'rotate': clickRotate,
-    'info': toggleInfoPanel,
+    'info': () => (config.settings.infoInWindow ? void toggleInfoWindow() : toggleInfoPanel()),
     'tag': clickTag,
     'add-to-collection': clickAddToCollection,
     'comment': () => openCommentEditor(),
@@ -5545,7 +5545,7 @@ function handleLocalKeyDown(event: KeyboardEvent) {
 
   if (matchesShortcut('meta.info', event, shortcutPlatform)) {
     event.preventDefault();
-    void toggleInfoWindow();
+    void (config.settings.infoInWindow ? toggleInfoWindow() : toggleInfoPanel());
     return;
   }
 

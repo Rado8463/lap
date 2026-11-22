@@ -213,6 +213,7 @@ export const useConfigStore = defineStore('configStore', {
       hybridSharpness: 40,      // sharpening (0-100) of the Lanczos-downscaled hybrid preview
       hybridTileHoverMs: 1000,    // cursor rests this long on the preview -> region under it is prepared (0 = off)
       hybridTileHoverRadius: 20,  // px the cursor may move during that wait
+      infoInWindow: false,  // Image Info opens in its own window instead of the side panel
       hybridTileCenter: false,  // also prepare the region around the photo centre (otherwise only under the cursor)
       hybridTilePrefetch: true,  // prepare the 100 % region around the photo centre / the cursor in advance (tiled photos)
       hybridTileMegapixels: 36, // JPEGs above this many megapixels are shown tiled (0 = off)
