@@ -4,6 +4,8 @@
     "overlap": "This folder contains the existing album “{name}”. Albums cannot overlap; remove or edit that album first.",
     "add_failed": "The folder could not be added as an album.",
     "added": "Folder “{name}” added as an album and is being indexed",
+    "add_to_albums_flat": "Add to Albums (this folder only)",
+    "already_in_albums": "This folder is already part of the album “{name}”.",
     "add_to_albums": "Add to Albums",
     "added_to_albums": "Folder “{name}” was added to Albums"
   },
@@ -1867,7 +1869,11 @@
         "rebuild_message": "The previous thumbnail cache location is unavailable. Continue without moving its files? Thumbnails will be regenerated as needed at the new location. Your library data and original photos will not be changed. Files on the previous drive will be left untouched.",
         "rebuild_confirm": "Continue and regenerate",
         "section_thumbnail_cache": "Thumbnail cache",
-        "thumbnail_quality": "Change thumbnail resolution",
+        "background_load": "Preload thumbnails in the background",
+      "background_load_hint": "After opening an album, thumbnails of the rest of the album are loaded in the background (up to about 2,500 photos), so fast scrolling finds them ready",
+      "disk_keep_cache": "Keep thumbnails of Disk tab folders",
+      "disk_keep_cache_hint": "Off: folders browsed in the Disk tab are removed from the database (with their thumbnails) when you browse another folder or restart the app. Only Albums keep their thumbnails",
+      "thumbnail_quality": "Change thumbnail resolution",
         "thumbnail_quality_hint": "Higher settings look sharper but take longer to generate and use more disk space",
         "thumbnail_quality_options": [
           "Low (256 px)",

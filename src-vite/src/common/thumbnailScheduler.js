@@ -1,6 +1,6 @@
 // One queue for all thumbnail batches in the main grid. Running IPC requests
 // finish normally; only queued work can be discarded or reprioritized.
-export function createThumbnailScheduler({ loadBatch, priority, concurrency = 6, batchSize = 16 }) {
+export function createThumbnailScheduler({ loadBatch, priority, concurrency = 8, batchSize = 32 }) {
   const tasks = new Map();
   let active = 0;
   let scheduled = false;

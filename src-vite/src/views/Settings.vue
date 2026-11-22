@@ -742,6 +742,20 @@
                 <option v-for="option in thumbnailQualityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
               </select>
             </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.thumbnail_cache.background_load') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.thumbnail_cache.background_load_hint') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm shrink-0" v-model="config.settings.thumbnailBackgroundLoad" />
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.thumbnail_cache.disk_keep_cache') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.thumbnail_cache.disk_keep_cache_hint') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm shrink-0" v-model="config.settings.diskKeepBrowseCache" />
+            </div>
             <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10">
               <div class="min-w-0 text-sm leading-5">
                 <div>{{ $t(cleanupKey + '.title') }}</div>
@@ -2089,6 +2103,12 @@ watch(() => [config.settings.hybridDiskCache, config.settings.hybridDiskCacheAlb
 });
 watch(() => config.settings.shiftAdvanceMetadata, (value) => {
   emit('settings-shiftAdvanceMetadata-changed', value === true);
+});
+watch(() => config.settings.thumbnailBackgroundLoad, (value) => {
+  emit('settings-thumbnailBackgroundLoad-changed', value !== false);
+});
+watch(() => config.settings.diskKeepBrowseCache, (value) => {
+  emit('settings-diskKeepBrowseCache-changed', value === true);
 });
 watch(() => config.settings.fitNoUpscale, (value) => {
   emit('settings-fitNoUpscale-changed', value === true);

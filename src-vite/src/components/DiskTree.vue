@@ -56,7 +56,7 @@ import { useI18n } from 'vue-i18n';
 import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { config, libConfig } from '@/common/config';
 import { isWin } from '@/common/utils';
-import { getAllAlbums, addAlbum, removeAlbum, listAlbumSubfolders } from '@/common/api';
+import { getAllAlbums, addAlbum, editAlbum, removeAlbum, listAlbumSubfolders } from '@/common/api';
 import ContextMenu from '@/components/ContextMenu.vue';
 import { useAlbumSelectionProvider } from '@/composables/useAlbumSelection';
 import { useToast } from '@/common/toast';
@@ -228,6 +228,7 @@ const menuItems = computed(() => {
     const album = albums.value.find((a) => isInside(node.path, a.path));
     if (!album || isDiskAlbum(album.id)) {          // not in Albums yet
       items.push({ label: t('disk_tree.add_to_albums'), action: () => addToAlbums(node) });
+      items.push({ label: t('disk_tree.add_to_albums_flat'), action: () => addToAlbumsFlat(node) });
       items.push({ label: '-', action: () => {} });
     }
   }
@@ -264,6 +265,71 @@ async function addToAlbums(node: DiskNode) {
   await tauriEmit('albums-refreshed');
   refreshAlbumMarks();
   toast.success(t('disk_tree.added_to_albums', { name: album.name }));
+}
+
+// "This folder only": adds the folder as an album that excludes all its subfolders
+// (the album exclusion works on first-level subfolders, with their whole content).
+async function addToAlbumsFlat(node: DiskNode) {
+  albums.value = (await getAllAlbums()) || [];
+  const covering = albums.value.find((a) => isInside(node.path, a.path));
+  if (covering && !isDiskAlbum(covering.id)) {
+    toast.error(t('disk_tree.already_in_albums', { name: covering.name }));
+    return;
+  }
+  const real = albums.value.find((a) => !isDiskAlbum(a.id) && isInside(a.path, node.path));
+  if (real) {
+    toast.error(t('disk_tree.overlap', { name: real.name }));
+    return;
+  }
+  const filters = { fileTypes: 7, smallImageFilter: 0, excludedFolders: (await listAlbumSubfolders(node.path)) || [] };
+  let album: any = null;
+  if (covering && normalize(covering.path) === normalize(node.path)) {
+    await editAlbum(covering.id, covering.name, covering.description || '', filters);
+    album = covering;
+  } else {
+    // Browse-only albums overlapping the folder are replaced by the new album.
+    for (const old of albums.value.filter((a) => isDiskAlbum(a.id) && (isInside(node.path, a.path) || isInside(a.path, node.path)))) {
+      await removeAlbum(old.id);
+      config.main.diskAlbumIds = ((config.main as any).diskAlbumIds || []).filter((id: number) => Number(id) !== Number(old.id));
+    }
+    album = await addAlbum(node.path, node.name || node.path, '', filters);
+  }
+  if (!album) {
+    toast.error(t('disk_tree.add_failed'));
+    return;
+  }
+  config.main.diskAlbumIds = ((config.main as any).diskAlbumIds || []).filter((id: number) => Number(id) !== Number(album.id));
+  albums.value = (await getAllAlbums()) || [];
+  await tauriEmit('albums-refreshed');
+  await tauriEmit('library-total-refreshed');
+  if (libConfig.index.albumQueue.indexOf(album.id) === -1) libConfig.index.albumQueue.push(album.id);
+  libConfig.index.status = 1;
+  refreshAlbumMarks();
+  await selection.selectFolder(album.id, { id: 0, name: node.name, path: node.path } as any);
+  toast.success(t('disk_tree.added_to_albums', { name: album.name }));
+}
+
+// Folders only browsed in the Disk tab are indexed as hidden browse-only albums. Unless the user
+// wants to keep their data and thumbnails, everything except the folder on screen is removed.
+async function cleanupDiskAlbums(keepPath: string) {
+  if (config.settings.diskKeepBrowseCache === true) return;
+  const ids: number[] = ((config.main as any).diskAlbumIds || []).map(Number);
+  if (!ids.length) return;
+  const all = (await getAllAlbums()) || [];
+  const kept: number[] = [];
+  let removed = false;
+  for (const id of ids) {
+    const album = all.find((a) => Number(a.id) === id);
+    if (album && keepPath && isInside(keepPath, album.path)) { kept.push(id); continue; }
+    if (album) { await removeAlbum(id); removed = true; }
+  }
+  (config.main as any).diskAlbumIds = kept;
+  if (removed) {
+    albums.value = (await getAllAlbums()) || [];
+    await tauriEmit('albums-refreshed');
+    await tauriEmit('library-total-refreshed');
+    refreshAlbumMarks();
+  }
 }
 
 async function openFolder(node: DiskNode) {
@@ -306,6 +372,7 @@ async function openFolder(node: DiskNode) {
   // Always select the folder itself (never the whole album) so a root folder
   // shows only its own files unless "Show files from subfolders" is on.
   await selection.selectFolder(album.id, { id: 0, name: node.name, path: node.path } as any);
+  void cleanupDiskAlbums(node.path);
 }
 
 // Expand the tree down to the currently selected album folder.
@@ -359,5 +426,8 @@ watch(currentPath, () => {
   }));
 });
 
-onMounted(loadRoots);
+onMounted(async () => {
+  await loadRoots();
+  await cleanupDiskAlbums(currentPath.value);
+});
 </script>

@@ -265,6 +265,12 @@ if (isMainWindow) {
   listen('settings-shiftAdvanceMetadata-changed', (event) => {
     config.settings.shiftAdvanceMetadata = event.payload
   })
+  listen('settings-thumbnailBackgroundLoad-changed', (event) => {
+    config.settings.thumbnailBackgroundLoad = event.payload
+  })
+  listen('settings-diskKeepBrowseCache-changed', (event) => {
+    config.settings.diskKeepBrowseCache = event.payload
+  })
   listen('settings-fitNoUpscale-changed', (event) => {
     config.settings.fitNoUpscale = event.payload
   })

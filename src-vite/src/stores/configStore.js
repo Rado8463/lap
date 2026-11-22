@@ -217,6 +217,8 @@ export const useConfigStore = defineStore('configStore', {
       thumbHighlightColor: '#f59e0b', // border colour of the current thumbnail (when enabled)
       showLoadTiming: false,    // diagnostics: overlay with image load timings in the viewer
       shiftAdvanceMetadata: false, // Shift+rating/flag/favorite also advances to the next photo
+      thumbnailBackgroundLoad: true, // preload thumbnails of the rest of the album in the background after opening it
+      diskKeepBrowseCache: false,    // keep data and thumbnails of folders browsed in the Disk tab (otherwise they are removed)
       fitNoUpscale: true,        // Fit to screen never enlarges photos smaller than the screen (stay at 100 %)
       viewerTitleInfo: false,    // Image Viewer window title also shows zoom, resolution, size and file name
       dblClickNewWindow: true,   // double-click on a thumbnail opens the Image Viewer in a new window (Shift/Ctrl/Cmd inverts)

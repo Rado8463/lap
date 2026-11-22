@@ -8273,10 +8273,51 @@ function handleVisibleRangeUpdate({ startIndex, endIndex }: { startIndex: number
         if (seqId !== visibleRangeSeqId) return;
 
         // Phase 3: above viewport (least likely, reverse: load closest to viewport first)
-        fetchDataRange(Math.max(0, startIndex - buffer), startIndex, true);
+        fetchDataRange(Math.max(0, startIndex - buffer), startIndex, true).then(() => {
+          if (seqId === visibleRangeSeqId) void backgroundLoadThumbnails(seqId, startIndex, endIndex);
+        });
       });
     });
   });
+}
+
+// Optional: once the viewport and its neighbourhood are loaded, the rest of the album gets its
+// metadata and (cached) thumbnails in the background, nearest to the viewport first, so that a quick
+// scroll to the end finds them ready. Any scroll or content change stops it; the next idle phase resumes.
+const BACKGROUND_THUMB_LIMIT = 2500;
+const BACKGROUND_THUMB_CHUNK = 96;
+async function backgroundLoadThumbnails(seqId: number, startIndex: number, endIndex: number) {
+  if (config.settings.thumbnailBackgroundLoad === false || groupedModeActive.value) return;
+  const requestId = currentContentRequestId;
+  const thumbRequestId = currentThumbRequestId;
+  const alive = () => seqId === visibleRangeSeqId && requestId === currentContentRequestId
+    && thumbRequestId === currentThumbRequestId && !groupedModeActive.value
+    && config.settings.thumbnailBackgroundLoad !== false;
+  const total = totalFileCount.value;
+  let loaded = 0;
+  let below = endIndex + 1 + thumbnailPrefetchBuffer();
+  let above = startIndex - thumbnailPrefetchBuffer();
+  while (alive() && loaded < BACKGROUND_THUMB_LIMIT && (below < total || above > 0)) {
+    // alternate: mostly below (scroll direction), then above
+    for (const dir of ['below', 'below', 'above'] as const) {
+      if (!alive()) return;
+      let from: number, to: number;
+      if (dir === 'below') {
+        if (below >= total) continue;
+        from = below; to = Math.min(total, below + BACKGROUND_THUMB_CHUNK); below = to;
+      } else {
+        if (above <= 0) continue;
+        to = above; from = Math.max(0, above - BACKGROUND_THUMB_CHUNK); above = from;
+      }
+      await fetchDataRange(from, to);
+      if (!alive()) return;
+      const files = fileList.value.slice(from, to).filter((file: any) => isRealFileItem(file));
+      for (const file of files) backgroundLoadedThumbnails.add(Number(file.id));
+      await getFileListThumb(files, { viewportBound: false, batch: 32 });
+      loaded += to - from;
+      if (loaded >= BACKGROUND_THUMB_LIMIT) return;
+    }
+  }
 }
 
 // get file list 
@@ -11888,6 +11929,8 @@ let currentThumbRequestId = 0;
 let thumbnailRefreshVersion = 0;
 let thumbnailPriorities = new Map<number, number>();
 const checkedThumbnailFiles = new Set<number>();
+// Files whose thumbnails were preloaded in the background; they stay "checked" outside the viewport.
+const backgroundLoadedThumbnails = new Set<number>();
 let rawThumbnailPolicyRevision = 0;
 const appliedRawThumbnailPolicies = new Set<string>();
 
@@ -11907,13 +11950,14 @@ function invalidateThumbnailRequests() {
   currentThumbRequestId++;
   thumbnailPriorities.clear();
   checkedThumbnailFiles.clear();
+  backgroundLoadedThumbnails.clear();
   thumbnailScheduler.refresh();
 }
 
 // How many items above and below the viewport get their thumbnails preloaded (a few screens,
 // so that scrolling quickly meets already cached thumbnails).
 function thumbnailPrefetchBuffer() {
-  return Math.max(80, Math.min(visibleItemCount.value * 3, 240));
+  return Math.max(120, Math.min(visibleItemCount.value * 4, 400));
 }
 
 function refreshThumbnailViewport() {
@@ -11928,7 +11972,7 @@ function refreshThumbnailViewport() {
     const file = isItemRow(row) ? row.file : row;
     if (isRealFileItem(file)) priorities.set(Number(file.id), index >= start && index <= end ? 0 : 1);
   }
-  for (const id of checkedThumbnailFiles) { if (!priorities.has(id)) checkedThumbnailFiles.delete(id); }
+  for (const id of checkedThumbnailFiles) { if (!priorities.has(id) && !backgroundLoadedThumbnails.has(id)) checkedThumbnailFiles.delete(id); }
   thumbnailPriorities = priorities;
   thumbnailScheduler.refresh();
 }
@@ -11957,7 +12001,7 @@ function preserveLoadedThumbnails(files: any[]) {
 }
 
 // All grid loads share one queue with centrally capped batch size and concurrency.
-async function getFileListThumb(files: any[], { bustCache = false, viewportBound = true } = {}) {
+async function getFileListThumb(files: any[], { bustCache = false, viewportBound = true, batch = 0 } = {}) {
   const requestId = currentThumbRequestId;
   const thumbnailSize = config.settings.thumbnailSize;
   const refreshVersion = bustCache ? ++thumbnailRefreshVersion : 0;
@@ -12004,7 +12048,7 @@ async function getFileListThumb(files: any[], { bustCache = false, viewportBound
   };
   // Large explicit refreshes retain offscreen demand, but enqueue just one batch
   // at a time. Visible work can take priority before the next batch is submitted.
-  const windowSize = viewportBound ? Math.max(1, candidates.length) : 4;
+  const windowSize = viewportBound ? Math.max(1, candidates.length) : (batch > 0 ? batch : 4);
   for (let start = 0; start < candidates.length; start += windowSize) {
     if (requestId !== currentThumbRequestId) return;
     await Promise.all(candidates.slice(start, start + windowSize).map(load));

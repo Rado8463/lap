@@ -4,6 +4,8 @@
     "overlap": "Tato složka obsahuje existující album „{name}“. Alba se nesmí překrývat; nejprve toto album odeberte nebo upravte.",
     "add_failed": "Složku se nepodařilo přidat jako album.",
     "added": "Složka „{name}“ byla přidána jako album a indexuje se",
+    "add_to_albums_flat": "Přidat do Albums (jen tato složka)",
+    "already_in_albums": "Tato složka už je součástí alba „{name}“.",
     "add_to_albums": "Přidat do Albums",
     "added_to_albums": "Složka „{name}“ byla přidána do Albums"
   },
@@ -1856,7 +1858,11 @@
         "rebuild_message": "Předchozí umístění mezipaměti miniatur není dostupné. Chcete pokračovat bez přesunutí jejích souborů? Miniatury budou podle potřeby znovu vytvořeny v novém umístění. Data knihovny ani původní fotografie se nezmění. Soubory na předchozím disku zůstanou nedotčené.",
         "rebuild_confirm": "Pokračovat a znovu vygenerovat",
         "section_thumbnail_cache": "Mezipaměť miniatur",
-        "thumbnail_quality": "Změnit rozlišení miniatur",
+        "background_load": "Předčítat náhledy na pozadí",
+      "background_load_hint": "Po otevření alba se na pozadí načtou náhledy zbytku alba (asi do 2 500 fotek), takže rychlé rolování je najde připravené",
+      "disk_keep_cache": "Ponechat náhledy složek z karty Disk",
+      "disk_keep_cache_hint": "Vypnuto: složky procházené na kartě Disk se z databáze (i s náhledy) odstraní, když otevřete jinou složku nebo restartujete aplikaci. Náhledy si ponechají jen Alba",
+      "thumbnail_quality": "Změnit rozlišení miniatur",
         "thumbnail_quality_hint": "Vyšší nastavení poskytuje ostřejší obraz, ale generování trvá déle a zabírá více místa na disku",
         "thumbnail_quality_options": [
           "Nízká (256 px)",
