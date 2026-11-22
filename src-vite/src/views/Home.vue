@@ -38,7 +38,7 @@
           <!-- side bar -->
           <div 
             class="fixed top-14 min-w-14 z-10 flex flex-col items-center space-y-1" 
-            :class="isMac ? 'bottom-10' : 'bottom-2'"
+            :class="isMac ? 'bottom-10' : 'bottom-0'"
             data-tauri-drag-region
           >
             <div v-for="item in visibleButtons" :key="item.index">

@@ -50,6 +50,8 @@ mod t_cache_storage;
 mod t_startup;
 mod t_utils;
 mod t_video;
+#[cfg(target_os = "windows")]
+mod t_winicon;
 
 /// The main function is the entry point for the Tauri application.
 #[tokio::main]
@@ -177,6 +179,9 @@ async fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            #[cfg(target_os = "windows")]
+            t_winicon::apply(window);
+
             if window.label() != "main" {
                 return;
             }
