@@ -240,7 +240,7 @@ import { useToast } from '@/common/toast';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { extractFileName, combineFileName, isWin, isMac, isLinux, copyFilePaths, getClipboardItemPaths, getMediaItemSize, getSlideShowInterval, SCALE_VALUES } from '@/common/utils';
-import { toggleInfoTip } from '@/common/infoTip';
+import { toggleInfoTip, toggleLoadTiming } from '@/common/infoTip';
 import { followViewport } from '@/common/viewportFollow';
 import { matchesShortcut, ShortcutActionId, ShortcutPlatform, VIEW_BACKGROUND_SHORTCUTS } from '@/common/shortcuts';
 import { handleVideoPlaybackShortcut, handleVideoEscapeShortcut } from '@/common/video';
@@ -989,6 +989,7 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.zoomFitScreen': () => getViewerRef(getActivePane())?.zoomFitScreen?.(),
   'view.zoomActual': () => getViewerRef(getActivePane())?.zoomActualSize?.(),
   'view.infoTip': () => toggleInfoTip(),
+  'view.loadTiming': () => toggleLoadTiming(),
   'view.saveViewport': () => getViewerRef(getActivePane())?.saveViewport?.(),
   'view.clearViewport': () => getViewerRef(getActivePane())?.clearSavedViewport?.(),
   'view.close': () => closeWindow(),
@@ -1011,6 +1012,7 @@ const viewActionOrder: ShortcutActionId[] = [
   'view.zoomFitScreen',
   'view.zoomActual',
   'view.infoTip',
+  'view.loadTiming',
   'view.saveViewport',
   'view.clearViewport',
   'view.close',

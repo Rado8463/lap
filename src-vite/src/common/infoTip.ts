@@ -15,6 +15,14 @@ export function parseInfoTipFields(value: unknown, fallback: string): InfoTipFie
   return INFO_TIP_FIELDS.filter((field) => wanted.has(field));
 }
 
+// Debug tooltip with the image load timings (D key); the other windows follow through the settings event.
+export function toggleLoadTiming() {
+  const config = useConfigStore();
+  const enabled = config.settings.showLoadTiming !== true;
+  config.settings.showLoadTiming = enabled;
+  void emit('settings-showLoadTiming-changed', enabled).catch(() => {});
+}
+
 // Toggle from a keyboard shortcut; the other windows follow through an event.
 export function toggleInfoTip() {
   const config = useConfigStore();

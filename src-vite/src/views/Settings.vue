@@ -1678,6 +1678,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'view.zoomFitScreen', labelKey: 'zoom_fit_screen' },
       { actionId: 'view.zoomActual', labelKey: 'zoom_actual' },
       { actionId: 'view.infoTip', labelKey: 'info_tip' },
+      { actionId: 'view.loadTiming', labelKey: 'load_timing' },
       { actionId: 'view.saveViewport', labelKey: 'save_viewport' },
       { actionId: 'view.clearViewport', labelKey: 'clear_viewport' },
       { actionId: 'view.zoomLock', labelKey: 'zoom_lock' },

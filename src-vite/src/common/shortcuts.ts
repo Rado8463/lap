@@ -69,6 +69,7 @@ export type ShortcutActionId =
   | 'view.zoomFitScreen'
   | 'view.zoomActual'
   | 'view.infoTip'
+  | 'view.loadTiming'
   | 'view.saveViewport'
   | 'view.clearViewport'
   | 'view.zoomLock'
@@ -489,6 +490,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.infoTip',
     contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ code: 'KeyI', label: 'I' }],
+  },
+  {
+    id: 'view.loadTiming',
+    contexts: ['media-viewer', 'image-viewer'],
+    defaultBindings: [{ code: 'KeyD', label: 'D' }],
   },
   {
     id: 'view.zoomFitWidth',

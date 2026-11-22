@@ -1371,6 +1371,7 @@
       "zoom_out": "Zoom out",
       "zoom_fit": "Fit to window",
       "info_tip": "Info tooltip",
+      "load_timing": "Load timings tooltip (debug)",
       "zoom_fit_width": "Fit to width",
       "zoom_actual": "Actual size",
       "af_area": "Show AF areas",

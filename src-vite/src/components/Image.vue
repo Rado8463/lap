@@ -1467,6 +1467,7 @@ const infoTipLines = computed<string[]>(() => {
 
 // ---- Load timing (diagnostics, enabled by settings.showLoadTiming) ----------
 const loadTimingText = ref('');
+watch(() => config.settings.showLoadTiming, (on) => { if (!on) loadTimingText.value = ''; });
 function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean, stageMs = 0) {
   if (!config.settings.showLoadTiming) { loadTimingText.value = ''; return; }
   const r = (n: number) => Math.round(n);

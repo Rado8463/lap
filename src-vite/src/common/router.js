@@ -23,6 +23,11 @@ const routes = [
     component: () => import('@/views/Montage.vue'),
   },
   {
+    path: '/info-window',
+    name: 'InfoWindow',
+    component: () => import('@/views/InfoWindow.vue'),
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/views/Settings.vue'),

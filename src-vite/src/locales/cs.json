@@ -1370,6 +1370,7 @@
       "zoom_out": "Oddálit",
       "zoom_fit": "Přizpůsobit oknu",
       "info_tip": "Informační tooltip",
+      "load_timing": "Tooltip s časy načítání (debug)",
       "zoom_fit_width": "Přizpůsobit šířce",
       "zoom_actual": "Skutečná velikost",
       "af_area": "Zobrazit body ostření AF",

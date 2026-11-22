@@ -4613,6 +4613,7 @@ const backupState = ref<any>(null);
 let unlistenAlbumAccessChanged: (() => void) | undefined;
 let unlistenKeydown: () => void;
 let unlistenImageViewer: () => void;
+let unlistenInfoReady: (() => void) | null = null;
 let unlistenImageEditor: (() => void) | null = null;
 let unlistenMontage: (() => void) | null = null;
 let unlistenFaceIndexProgress: (() => void) | null = null;
@@ -4693,6 +4694,7 @@ onBeforeUnmount(() => {
   }
   if (unlistenKeydown) unlistenKeydown();
   if (unlistenImageViewer) unlistenImageViewer();
+  if (unlistenInfoReady) unlistenInfoReady();
   if (unlistenImageEditor) unlistenImageEditor();
   if (unlistenLibraryTotalRefreshed) unlistenLibraryTotalRefreshed();
   if (unlistenImportFilesAdded) unlistenImportFilesAdded();
@@ -5543,7 +5545,7 @@ function handleLocalKeyDown(event: KeyboardEvent) {
 
   if (matchesShortcut('meta.info', event, shortcutPlatform)) {
     event.preventDefault();
-    toggleInfoPanel();
+    void toggleInfoWindow();
     return;
   }
 
@@ -6744,6 +6746,7 @@ onMounted( async() => {
   document.addEventListener('dragend', domDragEnd);
   document.addEventListener('drop', domDrop);
 
+  unlistenInfoReady = await listen('info-window-ready', () => { void pushInfoWindowFile(); });
   unlistenImageViewer = await listen('message-from-image-viewer', async (event) => {
     const { message } = event.payload as any;
     switch (message) {
@@ -11467,6 +11470,38 @@ const handleGroupSelect = (optionIndex: any) => {
     config.search.groupBy = nextGroupBy;
   }
 };
+
+// Image Info in its own window (Alt+I); the toolbar button still toggles the side panel.
+const currentInfoFile = () => {
+  const f = fileList.value[selectedItemIndex.value];
+  return isRealFileItem(f) ? JSON.parse(JSON.stringify(f)) : null;
+};
+const pushInfoWindowFile = async () => {
+  const w = await WebviewWindow.getByLabel('info');
+  if (w) await w.emit('info-window-file', { file: currentInfoFile() });
+};
+const toggleInfoWindow = async () => {
+  const existing = await WebviewWindow.getByLabel('info');
+  if (existing) {
+    await existing.close();
+    return;
+  }
+  const infoWindow = new WebviewWindow('info', {
+    url: '/info-window',
+    title: 'Info',
+    width: 460,
+    height: 760,
+    minWidth: 360,
+    minHeight: 400,
+    resizable: true,
+    visible: false,
+    transparent: true,
+    decorations: isMac,
+    ...(isMac && { titleBarStyle: 'overlay', hiddenTitle: true }),
+  });
+  infoWindow.once('tauri://error', (e) => console.error('Error creating Info window:', e));
+};
+watch(() => [selectedItemIndex.value, fileList.value[selectedItemIndex.value]], () => { void pushInfoWindowFile(); });
 
 const toggleInfoPanel = () => {
   checkUnsavedChanges(async () => {
