@@ -12,7 +12,7 @@
           : (size === 'small' ? 'px-1.5 w-full gap-1 border' : 'px-2 w-full gap-1 border'),
         iconOnly ? '' : (selected ? 'border-primary' : 'border-base-content/15'),
         disabled
-          ? 'text-base-content/30 cursor-default'
+          ? (keepTextWhenDisabled ? (selected ? 'text-primary cursor-default' : 'text-base-content/70 cursor-default') : 'text-base-content/30 cursor-default')
           : (selected ? 'text-primary' : 'text-base-content/70'),
         disabled ? '' : 'hover:bg-base-100/30 hover:text-base-content cursor-pointer'
       ]"
@@ -105,6 +105,11 @@ const props = defineProps({
     default: 0,
   },
   disabled: {
+    type: Boolean,
+    default: false,
+  },
+  // A disabled control keeps the normal text colour (only the cursor shows it is inactive).
+  keepTextWhenDisabled: {
     type: Boolean,
     default: false,
   },

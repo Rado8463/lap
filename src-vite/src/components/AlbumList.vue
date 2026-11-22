@@ -127,7 +127,7 @@
                 :class="[
                   isFolderFiltering
                     ? (shouldShowFilteredFolderTree(album.id) ? 'rotate-90 pointer-events-none' : 'opacity-0 pointer-events-none')
-                    : (album.is_expanded ? 'rotate-90' : ''),
+                    : (isLeafAlbum(album) ? 'opacity-0 pointer-events-none' : (album.is_expanded ? 'rotate-90' : '')),
                 ]"
                 @click.stop="!isFolderFiltering && toggleAlbumExpansion(album)"
                 @dblclick.stop
@@ -216,7 +216,7 @@
               enter-to-class="max-h-96"
             >
               <div
-                v-if="(isFolderFiltering ? shouldShowFilteredFolderTree(album.id) : album.is_expanded) && getAlbumQueueIndex(album.id, libConfig.index.albumQueue as any[]) === -1"
+                v-if="(isFolderFiltering ? shouldShowFilteredFolderTree(album.id) : (album.is_expanded && !isLeafAlbum(album))) && getAlbumQueueIndex(album.id, libConfig.index.albumQueue as any[]) === -1"
                 class="ml-6 mr-2 my-1 p-1 rounded-box bg-base-300/30 border border-base-content/5 shadow-sm"
               >
                 <AlbumFolder
@@ -1450,15 +1450,17 @@ const clickAlbum = async (album: Album) => {
         const subFolders = await fetchFolder(album.path, false, config.settings.folderSort);
         if (subFolders) {
           album.children = [subFolders];
-          // A leaf album still has a useful root-folder node for folder
-          // actions and context. Show it when the album is selected.
-          if (!subFolders.has_subfolders) {
-            album.is_expanded = true;
-          }
         }
       }
     }, 0);
   });
+};
+
+// An album that is just one folder (no subfolders): the album row alone is enough, its
+// root-folder row below would only repeat the same name.
+const isLeafAlbum = (album: any) => {
+  const root = album?.children?.length === 1 ? album.children[0] : null;
+  return !!root && root.path === album.path && !root.has_subfolders;
 };
 
 /// dlb click album to select it and expand/collapse its folders

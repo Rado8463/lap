@@ -61,6 +61,7 @@
           :options="fileTypeOptions"
           :defaultIndex="fileTypeSelectedIndex"
           :disabled="isFavoritesFilterDisabled"
+          :keepTextWhenDisabled="true"
           :optionsDisabled="tempViewMode === 'person' || tempViewMode === 'similar'"
           :selected="activeFileTypeMask !== 0 || activeFavoritesOnly || activeRatedOnly"
           :title="activeFavoritesOnly ? $t('toolbar.filter.favorites_only') : (activeRatedOnly ? $t('toolbar.filter.rated_only') : '')"
@@ -68,7 +69,10 @@
         >
           <template #trigger-suffix>
             <IconHeartFilled v-if="activeFavoritesOnly" class="w-4 h-4 shrink-0" />
-            <IconStarFilled v-if="activeRatedOnly" class="w-4 h-4 shrink-0" />
+            <template v-if="activeRatedOnly">
+              <IconStarFilled class="w-4 h-4 shrink-0" />
+              <span v-if="activeRatingFilter > 0" class="-ml-0.5">{{ activeRatingFilter }}</span>
+            </template>
           </template>
           <template #menu-after>
             <div class="mx-2 my-1 border-t border-base-content/10"></div>
@@ -78,9 +82,17 @@
               <span class="mr-4">{{ $t('toolbar.filter.favorites_only') }}</span>
             </button>
             <button class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
-              role="menuitemcheckbox" :aria-checked="activeRatedOnly" @click="toggleRatedFilter">
-              <span class="w-5"><IconOk v-if="activeRatedOnly" class="w-4 h-4" /></span>
+              role="menuitemcheckbox" :aria-checked="activeRatingFilter === RATE.ALL" @click="setRatingFilter(RATE.ALL)">
+              <span class="w-5"><IconOk v-if="activeRatingFilter === RATE.ALL" class="w-4 h-4" /></span>
               <span class="mr-4">{{ $t('toolbar.filter.rated_only') }}</span>
+            </button>
+            <button v-for="stars in ratingFilterOptions" :key="stars"
+              class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
+              role="menuitemcheckbox" :aria-checked="activeRatingFilter === stars" @click="setRatingFilter(stars)">
+              <span class="w-5"><IconOk v-if="activeRatingFilter === stars" class="w-4 h-4" /></span>
+              <span class="mr-4 flex items-center gap-0.5">
+                <IconStarFilled v-for="n in stars" :key="n" class="w-3.5 h-3.5" />
+              </span>
             </button>
           </template>
         </DropDownSelect>
@@ -7308,7 +7320,7 @@ watch(
     libConfig.search.searchText,
     libConfig.rating.item, // rating
     libConfig.culling.item, // culling
-    config.search.fileType, config.search.favoritesOnly, config.search.ratedOnly, config.search.sortType, config.search.sortOrder, // search and sort
+    config.search.fileType, config.search.favoritesOnly, currentRatingFilter(), config.search.sortType, config.search.sortOrder, // search and sort
     config.settings.showSubfolderFiles,                                            // album folder view
     config.settings.folderSort, config.settings.calendarSort, config.settings.locationSort, config.settings.cameraSort, config.search.groupBy, // group sorting and filtering (tag/person sorts only affect their sidebars, not content grouping)
     libConfig.person.id,                                                              // person
@@ -8343,7 +8355,7 @@ async function getFileList(
     locationAdmin1 = '', 
     locationName = '', 
     isFavorite = activeFavoritesOnly.value,
-    rating = activeRatedOnly.value ? RATE.ALL : -1,
+    rating = activeRatingFilter.value,
     cullingFlag = -1,
     tagId = 0,
     personId = 0,
@@ -11386,15 +11398,28 @@ const isFavoritesFilterDisabled = computed(() => tempViewMode.value === 'person'
   || tempViewMode.value === 'similar' || tempViewMode.value === 'album' || isScanStreamingMode.value);
 const activeFavoritesOnly = computed(() => Boolean(config.search.favoritesOnly) && !isFavoritesFilterDisabled.value);
 
-// "Rated only": in the Albums view show just files with any star rating (1-5).
-const activeRatedOnly = computed(() => Boolean(config.search.ratedOnly)
-  && !isFavoritesFilterDisabled.value
-  && config.main.sidebarIndex === SIDEBAR.ALBUM);
+// Rating filter of the Albums view, remembered per album (key 0: all files):
+// RATE.ALL (-2) shows files with any star rating, 1-5 exactly that many stars, -1 no filter.
+function currentRatingFilter(): number {
+  if (config.main.sidebarIndex !== SIDEBAR.ALBUM) return RATE.NONE;
+  const stored = Number(((config.main as any).albumRatingFilters || {})[String(libConfig.album.id || 0)]);
+  return stored === RATE.ALL || (stored >= 1 && stored <= 5) ? stored : RATE.NONE;
+}
 
-function toggleRatedFilter() {
+const activeRatingFilter = computed(() => isFavoritesFilterDisabled.value ? RATE.NONE : currentRatingFilter());
+// Any rating filter is on (counts of the sidebar are then not the real ones).
+const activeRatedOnly = computed(() => activeRatingFilter.value !== RATE.NONE);
+
+const ratingFilterOptions = [5, 4, 3, 2, 1];
+
+function setRatingFilter(value: number) {
   if (isFavoritesFilterDisabled.value) return;
   rememberFocusedFileForPresentationRefresh();
-  config.search.ratedOnly = !config.search.ratedOnly;
+  const key = String(libConfig.album.id || 0);
+  const map: Record<string, number> = { ...((config.main as any).albumRatingFilters || {}) };
+  if (currentRatingFilter() === value) delete map[key]; // click again: filter off
+  else map[key] = value;
+  (config.main as any).albumRatingFilters = map;
 }
 
 function toggleFavoritesFilter() {
