@@ -265,6 +265,9 @@ if (isMainWindow) {
   listen('settings-shiftAdvanceMetadata-changed', (event) => {
     config.settings.shiftAdvanceMetadata = event.payload
   })
+  listen('settings-fitNoUpscale-changed', (event) => {
+    config.settings.fitNoUpscale = event.payload
+  })
   listen('settings-viewerTitleInfo-changed', (event) => {
     config.settings.viewerTitleInfo = event.payload
   })

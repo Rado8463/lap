@@ -1619,6 +1619,8 @@
       "transparency_color_reset": "Reset (90, 90, 90)",
       "shift_advance_metadata": "Shift + rating/flag/favorite moves to next photo",
       "shift_advance_metadata_hint": "When on, holding Shift while setting a rating, flag or favorite also advances to the next photo",
+      "fit_no_upscale": "Don't enlarge small photos",
+      "fit_no_upscale_hint": "Photos smaller than the screen stay at 100 % (actual size) instead of being enlarged to fit the screen",
       "viewer_title_info": "Show photo info in window title",
       "viewer_title_info_hint": "The Image Viewer window title also shows zoom, resolution, file size and file name after \"Lap Image Viewer\" (e.g. for AutoHotkey)",
       "dbl_click_new_window": "Double-click opens a new window",

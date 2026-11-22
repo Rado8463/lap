@@ -2430,7 +2430,7 @@ const onImageReady = (nextIndex: number, preserveLoading: boolean = false) => {
         const cursorY = mousePosition.value.y - containerPos.value.y;
 
         // Calculate a conceptual "before" state, as if the image was fitted to the container.
-        const fitScale = Math.min(container.width / imgSize.width, container.height / imgSize.height);
+        const fitScale = capFitScale(Math.min(container.width / imgSize.width, container.height / imgSize.height));
         const initialPos = {
           x: (container.width - imgSize.width) / 2,
           y: (container.height - imgSize.height) / 2,
@@ -2561,6 +2561,15 @@ const updateZoomFit = (force: boolean = false) => {
   // position.value[nextImageIndex] = position.value[activeImage.value];
 };
 
+// "Don't enlarge small photos": fit-to-screen never goes above 100 % (actual pixels).
+function capFitScale(fit: number): number {
+  return config.settings.fitNoUpscale === true ? Math.min(fit, getActualSizeScale()) : fit;
+}
+
+watch(() => config.settings.fitNoUpscale, () => {
+  if (isZoomFit.value && containerSize.value.width > 0) zoomFit(true);
+});
+
 // Zoom to fit image in container
 const zoomFit = (force: boolean = false) => {
   console.log('zoomFit');
@@ -2570,9 +2579,9 @@ const zoomFit = (force: boolean = false) => {
   const containerAspectRatio = container.width / container.height;
   const imageAspectRatio = imgRotatedSize.width / imgRotatedSize.height;
 
-  const scale = containerAspectRatio > imageAspectRatio 
+  const scale = capFitScale(containerAspectRatio > imageAspectRatio 
     ? container.height / imgRotatedSize.height
-    : container.width / imgRotatedSize.width;
+    : container.width / imgRotatedSize.width);
 
   // set position to center
   zoomImage(container.width / 2, container.height / 2, scale, force);
@@ -3150,7 +3159,7 @@ function getFitScale(): number {
   const container = containerSize.value;
   const rotated = imageSizeRotated.value[activeImage.value];
   if (!(container.width > 0) || !(container.height > 0) || !(rotated.width > 0) || !(rotated.height > 0)) return 0;
-  return Math.min(container.width / rotated.width, container.height / rotated.height);
+  return capFitScale(Math.min(container.width / rotated.width, container.height / rotated.height));
 }
 
 function isAtFitScale(): boolean {
