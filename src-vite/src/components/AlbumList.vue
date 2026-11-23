@@ -85,6 +85,7 @@
           direction="vertical"
           :group="{ name: 'album-folder', pull: false, put: false }"
           :force-fallback="true"
+          :fallback-on-body="true"
           ghost-class="sidebar-reorder-placeholder"
           :revertOnSpill="true"
           :bubble-scroll="false"
@@ -933,6 +934,18 @@ const getMoreMenuItems = async (album: any) => {
       action: () => toggleIndexAlbum(album.id)
     },
     {
+      label: t('menu.album.move_up'),
+      icon: IconOrder,
+      disabled: albums.value.findIndex(a => a.id === album.id) <= 0,
+      action: () => { void moveAlbum(album.id, -1); }
+    },
+    {
+      label: t('menu.album.move_down'),
+      icon: IconOrder,
+      disabled: albums.value.findIndex(a => a.id === album.id) >= albums.value.length - 1,
+      action: () => { void moveAlbum(album.id, 1); }
+    },
+    {
       label: isWatchedFolder(album.path) ? t('menu.album.unwatch_folder') : t('menu.album.watch_folder'),
       icon: IconUpdate,
       disabled: !isAccessible,
@@ -1589,7 +1602,35 @@ const handleAlbumListKeyDown = async (key: string) => {
   }
 };
 
+/// move an album one step up (-1) or down (+1) without dragging
+async function moveAlbum(albumId: number, delta: number) {
+  const index = albums.value.findIndex(a => Number(a.id) === Number(albumId));
+  const target = index + delta;
+  if (index < 0 || target < 0 || target >= albums.value.length) return;
+  const next = [...albums.value];
+  const [moved] = next.splice(index, 1);
+  next.splice(target, 0, moved);
+  albums.value = next;
+  try {
+    await reorderAlbums(albums.value.map((album, displayOrder) => ({ id: album.id, displayOrder })));
+  } catch (error) {
+    console.error('Failed to reorder albums:', error);
+    const restoredAlbums = await getAllAlbums();
+    if (Array.isArray(restoredAlbums)) {
+      albums.value = withoutDiskAlbums(restoredAlbums);
+      await loadAlbumCovers();
+    }
+  }
+}
+
 const handleLocalAlbumListKeyDown = (event: KeyboardEvent) => {
+  if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+      && isMainPane.value && !isFolderFiltering.value && !isDragging.value
+      && document.activeElement === albumListRootRef.value && selection.albumId.value > 0) {
+    event.preventDefault();
+    void moveAlbum(selection.albumId.value, event.key === 'ArrowUp' ? -1 : 1);
+    return;
+  }
   if (!shouldHandleAlbumListNavigation(event.key)) return;
   event.preventDefault();
   void handleAlbumListKeyDown(event.key);

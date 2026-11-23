@@ -762,7 +762,9 @@
       "delete_folder": "Delete folder",
       "refresh_folders": "Refresh folders",
       "watch_folder": "Watch for new files",
-      "unwatch_folder": "Stop watching for new files"
+      "unwatch_folder": "Stop watching for new files",
+      "move_up": "Move up",
+      "move_down": "Move down"
     },
     "file": {
       "new_folder": "New folder",
