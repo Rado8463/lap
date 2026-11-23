@@ -1773,6 +1773,8 @@ function disposeRasterWarm() {
 const cloudCheckCache = new Map<string, { at: number; promise: Promise<boolean> }>();
 const CLOUD_CHECK_TTL_MS = 60_000;
 function checkCloudOnlyCached(path: string): Promise<boolean> {
+  // Off by default: no backend round trip at all for people who do not use OneDrive-style placeholders.
+  if (config.settings.detectCloudFiles !== true) return Promise.resolve(false);
   const now = Date.now();
   const hit = cloudCheckCache.get(path);
   if (hit && now - hit.at < CLOUD_CHECK_TTL_MS) return hit.promise;

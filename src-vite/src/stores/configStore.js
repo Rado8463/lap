@@ -214,6 +214,7 @@ export const useConfigStore = defineStore('configStore', {
       hybridSharpness: 40,      // sharpening (0-100) of the Lanczos-downscaled hybrid preview
       hybridTileHoverMs: 1000,    // cursor rests this long on the preview -> region under it is prepared (0 = off)
       hybridTileHoverRadius: 20,  // px the cursor may move during that wait
+      detectCloudFiles: false,  // check for online-only (OneDrive/iCloud) placeholders before opening an image
       focusGridAfterAlbumClick: true,  // after choosing an album/folder, move keyboard focus to the thumbnails (like ZPS)
       autoRescanOnOpen: true,  // scan an album when it (or one of its folders) is opened, to pick up new files
       accentColor: '',      // custom accent (primary) colour as #rrggbb; empty = the theme's own

@@ -1853,6 +1853,8 @@
       "file_delete_permanent_hint": "Trvalé odstranění vždy vyžaduje potvrzení",
       "file_delete_section": "Odstraňování souborů",
       "behavior_section": "Chování",
+      "detect_cloud_files": "Rozpoznávat soubory jen v cloudu",
+      "detect_cloud_files_hint": "Před otevřením obrázku se backendu zeptá, zda jde o zástupce OneDrive/iCloud bez stažených dat. Pokud cloud nepoužíváte, nechte vypnuté: ušetří se jeden dotaz na každý obrázek.",
       "focus_grid_after_click": "Fokus na náhledy po výběru složky",
       "focus_grid_after_click_hint": "Po kliknutí na album nebo složku se klávesnicový fokus přesune na seznam náhledů, takže Home/End/PgUp/PgDn a šipky hned fungují na fotkách. Vypněte, pokud chcete dál ovládat seznam alb šipkami.",
       "title": "Pokročilé",
