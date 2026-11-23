@@ -228,6 +228,7 @@ async function clickNode(node: DiskNode) {
     return;
   }
   await openFolder(node);
+  if (config.settings.focusGridAfterAlbumClick !== false) window.dispatchEvent(new CustomEvent('lap-focus-grid'));
 }
 
 // ---- context menu: promote a browse-only folder to a regular album --------

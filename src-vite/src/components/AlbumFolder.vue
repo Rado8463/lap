@@ -547,7 +547,10 @@ const clickFolder = async (albumIdVal: number, folder: Folder) => {
     uiStore.setActivePane('left-sidebar');
   }
   await selection.selectFolder(albumIdVal, folder);
-  if (props.allowContextMenu) autoRescanAlbum(albumIdVal, folder.path);
+  if (props.allowContextMenu) {
+    if (config.settings.focusGridAfterAlbumClick !== false) window.dispatchEvent(new CustomEvent('lap-focus-grid'));
+    autoRescanAlbum(albumIdVal, folder.path);
+  }
 };
 
 const hoveredFolderPath = ref('');

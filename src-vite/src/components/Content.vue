@@ -6081,6 +6081,17 @@ function isContentInteractionActive() {
   return isContentHovered.value && !uiStore.mapActive;
 }
 
+// Fired by the album list / folder tree / disk tree after the user picks a location: hand keyboard
+// focus to the thumbnails so Home/End/PgUp/PgDn and arrows act on them (ZPS behaviour).
+function handleFocusGridRequest() {
+  uiStore.setActivePane('content');
+  const el = document.activeElement as HTMLElement | null;
+  if (el && el !== contentRootRef.value && el.closest?.('input, textarea, [contenteditable="true"]')) return;
+  contentRootRef.value?.focus({ preventScroll: true });
+}
+onMounted(() => window.addEventListener('lap-focus-grid', handleFocusGridRequest));
+onBeforeUnmount(() => window.removeEventListener('lap-focus-grid', handleFocusGridRequest));
+
 function activateContentPane(event?: Event) {
   uiStore.setActivePane('content');
   // Don't steal focus from an editable field: this mousedown.capture runs before the field's own

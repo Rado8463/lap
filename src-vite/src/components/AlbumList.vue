@@ -1447,6 +1447,12 @@ const clickRemoveAlbum = async () => {
   }
 };
 
+// After choosing an album/folder, hand keyboard focus to the thumbnail grid (ZPS behaviour).
+const focusGridAfterSelect = () => {
+  if (config.settings.focusGridAfterAlbumClick === false) return;
+  window.dispatchEvent(new CustomEvent('lap-focus-grid'));
+};
+
 /// click a album to select it
 const clickAlbum = async (album: Album) => {
   if (isMainPane.value) {
@@ -1463,6 +1469,7 @@ const clickAlbum = async (album: Album) => {
   const selectionChanged = !isMainSourceActive.value || config.main.sidebarIndex !== SIDEBAR.ALBUM
     || selection.albumId.value !== album.id || !selection.selected.value;
   selection.selectAlbum(album);
+  focusGridAfterSelect();
   if (album.is_accessible !== false) autoRescanAlbum(album.id, album.path);
   requestAnimationFrame(() => {
     setTimeout(async () => {
@@ -1525,6 +1532,7 @@ const clickFolder = async (albumIdVal: number, folder: Folder) => {
     uiStore.setActivePane('left-sidebar');
   }
   await selection.selectFolder(albumIdVal, folder);
+  if (isMainPane.value) focusGridAfterSelect();
 };
 
 const focusAlbumListRoot = (event: MouseEvent) => {

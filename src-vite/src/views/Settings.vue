@@ -793,6 +793,15 @@
             <h2 id="behavior-settings" class="font-bold uppercase text-[10px] tracking-widest text-base-content/30">{{ $t('settings.advanced.behavior_section') }}</h2>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.focus_grid_after_click') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.advanced.focus_grid_after_click_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.focusGridAfterAlbumClick !== false" @change="config.settings.focusGridAfterAlbumClick = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.auto_rescan') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.auto_rescan_hint') }}
@@ -2297,6 +2306,9 @@ watch(() => config.settings.hybridTileHoverMs, (newValue) => {
 });
 watch(() => config.settings.hybridTileHoverRadius, (newValue) => {
   emit('settings-hybridTileHoverRadius-changed', newValue);
+});
+watch(() => config.settings.focusGridAfterAlbumClick, (newValue) => {
+  emit('settings-focusGridAfterAlbumClick-changed', newValue !== false);
 });
 watch(() => config.settings.autoRescanOnOpen, (newValue) => {
   emit('settings-autoRescanOnOpen-changed', newValue !== false);
