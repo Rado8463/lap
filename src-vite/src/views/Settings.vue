@@ -406,6 +406,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.zoom_step_cursor') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.zoom_step_cursor_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.zoomStepAtCursor !== false" @change="config.settings.zoomStepAtCursor = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.shift_advance_metadata') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.shift_advance_metadata_hint') }}
@@ -2295,6 +2304,9 @@ watch(() => config.settings.grid.style, (newValue) => {
 });
 watch(() => config.settings.grid.scaling, (newValue) => {
   emit('settings-gridScaling-changed', newValue);
+});
+watch(() => config.settings.zoomStepAtCursor, (newValue) => {
+  emit('settings-zoomStepAtCursor-changed', newValue !== false);
 });
 watch(() => config.settings.thumbInnerZoom, (newValue) => {
   emit('settings-thumbInnerZoom-changed', newValue !== false);

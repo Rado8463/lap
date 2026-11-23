@@ -1645,6 +1645,8 @@
       "transparency_color": "Barva průhlednosti",
       "transparency_color_hint": "Barva za průhlednými oblastmi (PNG, PSD, TIFF…)",
       "transparency_color_reset": "Obnovit (90, 90, 90)",
+      "zoom_step_cursor": "Zoom po krocích kolem kurzoru",
+      "zoom_step_cursor_hint": "Klávesy = a - (a tlačítka zoomu, když je kurzor nad fotkou) přibližují po krocích kolem pozice kurzoru, ne kolem středu okna.",
       "shift_advance_metadata": "Shift + hodnocení/příznak/oblíbené posune na další fotku",
       "shift_advance_metadata_hint": "Když je zapnuto, podržení Shiftu při nastavení hodnocení, příznaku nebo oblíbené položky zároveň přejde na další fotku",
       "fit_no_upscale": "Nezvětšovat malé fotky",

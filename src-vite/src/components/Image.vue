@@ -448,6 +448,7 @@ let resizeTransitionFrame = 0;
 const noTransition = ref(false);            // Disable transition temporarily
 const lastMousePosition = ref({ x: 0, y: 0 }); // Last mouse position for drag calculations
 const mousePosition = ref({ x: 0, y: 0 });  // Current mouse position
+let pointerInsideImage = false;             // cursor currently over the viewer (set by mouse move / leave)
 const mouseDragNavDeltaX = ref(0);
 const mouseDragNavDeltaY = ref(0);
 const mouseDragNavTriggered = ref(false);
@@ -3070,6 +3071,7 @@ const handleImageMouseMove = (event: MouseEvent) => {
   if (isTouchActive.value) return; // touch path owns this gesture
   // update mouse position
   mousePosition.value = { x: event.clientX, y: event.clientY };
+  pointerInsideImage = true;
   updatePosition();
   onTileHover(event);
 
@@ -3116,6 +3118,7 @@ function finishImageMouseDrag(navigate: boolean) {
 // reset mouse position to the center when leaving the container
 const handleImageMouseLeave = () => {
   clearTileHover();
+  pointerInsideImage = false;
   // purpose: when clicking zoom fit/reset, the image will be centered
   // and the mouse position will be set to the center of the container
   const container = containerSize.value;
@@ -3369,23 +3372,35 @@ function getZoomSteps(dpr: number): number[] {
   return steps;
 }
 
+// Step zoom (= / - keys, buttons) zooms around the cursor when it is over the viewer and the
+// setting is on; otherwise (cursor outside, e.g. on a toolbar button) around the centre.
+function stepZoomAnchor(): { x: number; y: number } {
+  const container = containerSize.value;
+  if (config.settings.zoomStepAtCursor !== false && pointerInsideImage) {
+    const x = mousePosition.value.x - containerPos.value.x;
+    const y = mousePosition.value.y - containerPos.value.y;
+    if (x >= 0 && y >= 0 && x <= container.width && y <= container.height) return { x, y };
+  }
+  return { x: container.width / 2, y: container.height / 2 };
+}
+
 const zoomIn = () => {
   const dpr = window.devicePixelRatio || 1;
   const current = scale.value[activeImage.value] * dpr;
   const next = getZoomSteps(dpr).find(step => step > current * 1.005);
   const newScale = Math.min(next !== undefined ? next / dpr : scale.value[activeImage.value], maxScale.value);
-  const container = containerSize.value;
-  zoomImage(container.width / 2, container.height / 2, newScale);
+  const anchor = stepZoomAnchor();
+  zoomImage(anchor.x, anchor.y, newScale);
 };
 
 const zoomOut = () => {
-  const container = containerSize.value;
   minScale.value = 0.1;
   const dpr = window.devicePixelRatio || 1;
   const current = scale.value[activeImage.value] * dpr;
   const previous = getZoomSteps(dpr).reverse().find(step => step < current * 0.995);
   const newScale = Math.max(previous !== undefined ? previous / dpr : minScale.value, minScale.value);
-  zoomImage(container.width / 2, container.height / 2, newScale);
+  const anchor = stepZoomAnchor();
+  zoomImage(anchor.x, anchor.y, newScale);
 };
 
 const zoomFitWidth = () => {
