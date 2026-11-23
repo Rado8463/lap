@@ -1563,6 +1563,8 @@
         "Roztáhnout pro vyplnění"
       ],
       "thumbnail_corners": "Rohy miniatur",
+      "inner_zoom": "Přiblížit obrázek uvnitř dlaždice",
+      "inner_zoom_hint": "Zobrazení dlaždic a zarovnané: obrázek se při najetí kurzorem a u vybraného náhledu mírně přiblíží uvnitř dlaždice.",
       "enlarge_selected": "Zvýraznit vybraný náhled",
       "enlarge_selected_hint": "Vybraný náhled se vykreslí větší než ostatní a překryje sousední (rozložení ani scroll se nemění).",
       "enlarge_hover": "Zvýraznit náhled pod kurzorem",

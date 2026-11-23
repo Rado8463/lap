@@ -392,6 +392,7 @@ const fitRawPairPreview = computed(() => isGeometryGridStyle.value && isRawJpegP
   && config.settings.groupRawJpegPairs && config.settings.rawPairDisplaySource === 'jpeg'
   && !!props.file?.live_photo_video_path);
 const shouldScaleThumbnail = computed(() => !fitRawPairPreview.value
+  && config.settings.thumbInnerZoom !== false
   && (config.settings.grid.style === 1 || isGeometryGridStyle.value));
 const thumbnailCornerClass = computed(() => (
   config.settings.grid.thumbnailCorners === 1 ? 'rounded-none' : 'rounded-box'

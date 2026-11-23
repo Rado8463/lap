@@ -220,6 +220,13 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.inner_zoom') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.grid.inner_zoom_hint') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.thumbInnerZoom !== false" @change="config.settings.thumbInnerZoom = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.grid.enlarge_selected') }}</div>
                 <div class="text-xs text-base-content/30">{{ $t('settings.grid.enlarge_selected_hint') }}</div>
               </div>
@@ -2274,6 +2281,9 @@ watch(() => config.settings.grid.style, (newValue) => {
 });
 watch(() => config.settings.grid.scaling, (newValue) => {
   emit('settings-gridScaling-changed', newValue);
+});
+watch(() => config.settings.thumbInnerZoom, (newValue) => {
+  emit('settings-thumbInnerZoom-changed', newValue !== false);
 });
 watch(() => config.settings.thumbHoverEnlargePct, (newValue) => {
   emit('settings-thumbHoverEnlargePct-changed', Number(newValue) || 100);
