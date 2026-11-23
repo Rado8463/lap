@@ -6756,11 +6756,13 @@ onMounted( async() => {
     if (Number(p.albumId) !== Number(libConfig.album.id) || !samePath(p.folderPath, libConfig.album.folderPath)) return;
     if (Number(libConfig.index.albumQueue[0] || 0) === Number(p.albumId)) return; // a scan is running anyway
     const keepFileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
+    const oldIndex = selectedItemIndex.value;
     if (gridViewRef.value) pendingRestoreScrollTop.value = gridViewRef.value.getScrollTop();
     await updateContent(true);
     if (keepFileId > 0) {
       const idx = fileList.value.findIndex((f: any) => Number(f?.id || 0) === keepFileId);
-      if (idx >= 0) selectedItemIndex.value = idx;
+      // the selected file was deleted: select the one to its left
+      selectedItemIndex.value = idx >= 0 ? idx : Math.max(0, Math.min(oldIndex - 1, fileList.value.length - 1));
     }
     refreshLibraryTotalCount();
   });
@@ -9934,10 +9936,12 @@ const onMoveTo = async () => {
           .filter(item => !successIdSet.has(item.id))
           .map(item => Number(item.id)),
       );
+      const rowsBefore = fileList.value;
+      const indexBefore = selectedItemIndex.value;
       fileList.value = fileList.value.filter((f) => !successIdSet.has(Number(f?.id)));
       totalFileCount.value = fileList.value.length;
       totalFileSize.value = fileList.value.reduce((total, file) => total + getMediaItemSize(file), 0);
-      selectedItemIndex.value = fileList.value.length > 0 ? Math.min(selectedItemIndex.value, fileList.value.length - 1) : -1;
+      selectedItemIndex.value = indexAfterRemoval(rowsBefore, indexBefore, f => successIdSet.has(Number(f?.id)), fileList.value.length);
       rebuildSelectionAfterListMutation(remainingSelectedIds);
       toast.success(t('msgbox.move_to.success', { source: sourceLabel, dest: destLabel }));
     }
@@ -10288,9 +10292,19 @@ const onTrashAllDuplicates = async () => {
   }
 };
 
+// New selected index after files were removed: the file to the left of a deleted selected one.
+function indexAfterRemoval(oldList: any[], oldIndex: number, isRemoved: (file: any) => boolean, remainingLength: number) {
+  if (remainingLength <= 0) return -1;
+  let idx = 0;
+  for (let i = 0; i < oldIndex && i < oldList.length; i++) if (!isRemoved(oldList[i])) idx++;
+  if (oldIndex >= 0 && oldIndex < oldList.length && isRemoved(oldList[oldIndex])) idx--;
+  return Math.max(0, Math.min(idx, remainingLength - 1));
+}
+
 function removeDeletedRows(deleted: Set<number>) {
   if (groupedModeActive.value || isMapView.value || isLoading.value) return false;
   const oldIndex = selectedItemIndex.value;
+  const previousRows = fileList.value;
   let index = oldIndex;
   let removedSize = 0;
   const remaining = fileList.value.filter((file, position) => {
@@ -10312,7 +10326,7 @@ function removeDeletedRows(deleted: Set<number>) {
   fileList.value = remaining;
   totalFileCount.value = Math.max(0, totalFileCount.value - deleted.size);
   totalFileSize.value = Math.max(0, totalFileSize.value - removedSize);
-  selectedItemIndex.value = Math.min(index, remaining.length - 1);
+  selectedItemIndex.value = indexAfterRemoval(previousRows, oldIndex, file => deleted.has(file?.id), remaining.length);
   if (selectMode.value) {
     rebuildSelectionAfterListMutation(selectedIds);
     lastSelectedIndex.value = -1;
@@ -10571,10 +10585,12 @@ const onTrashDedupFiles = async (retryToken?: string) => {
       }
 
       const deletedIdSet = new Set(deletedFileIds);
+      const rowsBefore = fileList.value;
+      const indexBefore = selectedItemIndex.value;
       fileList.value = fileList.value.filter((f) => !deletedIdSet.has(Number(f?.id)));
       totalFileCount.value = fileList.value.length;
       totalFileSize.value = fileList.value.reduce((total, file) => total + getMediaItemSize(file), 0);
-      selectedItemIndex.value = fileList.value.length > 0 ? Math.min(selectedItemIndex.value, fileList.value.length - 1) : -1;
+      selectedItemIndex.value = indexAfterRemoval(rowsBefore, indexBefore, f => deletedIdSet.has(Number(f?.id)), fileList.value.length);
     }
     await refreshGroupedRowsAfterDelete(deletedFileIds);
     await refreshFolderSidebarCounts([...affectedFolderPaths]);
@@ -10663,7 +10679,8 @@ function removeFromFileList(index: number = 0) {
   
   // update selected item index (ensure it's always a valid number)
   if (fileList.value.length > 0) {
-    selectedItemIndex.value = Math.min(index, fileList.value.length - 1);
+    // after deleting, select the file to the left of the removed one
+    selectedItemIndex.value = Math.max(0, Math.min(index - 1, fileList.value.length - 1));
   } else {
     selectedItemIndex.value = -1;
   }
