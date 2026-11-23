@@ -523,6 +523,23 @@ onMounted(async() => {
           iconRotate.value += rotateDelta;
         }
         break;
+      case 'reload-file': {
+        // the file on disk was replaced: fetch its new record (new modified_at => new preview)
+        for (const pane of allPanes) {
+          const current = getFileInfoByPane(pane);
+          if (!current || targetFileId !== getFileIdByPane(pane)) continue;
+          const path = current.file_path;
+          void getFileInfo(targetFileId).then((updated: any) => {
+            if (!updated || getFileInfoByPane(pane)?.id !== targetFileId) return;
+            uiStore.updateFileVersion(path);
+            getViewerRef(pane)?.clearPreloadCache?.(path);
+            if (pane === 'left') fileInfo.value = updated;
+            else if (pane === 'right') rightFileInfo.value = updated;
+            else extraPaneState[pane].fileInfo = updated;
+          });
+        }
+        break;
+      }
       case 'update-file-meta':
         for (const pane of allPanes) {
           const target = getFileInfoByPane(pane);
