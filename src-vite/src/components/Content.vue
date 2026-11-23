@@ -1140,7 +1140,8 @@ let pendingAlbumRestore: { key: string; scrollTop: number; offset?: number } | n
 function currentAlbumStateKey(): string | null {
   if (config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.activePane === 'collection') return null;
   if (!libConfig.album.id || libConfig.album.id <= 0) return null;
-  return [libConfig._libraryId, libConfig.album.id, libConfig.album.folderId, libConfig.album.folderPath, libConfig.album.selected].join('|');
+  // folderId is not known yet right after a restart, so the key uses only stable values.
+  return [libConfig._libraryId, libConfig.album.id, libConfig.album.selected ? '' : (libConfig.album.folderPath || '')].join('|');
 }
 function readAlbumStates(): Record<string, any> {
   try { return JSON.parse(localStorage.getItem(ALBUM_STATE_KEY) || '{}') || {}; } catch { return {}; }
