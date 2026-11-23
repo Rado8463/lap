@@ -26,6 +26,7 @@ struct WatchChanged {
     removed: usize,
     added_ids: Vec<i64>,
     removed_ids: Vec<i64>,
+    changed_ids: Vec<i64>,
 }
 
 /// wait until a file stops growing and can be opened (the writing program may still be busy)
@@ -146,6 +147,7 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
             removed,
             added_ids,
             removed_ids,
+            changed_ids: changed_ids.clone(),
         },
     );
 }

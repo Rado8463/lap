@@ -6763,6 +6763,19 @@ onMounted( async() => {
     let applied = !groupedModeActive.value && !isMapView.value && !isLoading.value;
     if (applied && removedIds.length) applied = removeDeletedRows(new Set(removedIds));
     if (applied) {
+      // overwritten files: refresh their row (size, dimensions, date) and thumbnail in place
+      for (const id of ((p.changedIds || []) as any[]).map(Number)) {
+        const at = fileList.value.findIndex((f: any) => Number(f?.id) === id);
+        if (at < 0) continue;
+        const info: any = await getFileInfo(id);
+        if (!info) continue;
+        const previous = fileList.value[at];
+        const nextFile = { ...previous, ...info, isSelected: previous.isSelected, rotate: info.rotate || 0, thumbnail: undefined };
+        totalFileSize.value += getMediaItemSize(nextFile) - getMediaItemSize(previous);
+        fileList.value.splice(at, 1, nextFile);
+        await nextTick();
+        void updateThumbForFile(fileList.value[at]);
+      }
       for (const id of addedIds) {
         if (fileList.value.some((f: any) => Number(f?.id) === id)) continue;
         const info: any = await getFileInfo(id);
