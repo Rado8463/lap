@@ -38,7 +38,7 @@
     <StatusBarFieldsDialog v-if="showFieldsDialog" @cancel="showFieldsDialog = false" />
     <div
       v-if="showUpdateIcon"
-      class="ml-2 max-w-[40%] shrink-0 px-1 py-1 flex items-center gap-1 rounded-full bg-base-300 text-primary text-[11px] font-mono"
+      class="ml-2 max-w-[40%] shrink-0 px-1 py-1 flex items-center gap-1 rounded-full bg-base-300 text-base-content text-[11px] font-mono"
     >
       <component :is="updateIconComponent" class="t-icon-size-xs shrink-0" :class="{ 'animate-spin': isUpdateAnimating }" />
       <span v-if="scanText" class="truncate text-right">{{ scanText }}</span>
