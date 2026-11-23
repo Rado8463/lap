@@ -1423,6 +1423,13 @@
         "Follow system"
       ],
       "theme": "Theme",
+      "accent_color": "Accent colour",
+      "accent_color_hint": "Overrides the theme's main colour. Reset returns to the theme's own colour.",
+      "accent_color_reset": "Reset",
+      "show_sidebar_library": "Show Library in the left toolbar",
+      "show_sidebar_smart_album": "Show Smart albums in the left toolbar",
+      "show_sidebar_location": "Show Locations in the left toolbar",
+      "show_sidebar_camera": "Show Cameras in the left toolbar",
       "theme_options_light": [
         "Default",
         "Cupcake",

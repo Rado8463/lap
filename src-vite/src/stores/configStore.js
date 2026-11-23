@@ -215,6 +215,11 @@ export const useConfigStore = defineStore('configStore', {
       hybridTileHoverMs: 1000,    // cursor rests this long on the preview -> region under it is prepared (0 = off)
       hybridTileHoverRadius: 20,  // px the cursor may move during that wait
       autoRescanOnOpen: true,  // scan an album when it (or one of its folders) is opened, to pick up new files
+      accentColor: '',      // custom accent (primary) colour as #rrggbb; empty = the theme's own
+      showLibrarySidebar: false,      // left toolbar: Library
+      showSmartAlbumSidebar: false,   // left toolbar: Smart albums
+      showLocationSidebar: false,     // left toolbar: Locations
+      showCameraSidebar: false,       // left toolbar: Cameras
       infoInWindow: false,  // Image Info opens in its own window instead of the side panel
       hybridTileQuality: true,  // 100%-region tiles of JPEGs: full-resolution decode + Lanczos (sharper, slower)
       hybridTileCenter: false,  // also prepare the region around the photo centre (otherwise only under the cursor)

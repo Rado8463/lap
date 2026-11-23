@@ -299,6 +299,11 @@ if (isMainWindow) {
   listen('settings-autoRescanOnOpen-changed', (event) => {
     config.settings.autoRescanOnOpen = event.payload
   })
+  for (const key of ['accentColor', 'showLibrarySidebar', 'showSmartAlbumSidebar', 'showLocationSidebar', 'showCameraSidebar']) {
+    listen(`settings-${key}-changed`, (event) => {
+      config.settings[key] = event.payload
+    })
+  }
   listen('settings-infoInWindow-changed', (event) => {
     config.settings.infoInWindow = event.payload
   })

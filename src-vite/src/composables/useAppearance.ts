@@ -31,4 +31,27 @@ export function useAppTheme() {
     },
     { immediate: true },
   );
+
+  // Custom accent colour overrides the theme's primary colour (inline style beats data-theme).
+  watch(
+    () => config.settings.accentColor,
+    (color) => applyAccentColor(color),
+    { immediate: true },
+  );
+}
+
+export function applyAccentColor(color: string | undefined) {
+  const root = document.documentElement;
+  const hex = /^#[0-9a-fA-F]{6}$/.test(color || '') ? (color as string) : '';
+  if (!hex) {
+    root.style.removeProperty('--color-primary');
+    root.style.removeProperty('--color-primary-content');
+    return;
+  }
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  root.style.setProperty('--color-primary', hex);
+  root.style.setProperty('--color-primary-content', luminance > 0.6 ? '#000000' : '#ffffff');
 }

@@ -1422,6 +1422,13 @@
         "Podle systému"
       ],
       "theme": "Motiv",
+      "accent_color": "Zvýrazňovací barva",
+      "accent_color_hint": "Přepíše hlavní barvu motivu. Tlačítko Obnovit vrátí barvu motivu.",
+      "accent_color_reset": "Obnovit",
+      "show_sidebar_library": "Zobrazit Knihovnu v levém panelu",
+      "show_sidebar_smart_album": "Zobrazit Chytrá alba v levém panelu",
+      "show_sidebar_location": "Zobrazit Místa v levém panelu",
+      "show_sidebar_camera": "Zobrazit Fotoaparáty v levém panelu",
       "theme_options_light": [
         "Výchozí",
         "Cupcake",

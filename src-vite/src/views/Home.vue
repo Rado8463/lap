@@ -392,15 +392,15 @@ const {
 
 // buttons
 const buttons = computed(() =>  [
-  { index: SIDEBAR.LIBRARY, icon: IconPhotoAll, component: Library, text: localeMsg.value.sidebar.library, hidden: true },
+  { index: SIDEBAR.LIBRARY, icon: IconPhotoAll, component: Library, text: localeMsg.value.sidebar.library, hidden: !config.settings.showLibrarySidebar },
   { index: SIDEBAR.ALBUM, icon: IconFolders, component: AlbumList, text: localeMsg.value.sidebar.album, props: { selectionSource: 'album' } },
-  { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list, hidden: true },
+  { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list, hidden: !config.settings.showSmartAlbumSidebar },
   { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search },
   { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },
   { index: SIDEBAR.TAG, icon: IconTag, component: Tag, text: localeMsg.value.sidebar.tag },
   { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },
-  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location, hidden: true },
-  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera, hidden: true },
+  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location, hidden: !config.settings.showLocationSidebar },
+  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera, hidden: !config.settings.showCameraSidebar },
   { index: SIDEBAR.DISK, icon: IconFolderExpanded, component: DiskTree, text: localeMsg.value.sidebar.disk || 'Disk' },
 ]);
 
@@ -441,12 +441,22 @@ watch(() => config.main.sidebarIndex, (index) => {
   if (index !== SIDEBAR.ALBUM) config.main.diskTreeActive = false;
 });
 
-// Library, Smart albums, Locations and Cameras are hidden in this build; a
-// persisted selection of one of them falls back to Albums.
-const HIDDEN_SIDEBAR_INDEXES: number[] = [SIDEBAR.LIBRARY, SIDEBAR.SMART_ALBUM, SIDEBAR.LOCATION, SIDEBAR.CAMERA];
-watch(() => config.main.sidebarIndex, (index) => {
-  if (HIDDEN_SIDEBAR_INDEXES.includes(index)) config.main.sidebarIndex = SIDEBAR.ALBUM;
-}, { immediate: true });
+// Library, Smart albums, Locations and Cameras are optional (Settings); a persisted selection
+// of a hidden one falls back to Albums.
+const isSidebarIndexHidden = (index: number) => (
+  (index === SIDEBAR.LIBRARY && !config.settings.showLibrarySidebar)
+  || (index === SIDEBAR.SMART_ALBUM && !config.settings.showSmartAlbumSidebar)
+  || (index === SIDEBAR.LOCATION && !config.settings.showLocationSidebar)
+  || (index === SIDEBAR.CAMERA && !config.settings.showCameraSidebar)
+);
+watch(
+  [() => config.main.sidebarIndex, () => config.settings.showLibrarySidebar, () => config.settings.showSmartAlbumSidebar,
+    () => config.settings.showLocationSidebar, () => config.settings.showCameraSidebar],
+  () => {
+    if (isSidebarIndexHidden(config.main.sidebarIndex)) config.main.sidebarIndex = SIDEBAR.ALBUM;
+  },
+  { immediate: true },
+);
 
 watch(() => config.settings.face.enabled, (enabled) => {
   if (!enabled && config.main.sidebarIndex === SIDEBAR.PERSON) {

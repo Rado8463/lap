@@ -74,6 +74,26 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.general.accent_color') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.general.accent_color_hint') }}</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="color" class="h-8 w-12 cursor-pointer rounded-box border border-base-content/20 bg-transparent p-0.5"
+                  :value="config.settings.accentColor || '#3b82f6'"
+                  @input="config.settings.accentColor = $event.target.value" />
+                <button class="btn btn-ghost btn-sm" :disabled="!config.settings.accentColor" @click="config.settings.accentColor = ''">
+                  {{ $t('settings.general.accent_color_reset') }}
+                </button>
+              </div>
+            </div>
+            <div v-for="item in sidebarToggleItems" :key="item.key" class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ item.label }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings[item.key] === true" @change="config.settings[item.key] = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.general.font_size') }}</div>
               </div>
               <select class="select select-bordered select-sm min-w-32" v-model="config.settings.scale">
@@ -1366,6 +1386,18 @@ const appearanceOptions = computed(() => {
 });
 
 const appearance = useAppearance();
+
+const sidebarToggleItems = computed(() => [
+  { key: 'showLibrarySidebar', label: t('settings.general.show_sidebar_library') },
+  { key: 'showSmartAlbumSidebar', label: t('settings.general.show_sidebar_smart_album') },
+  { key: 'showLocationSidebar', label: t('settings.general.show_sidebar_location') },
+  { key: 'showCameraSidebar', label: t('settings.general.show_sidebar_camera') },
+]);
+for (const key of ['accentColor', 'showLibrarySidebar', 'showSmartAlbumSidebar', 'showLocationSidebar', 'showCameraSidebar']) {
+  watch(() => config.settings[key], (newValue) => {
+    emit(`settings-${key}-changed`, newValue);
+  });
+}
 
 // Show and edit the theme for the currently displayed appearance.
 const themeOptions = computed(() => {
