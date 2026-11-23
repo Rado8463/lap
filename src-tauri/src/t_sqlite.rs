@@ -468,7 +468,9 @@ impl Album {
         let album_count: usize = tx
             .query_row("SELECT COUNT(*) FROM albums", [], |row| row.get(0))
             .map_err(|e| e.to_string())?;
-        if album_count != count {
+        // The frontend hides browse-only (Disk tab) albums, so it may send a subset of all
+        // albums; the hidden ones simply keep their own order values.
+        if count > album_count {
             return Err("Album list changed while reordering".to_string());
         }
 
