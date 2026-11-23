@@ -1698,36 +1698,121 @@ fn unsharp_rgb8(raw: &mut [u8], w: usize, h: usize, amount_pct: u32) {
         return;
     }
     let stride = w * 3;
+    let threads = worker_threads(h);
+    let rows_per = (h + threads - 1) / threads;
     // Horizontal pass (kept at x4 scale to avoid rounding): [1 2 1].
     let mut horiz = vec![0u16; raw.len()];
-    for y in 0..h {
-        let row = &raw[y * stride..(y + 1) * stride];
-        let out = &mut horiz[y * stride..(y + 1) * stride];
-        for x in 0..w {
-            let l = if x == 0 { 0 } else { x - 1 };
-            let r = if x + 1 == w { x } else { x + 1 };
-            for c in 0..3 {
-                out[x * 3 + c] =
-                    row[l * 3 + c] as u16 + 2 * row[x * 3 + c] as u16 + row[r * 3 + c] as u16;
+    {
+        let src_all: &[u8] = &*raw;
+        std::thread::scope(|scope| {
+            for (chunk_index, chunk) in horiz.chunks_mut(rows_per * stride).enumerate() {
+                scope.spawn(move || {
+                    let first_row = chunk_index * rows_per;
+                    for (row_in_chunk, out) in chunk.chunks_mut(stride).enumerate() {
+                        let y = first_row + row_in_chunk;
+                        let row = &src_all[y * stride..(y + 1) * stride];
+                        for x in 0..w {
+                            let l = if x == 0 { 0 } else { x - 1 };
+                            let r = if x + 1 == w { x } else { x + 1 };
+                            for c in 0..3 {
+                                out[x * 3 + c] =
+                                    row[l * 3 + c] as u16 + 2 * row[x * 3 + c] as u16 + row[r * 3 + c] as u16;
+                            }
+                        }
+                    }
+                });
             }
-        }
+        });
     }
     let amount = amount_pct as i32;
     // Vertical pass gives blur x16; combine with the source in one go.
     let mut out_rows = vec![0u8; raw.len()];
-    for y in 0..h {
-        let u = if y == 0 { 0 } else { y - 1 };
-        let d = if y + 1 == h { y } else { y + 1 };
-        for i in 0..stride {
-            let blur16 = horiz[u * stride + i] as i32 + 2 * horiz[y * stride + i] as i32 + horiz[d * stride + i] as i32;
-            let src = raw[y * stride + i] as i32;
-            // detail = src - blur; result = src + amount% * detail  (blur16 is blur * 16)
-            let detail16 = src * 16 - blur16;
-            let v = src + (detail16 * amount) / (16 * 100);
-            out_rows[y * stride + i] = v.clamp(0, 255) as u8;
-        }
+    {
+        let src_all: &[u8] = &*raw;
+        let horiz_all: &[u16] = &horiz;
+        std::thread::scope(|scope| {
+            for (chunk_index, chunk) in out_rows.chunks_mut(rows_per * stride).enumerate() {
+                scope.spawn(move || {
+                    let first_row = chunk_index * rows_per;
+                    for (row_in_chunk, out) in chunk.chunks_mut(stride).enumerate() {
+                        let y = first_row + row_in_chunk;
+                        let u = if y == 0 { 0 } else { y - 1 };
+                        let d = if y + 1 == h { y } else { y + 1 };
+                        for i in 0..stride {
+                            let blur16 = horiz_all[u * stride + i] as i32
+                                + 2 * horiz_all[y * stride + i] as i32
+                                + horiz_all[d * stride + i] as i32;
+                            let src = src_all[y * stride + i] as i32;
+                            // detail = src - blur; result = src + amount% * detail  (blur16 is blur * 16)
+                            let detail16 = src * 16 - blur16;
+                            let v = src + (detail16 * amount) / (16 * 100);
+                            out[i] = v.clamp(0, 255) as u8;
+                        }
+                    }
+                });
+            }
+        });
     }
     raw.copy_from_slice(&out_rows);
+}
+
+/// Number of worker threads for row-parallel image passes (at least 16 rows each).
+fn worker_threads(rows: usize) -> usize {
+    let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+    cpus.min(16).min((rows / 16).max(1)).max(1)
+}
+
+/// Uncompressed 24-bit top-down BMP of an RGB image. The browser decodes it far faster than a
+/// JPEG of the same size; only meant for local (in-process) transfer of viewer region tiles.
+fn bmp_from_rgb(rgb: &RgbImage) -> Vec<u8> {
+    let (w, h) = (rgb.width() as usize, rgb.height() as usize);
+    let padded = (w * 3 + 3) & !3;
+    let image_size = padded * h;
+    let mut out = vec![0u8; 54 + image_size];
+    {
+        let (head, body) = out.split_at_mut(54);
+        head[0] = b'B';
+        head[1] = b'M';
+        head[2..6].copy_from_slice(&((54 + image_size) as u32).to_le_bytes());
+        head[10..14].copy_from_slice(&54u32.to_le_bytes());
+        head[14..18].copy_from_slice(&40u32.to_le_bytes());
+        head[18..22].copy_from_slice(&(w as i32).to_le_bytes());
+        head[22..26].copy_from_slice(&(-(h as i32)).to_le_bytes()); // negative height: top-down rows
+        head[26..28].copy_from_slice(&1u16.to_le_bytes());
+        head[28..30].copy_from_slice(&24u16.to_le_bytes());
+        head[34..38].copy_from_slice(&(image_size as u32).to_le_bytes());
+        head[38..42].copy_from_slice(&2835u32.to_le_bytes());
+        head[42..46].copy_from_slice(&2835u32.to_le_bytes());
+        let src = rgb.as_raw();
+        let threads = worker_threads(h);
+        let rows_per = (h + threads - 1) / threads;
+        std::thread::scope(|scope| {
+            for (chunk_index, chunk) in body.chunks_mut(rows_per * padded).enumerate() {
+                scope.spawn(move || {
+                    let first_row = chunk_index * rows_per;
+                    for (row_in_chunk, dst) in chunk.chunks_mut(padded).enumerate() {
+                        let y = first_row + row_in_chunk;
+                        let row = &src[y * w * 3..(y + 1) * w * 3];
+                        for x in 0..w {
+                            dst[x * 3] = row[x * 3 + 2];
+                            dst[x * 3 + 1] = row[x * 3 + 1];
+                            dst[x * 3 + 2] = row[x * 3];
+                        }
+                    }
+                });
+            }
+        });
+    }
+    out
+}
+
+/// Final step of a region tile: uncompressed BMP (`raw_out`) or a high-quality JPEG.
+fn finish_region(rgb: &RgbImage, raw_out: bool) -> Result<Vec<u8>, String> {
+    if raw_out {
+        Ok(bmp_from_rgb(rgb))
+    } else {
+        crate::t_jpeg::encode_rgb8_ex(rgb, FIT_PREVIEW_JPEG_QUALITY, true)
+    }
 }
 
 fn fit_resize_encode(rgb: RgbImage, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
@@ -1789,7 +1874,7 @@ fn oriented_to_raw(orientation: i32, ox: u32, oy: u32, rw: u32, rh: u32) -> (u32
 /// A rectangle (x0, y0)-(x1, y1) of the EXIF-oriented JPEG, resized to `out_w` pixels wide
 /// (never upscaled) and encoded as JPEG. Only that rectangle is decoded (and at a DCT
 /// downscale when the output is much smaller), so it works for photos of any size.
-fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts, raw_out: bool) -> Result<Vec<u8>, String> {
     let size = imagesize::size(file_path).map_err(|e| format!("Failed to read JPEG size: {}", e))?;
     let (rw, rh) = (size.width as u32, size.height as u32);
     let orientation = get_image_orientation(file_path);
@@ -1818,27 +1903,43 @@ fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opt
     let (pixels, pw, ph) = crate::t_jpeg::decode_region_rgb8(file_path, rx0, ry0, rx1 - rx0, ry1 - ry0, denom)?;
     let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG region buffer".to_string())?;
     let oriented = apply_orientation(DynamicImage::ImageRgb8(rgb), orientation).into_rgb8();
-    resize_region_encode(oriented, reg_w, out_w, out_h, opts)
+    resize_region_encode(oriented, reg_w, out_w, out_h, opts, raw_out)
 }
 
 /// Resizes a decoded region to `out_w` x `out_h` (sharpening only when really downscaled) and encodes it.
-fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, opts: FitOpts, raw_out: bool) -> Result<Vec<u8>, String> {
     let (cw, ch) = oriented.dimensions();
     if cw == out_w && ch == out_h {
-        return crate::t_jpeg::encode_rgb8_ex(&oriented, FIT_PREVIEW_JPEG_QUALITY, true);
+        return finish_region(&oriented, raw_out);
     }
     let src_image = fir::images::Image::from_vec_u8(cw, ch, oriented.into_raw(), fir::PixelType::U8x3)
         .map_err(|e| format!("Failed to prepare region for resize: {}", e))?;
+    let options = region_resize_options(opts);
+    resize_view_finish(&src_image, &options, reg_w, out_w, out_h, opts, raw_out)
+}
+
+fn region_resize_options(opts: FitOpts) -> fir::ResizeOptions {
+    fir::ResizeOptions::new().resize_alg(fir::ResizeAlg::Convolution(match opts.filter {
+        1 => fir::FilterType::CatmullRom,
+        2 => fir::FilterType::Mitchell,
+        _ => fir::FilterType::Lanczos3,
+    }))
+}
+
+/// Resizes `src` into an `out_w` x `out_h` buffer, sharpens when really downscaled and finishes the tile.
+fn resize_view_finish(
+    src: &impl fir::IntoImageView,
+    options: &fir::ResizeOptions,
+    reg_w: u32,
+    out_w: u32,
+    out_h: u32,
+    opts: FitOpts,
+    raw_out: bool,
+) -> Result<Vec<u8>, String> {
     let mut dst_image = fir::images::Image::new(out_w, out_h, fir::PixelType::U8x3);
     let mut resizer = fir::Resizer::new();
-    let options = fir::ResizeOptions::new()
-        .resize_alg(fir::ResizeAlg::Convolution(match opts.filter {
-            1 => fir::FilterType::CatmullRom,
-            2 => fir::FilterType::Mitchell,
-            _ => fir::FilterType::Lanczos3,
-        }));
     resizer
-        .resize(&src_image, &mut dst_image, &options)
+        .resize(src, &mut dst_image, options)
         .map_err(|e| format!("Failed to resize region: {}", e))?;
     let mut buffer = dst_image.into_vec();
     // Sharpen only when the region really was downscaled.
@@ -1846,11 +1947,12 @@ fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, 
         unsharp_rgb8(&mut buffer, out_w as usize, out_h as usize, opts.sharp);
     }
     let resized = RgbImage::from_raw(out_w, out_h, buffer).ok_or_else(|| "Failed to build region image".to_string())?;
-    crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)
+    finish_region(&resized, raw_out)
 }
 
-/// Region of an already decoded (oriented) RGB image, for PSD/PSB/TIFF.
-fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+/// Region of an already decoded (oriented) RGB image, for PSD/PSB/TIFF. The region is cropped
+/// inside the resizer, so the (possibly huge) source rectangle is never copied.
+fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts, raw_out: bool) -> Result<Vec<u8>, String> {
     let (w, h) = rgb.dimensions();
     let (x0, y0) = (rect.0.min(w.saturating_sub(1)), rect.1.min(h.saturating_sub(1)));
     let (x1, y1) = (rect.2.min(w), rect.3.min(h));
@@ -1861,18 +1963,25 @@ fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts:
     let out_w = out_w.clamp(1, reg_w);
     let out_h = ((reg_h as f64 * out_w as f64 / reg_w as f64).round() as u32).max(1);
     let src = rgb.as_raw();
-    let mut buf = Vec::with_capacity(reg_w as usize * reg_h as usize * 3);
-    for y in y0..y1 {
-        let start = (y as usize * w as usize + x0 as usize) * 3;
-        buf.extend_from_slice(&src[start..start + reg_w as usize * 3]);
+    if out_w == reg_w && out_h == reg_h {
+        // 1:1: just cut the rectangle out.
+        let mut buf = Vec::with_capacity(reg_w as usize * reg_h as usize * 3);
+        for y in y0..y1 {
+            let start = (y as usize * w as usize + x0 as usize) * 3;
+            buf.extend_from_slice(&src[start..start + reg_w as usize * 3]);
+        }
+        let region = RgbImage::from_raw(reg_w, reg_h, buf).ok_or_else(|| "Bad region buffer".to_string())?;
+        return finish_region(&region, raw_out);
     }
-    let region = RgbImage::from_raw(reg_w, reg_h, buf).ok_or_else(|| "Bad region buffer".to_string())?;
-    resize_region_encode(region, reg_w, out_w, out_h, opts)
+    let src_image = fir::images::ImageRef::new(w, h, src, fir::PixelType::U8x3)
+        .map_err(|e| format!("Failed to wrap image for resize: {}", e))?;
+    let options = region_resize_options(opts).crop(x0 as f64, y0 as f64, reg_w as f64, reg_h as f64);
+    resize_view_finish(&src_image, &options, reg_w, out_w, out_h, opts, raw_out)
 }
 
 /// Viewer region preview (hybrid mode, tiled): a rectangle of a big JPEG in source pixels of the
 /// oriented image, `out_w` pixels wide. None means "not applicable" (not a plain sRGB JPEG, or a failure).
-pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Option<Vec<u8>> {
+pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts, raw_out: bool) -> Option<Vec<u8>> {
     if !(1..=16384).contains(&out_w) {
         return None;
     }
@@ -1886,7 +1995,7 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
     let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: false, hq: opts.hq };
     // The last few regions are kept: a repeated zoom to the same place is instant.
     let cache_key = psd_cache_key(file_path).map(|(mtime, len)| {
-        format!("{}\u{0}{}\u{0}{}\u{0}{:?}\u{0}{}\u{0}{}\u{0}{}", file_path, mtime, len, rect, out_w, opts.sharp, opts.filter)
+        format!("{}\u{0}{}\u{0}{}\u{0}{:?}\u{0}{}\u{0}{}\u{0}{}\u{0}{}", file_path, mtime, len, rect, out_w, opts.sharp, opts.filter, raw_out)
     });
     if let Some(key) = &cache_key {
         if let Ok(cache) = REGION_CACHE.lock() {
@@ -1902,21 +2011,21 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
                 if !jpeg_fit_eligible(&path) {
                     return None;
                 }
-                jpeg_region_jpeg(&path, rect, out_w, opts).ok()
+                jpeg_region_jpeg(&path, rect, out_w, opts, raw_out).ok()
             }
             1 => {
                 if !is_big_by_header(&path) {
                     return None;
                 }
                 let rgb = tiff_decode_shared(&path).ok()?;
-                rgb_region_jpeg(&rgb, rect, out_w, opts).ok()
+                rgb_region_jpeg(&rgb, rect, out_w, opts, raw_out).ok()
             }
             _ => {
                 if !is_big_by_header(&path) {
                     return None;
                 }
                 let rgb = psd_decode_shared(&path).ok()?;
-                rgb_region_jpeg(&rgb, rect, out_w, opts).ok()
+                rgb_region_jpeg(&rgb, rect, out_w, opts, raw_out).ok()
             }
         }
     })

@@ -310,8 +310,10 @@ pub fn register_protocols(builder: Builder<Wry>) -> Builder<Wry> {
                         .and_then(|value| value.parse::<u32>().ok())
                         .unwrap_or(0);
                     let fit_hq = request.uri().query().unwrap_or_default().split('&').any(|param| param == "hq=1");
+                    // raw=1: uncompressed BMP tile (no JPEG encode/decode), optional in Settings.
+                    let raw_out = request.uri().query().unwrap_or_default().split('&').any(|param| param == "raw=1");
                     let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter, disk: false, hq: fit_hq };
-                    let response = match t_image::get_region_preview(&file_path, rect, out_w, opts).await {
+                    let response = match t_image::get_region_preview(&file_path, rect, out_w, opts, raw_out).await {
                         Some(data) => image_response(data),
                         None => text_response(http::StatusCode::NOT_FOUND, "region not available"),
                     };

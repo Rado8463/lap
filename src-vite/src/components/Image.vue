@@ -1021,9 +1021,23 @@ function tileCovers(req: Exclude<ReturnType<typeof computeTileRequest>, 'hide'>)
   return have >= need * 0.95;
 }
 
+// A zoom step (= / - keys, buttons) is a single discrete change, so its tile is requested sooner
+// than after a stream of wheel / drag changes.
+let tileFastNext = false;
 function scheduleTileOverlay() {
   if (tileTimer) clearTimeout(tileTimer);
-  tileTimer = setTimeout(() => { tileTimer = null; void runTileOverlay(); }, 120);
+  const delay = tileFastNext ? 30 : 120;
+  tileFastNext = false;
+  tileTimer = setTimeout(() => { tileTimer = null; void runTileOverlay(); }, delay);
+}
+function markStepZoom() {
+  tileFastNext = true;
+  setTimeout(() => { tileFastNext = false; }, 250);
+}
+
+// Optional: tiles as uncompressed BMP (no JPEG encode in the backend / decode in the browser).
+function tileRawParam(): string {
+  return config.settings.hybridTileRaw === true ? '&raw=1' : '';
 }
 
 function onTileViewChange() {
@@ -1068,7 +1082,7 @@ function tileRegionUrl(info: HybridInfo, x0: number, y0: number, x1: number, y1:
   if (!base) return '';
   const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
   const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
-  return withQuery(base, `region=${x0},${y0},${x1},${y1}&out=${outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}`);
+  return withQuery(base, `region=${x0},${y0},${x1},${y1}&out=${outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}${tileRawParam()}`);
 }
 
 function prefetchTileAround(u: number, v: number) {
@@ -1105,6 +1119,66 @@ function prefetchTileAround(u: number, v: number) {
     if (imageFilePath.value[activeImage.value] !== info.path) return;
     noteTileTiming('ahead', startedAt, w, h);
     tilePre = { path: info.path, src, x0, y0, x1: x0 + w, y1: y0 + h, outW: w };
+    tilePreImg = img;
+  }).catch(() => {}).finally(() => {
+    if (tilePreBusyKey === key) tilePreBusyKey = '';
+    if (tilePrePromise === promise) tilePrePromise = null;
+  });
+  tilePrePromise = promise;
+}
+
+// Optional chain: once the tile for the current zoom is on screen, prepare the tile for the next
+// zoom step in (the same cursor anchor), so repeated = presses find it ready. It uses the same
+// prepared-region slot as the 100 % prefetch.
+function prefetchNextStepTile() {
+  if (config.settings.hybridTileNextStep !== true || config.settings.hybridTilePrefetch === false) return;
+  const slot = activeImage.value;
+  const info = hybridSlot.value[slot];
+  if (!info || imageFilePath.value[slot] !== info.path || !usesTiles(info.path, info.meta)) return;
+  if ((imageRotate.value[slot] || 0) % 360 !== 0 || isDraggingImage.value) return;
+  const size = imageSize.value[slot];
+  const cont = containerSize.value;
+  const s = scale.value[slot];
+  const p = position.value[slot];
+  if (!(size.width > 0) || !(size.height > 0) || !(cont.width > 0) || !(s > 0)) return;
+  const dpr = window.devicePixelRatio || 1;
+  const next = getZoomSteps(dpr).find(step => step > s * dpr * 1.005);
+  if (next === undefined) return;
+  const s2 = Math.min(next / dpr, maxScale.value);
+  if (!(s2 > s)) return;
+  const a = stepZoomAnchor();
+  // The image point under the anchor stays put (same maths as zoomImage).
+  const uA = (a.x - p.x - size.width / 2) / s + size.width / 2;
+  const vA = (a.y - p.y - size.height / 2) / s + size.height / 2;
+  const clampX = (v: number) => Math.min(size.width, Math.max(0, v));
+  const clampY = (v: number) => Math.min(size.height, Math.max(0, v));
+  const mx = cont.width * TILE_MARGIN / s2;
+  const my = cont.height * TILE_MARGIN / s2;
+  const vx0 = clampX(uA - a.x / s2), vx1 = clampX(uA + (cont.width - a.x) / s2);
+  const vy0 = clampY(vA - a.y / s2), vy1 = clampY(vA + (cont.height - a.y) / s2);
+  const x0 = Math.floor(clampX(uA - a.x / s2 - mx));
+  const x1 = Math.ceil(clampX(uA + (cont.width - a.x) / s2 + mx));
+  const y0 = Math.floor(clampY(vA - a.y / s2 - my));
+  const y1 = Math.ceil(clampY(vA + (cont.height - a.y) / s2 + my));
+  if (x1 - x0 < 1 || y1 - y0 < 1) return;
+  const outW = Math.max(1, Math.min(x1 - x0, Math.round((x1 - x0) * s2 * dpr)));
+  // Already prepared (or on screen) with enough detail?
+  const have = (o: TileOverlay | null) => !!o && o.path === info.path && vx0 >= o.x0 && vy0 >= o.y0 && vx1 <= o.x1 && vy1 <= o.y1
+    && o.outW / (o.x1 - o.x0) >= (outW / (x1 - x0)) * 0.95;
+  if (have(tilePre) || have(tileOverlay.value)) return;
+  const key = `${info.path}|${x0},${y0},${x1},${y1}|${outW}`;
+  if (tilePreBusyKey === key) return;
+  const src = tileRegionUrl(info, x0, y0, x1, y1, outW);
+  if (!src) return;
+  tilePreBusyKey = key;
+  const startedAt = performance.now();
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = src;
+  const promise: Promise<void> = img.decode().then(() => {
+    if (imageFilePath.value[activeImage.value] !== info.path) return;
+    noteTileTiming('next step', startedAt, outW, Math.round(outW * (y1 - y0) / (x1 - x0)));
+    tilePre = { path: info.path, src, x0, y0, x1, y1, outW };
     tilePreImg = img;
   }).catch(() => {}).finally(() => {
     if (tilePreBusyKey === key) tilePreBusyKey = '';
@@ -1201,7 +1275,7 @@ async function runTileOverlay() {
   try {
     const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
     const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
-    const src = withQuery(base, `region=${req.x0},${req.y0},${req.x1},${req.y1}&out=${req.outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}`);
+    const src = withQuery(base, `region=${req.x0},${req.y0},${req.x1},${req.y1}&out=${req.outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}${tileRawParam()}`);
     const startedAt = performance.now();
     const img = new Image();
     img.decoding = 'async';
@@ -1210,6 +1284,7 @@ async function runTileOverlay() {
     noteTileTiming('view', startedAt, req.outW, Math.round(req.outW * (req.y1 - req.y0) / (req.x1 - req.x0)));
     if (seq === tileSeq && imageFilePath.value[activeImage.value] === info.path) {
       tileOverlay.value = { path: info.path, src, x0: req.x0, y0: req.y0, x1: req.x1, y1: req.y1, outW: req.outW };
+      prefetchNextStepTile();
     }
   } catch {
     // The region could not be made: the preview stays.
@@ -3390,6 +3465,7 @@ const zoomIn = () => {
   const next = getZoomSteps(dpr).find(step => step > current * 1.005);
   const newScale = Math.min(next !== undefined ? next / dpr : scale.value[activeImage.value], maxScale.value);
   const anchor = stepZoomAnchor();
+  markStepZoom();
   zoomImage(anchor.x, anchor.y, newScale);
 };
 
@@ -3400,6 +3476,7 @@ const zoomOut = () => {
   const previous = getZoomSteps(dpr).reverse().find(step => step < current * 0.995);
   const newScale = Math.max(previous !== undefined ? previous / dpr : minScale.value, minScale.value);
   const anchor = stepZoomAnchor();
+  markStepZoom();
   zoomImage(anchor.x, anchor.y, newScale);
 };
 

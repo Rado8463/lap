@@ -299,7 +299,7 @@ if (isMainWindow) {
   listen('settings-autoRescanOnOpen-changed', (event) => {
     config.settings.autoRescanOnOpen = event.payload
   })
-  for (const key of ['accentColor', 'zoomStepAtCursor', 'thumbInnerZoom', 'thumbEnlargePct', 'thumbHoverEnlargePct', 'aiSearchEnabled', 'detectMotionPhotos', 'detectCloudFiles', 'focusGridAfterAlbumClick', 'showLibrarySidebar', 'showSmartAlbumSidebar', 'showLocationSidebar', 'showCameraSidebar']) {
+  for (const key of ['accentColor', 'hybridTileNextStep', 'hybridTileRaw', 'zoomStepAtCursor', 'thumbInnerZoom', 'thumbEnlargePct', 'thumbHoverEnlargePct', 'aiSearchEnabled', 'detectMotionPhotos', 'detectCloudFiles', 'focusGridAfterAlbumClick', 'showLibrarySidebar', 'showSmartAlbumSidebar', 'showLocationSidebar', 'showCameraSidebar']) {
     listen(`settings-${key}-changed`, (event) => {
       config.settings[key] = event.payload
     })
