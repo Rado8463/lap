@@ -61,6 +61,16 @@ export async function setLastSelectedItemIndex(index) {
   return false;
 }
 
+export async function setLastScrollTop(scrollTop) {
+  try {
+    await invoke('set_last_scroll_top', { scrollTop });
+    return true;
+  } catch (error) {
+    console.error('Failed to set last scroll top:', error);
+  }
+  return false;
+}
+
 export async function getDbStorageDir() {
   try {
     return await invoke('get_db_storage_dir');

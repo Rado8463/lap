@@ -284,6 +284,15 @@ pub fn set_last_selected_item_index(index: i64) -> Result<(), String> {
     })
 }
 
+/// set last grid scroll position (px)
+#[tauri::command]
+pub fn set_last_scroll_top(scroll_top: f64) -> Result<(), String> {
+    t_config::update_app_config(|config| {
+        config.last_scroll_top = scroll_top;
+        Ok(())
+    })
+}
+
 #[tauri::command]
 pub fn get_thumbnail_cache_location() -> Result<crate::t_cache_storage::CacheLocation, String> {
     crate::t_cache_storage::location()

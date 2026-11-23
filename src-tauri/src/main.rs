@@ -234,6 +234,7 @@ async fn main() {
             t_cmds::get_ffmpeg_backed_image_extensions,
             t_cmds::check_gstreamer_available,
             t_cmds::set_last_selected_item_index,
+            t_cmds::set_last_scroll_top,
             t_cmds::get_thumbnail_cache_location,
             t_cmds::get_thumbnail_cache_migration_count,
             t_cmds::change_thumbnail_cache_location,

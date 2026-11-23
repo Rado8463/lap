@@ -407,6 +407,8 @@ pub struct AppConfig {
     #[serde(default = "default_last_selected_item_index")]
     pub last_selected_item_index: i64,
     #[serde(default)]
+    pub last_scroll_top: f64,
+    #[serde(default)]
     pub db_storage_dir: Option<String>,
     #[serde(default)]
     pub thumbnail_cache_dir: Option<String>,
@@ -424,6 +426,7 @@ impl Default for AppConfig {
         Self {
             debug: false,
             last_selected_item_index: default_last_selected_item_index(),
+            last_scroll_top: 0.0,
             db_storage_dir: None,
             thumbnail_cache_dir: None,
             current_library_id: "default".to_string(),
@@ -747,6 +750,7 @@ fn recover_app_config_from_library_dbs() -> Result<AppConfig, String> {
     Ok(AppConfig {
         debug: false,
         last_selected_item_index: default_last_selected_item_index(),
+        last_scroll_top: 0.0,
         db_storage_dir: None,
         thumbnail_cache_dir: None,
         current_library_id,

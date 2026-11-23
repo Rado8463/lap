@@ -863,7 +863,7 @@ import { getAlbum, getAllAlbums, recountAlbum, getQueryCountAndSum, getQueryTime
          setFileRotate, setFileFavorite, setFileRating, setFileCullingFlag, batchUpdateFileMetadata, getTagsForFile, searchSimilarImages, generateEmbedding,
          revealPath, getTagName, indexAlbum, listenIndexProgress, listenIndexFinished, setAlbumCover, setDesktopWallpaper,
          updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, isCloudOnlyFile, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
-         openFilesWithApp, getAppConfig, getIndexRecoveryInfo, clearIndexRecoveryInfo, setLastSelectedItemIndex,
+         openFilesWithApp, getAppConfig, getIndexRecoveryInfo, clearIndexRecoveryInfo, setLastSelectedItemIndex, setLastScrollTop,
          dedupDelete, getQueryFilePosition, getFolderSearchExcluded,
          listCollections, createCollection, addFilesToCollection, removeFilesFromCollection, getFileCollections, getCollectionCountAndSum, getCollectionFiles, getCollectionGroupedQueryRows, getCollectionGroupFileIds, getCollectionQueryFileIds, fetchFolder, isDirectoryAccessible, checkAlbumAccessibility, addTagToFile, saveXmpMetadata } from '@/common/api';
 import { config, libConfig } from '@/common/config';
@@ -1121,6 +1121,8 @@ const totalFileSize = ref(0);     // total files' size
 
 const selectedItemIndex = ref(-1);
 let pendingInitialSelectedIndex = -1;
+let pendingInitialScrollTop = 0;
+let scrollSaveTimer: any = null;
 let hasRestoredInitialSelection = false;
 
 // mutil select mode
@@ -5395,6 +5397,11 @@ function updateScrollPosition(currentScrollTop: number, currentScrollHeight: num
 
 function handleGridScroll(event: any) {
   if (event && event.target) {
+    if (hasRestoredInitialSelection || pendingInitialSelectedIndex < 0) {
+      const top = event.target.scrollTop;
+      if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
+      scrollSaveTimer = setTimeout(() => { void setLastScrollTop(Number(top) || 0); }, 500);
+    }
     updateScrollPosition(
         event.target.scrollTop, 
         event.target.scrollHeight
@@ -6562,6 +6569,7 @@ onMounted( async() => {
   const appConfig = await getAppConfig();
   if (!hasRestoredInitialSelection) {
     pendingInitialSelectedIndex = Number(appConfig?.last_selected_item_index ?? -1);
+    pendingInitialScrollTop = Number(appConfig?.last_scroll_top ?? 0);
   }
 
   window.addEventListener('keydown', handleLocalKeyDown);
@@ -7207,6 +7215,14 @@ function restoreInitialSelectionIfNeeded() {
   selectedItemIndex.value = Math.min(pendingInitialSelectedIndex, fileList.value.length - 1);
   hasRestoredInitialSelection = true;
   void updateSelectedImage(selectedItemIndex.value);
+  const savedTop = pendingInitialScrollTop;
+  pendingInitialScrollTop = 0;
+  if (savedTop > 0) {
+    // Apply after the selection's own scroll-into-view and layout have settled.
+    for (const delay of [0, 150, 500]) {
+      setTimeout(() => gridViewRef.value?.scrollToPosition(savedTop), delay);
+    }
+  }
 }
 
 onBeforeUnmount(() => {
