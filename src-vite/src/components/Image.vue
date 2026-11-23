@@ -961,9 +961,17 @@ function tileOverlayImgStyle(index: number) {
   const o = tileOverlay.value;
   const size = imageSize.value[index];
   if (!o || !(size.width > 0) || !(size.height > 0)) return {};
+  // The tile holds ~1 pixel per screen pixel, but its box sits at a fractional screen position, so the
+  // browser's smoothing would blur it by up to half a pixel. At ~1:1 use nearest-neighbour instead: it
+  // just snaps to the pixel grid and stays crisp. Far from 1:1 keep normal smoothing (no aliasing).
+  const dpr = window.devicePixelRatio || 1;
+  const density = o.outW / Math.max(1, o.x1 - o.x0);   // tile pixels per source pixel
+  const wanted = (scale.value[index] || 1) * dpr;     // screen pixels per source pixel
+  const crisp = wanted > 0 && Math.abs(density / wanted - 1) < 0.02;
   return {
     position: 'absolute',
     maxWidth: 'none',
+    imageRendering: crisp ? 'pixelated' : 'auto',
     left: `${(o.x0 / size.width) * 100}%`,
     top: `${(o.y0 / size.height) * 100}%`,
     width: `${((o.x1 - o.x0) / size.width) * 100}%`,
