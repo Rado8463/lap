@@ -364,6 +364,48 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.fit_no_upscale') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.fit_no_upscale_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.fitNoUpscale" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.pan_beyond_edges') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.pan_beyond_edges_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.panBeyondEdges" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.loading_background') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.loading_background_hint') }}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.loadingBackgroundColor" />
+                <button class="btn btn-ghost btn-sm" @click="config.settings.loadingBackgroundColor = '#000000'">{{ $t('settings.image_view.transparency_color_reset') }}</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.transparency_color') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.transparency_color_hint') }}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.transparencyColor" />
+                <button class="btn btn-ghost btn-sm" @click="config.settings.transparencyColor = '#5a5a5a'">{{ $t('settings.image_view.transparency_color_reset') }}</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.shift_advance_metadata') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.shift_advance_metadata_hint') }}
@@ -382,15 +424,6 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.fit_no_upscale') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.fit_no_upscale_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.fitNoUpscale" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.dbl_click_new_window') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.dbl_click_new_window_hint') }}
@@ -400,30 +433,27 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.slide_show_transition') }}</div>
+              </div>
+                <select class="select select-bordered select-sm min-w-32" v-model="config.settings.slideShowTransition">
+                  <option v-for="(option, index) in slideShowTransitionOptions" :key="index" :value="option.value">{{ option.label }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- tooltips -->
+          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+            <div class="flex items-center gap-2 text-base-content/30">
+              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.image_view.section_tooltips') }}</span>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.show_load_timing') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.show_load_timing_hint') }}
                 </div>
               </div>
               <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.showLoadTiming" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.raster_warm') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.raster_warm_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.rasterWarm" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.hybrid_preview') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.hybrid_preview_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridPreview !== false" @change="config.settings.hybridPreview = $event.target.checked" />
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
@@ -445,6 +475,22 @@
               </div>
             </div>
             </template>
+          </div>
+
+          <!-- image processing -->
+          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+            <div class="flex items-center gap-2 text-base-content/30">
+              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.image_view.section_processing') }}</span>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_preview') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_preview_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridPreview !== false" @change="config.settings.hybridPreview = $event.target.checked" />
+            </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_disk_cache') }}</div>
@@ -490,6 +536,22 @@
                 <option :value="60">60</option>
                 <option :value="80">80</option>
                 <option :value="100">100 ({{ $t('settings.image_view.hybrid_sharpness_sharp') }})</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.hybrid_tiles') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.hybrid_tiles_hint') }}
+                </div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.hybridTileMegapixels">
+                <option :value="0">{{ $t('settings.image_view.hybrid_tiles_off') }}</option>
+                <option :value="24">24 MP</option>
+                <option :value="36">36 MP</option>
+                <option :value="60">60 MP</option>
+                <option :value="100">100 MP</option>
+                <option :value="150">150 MP</option>
               </select>
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
@@ -552,22 +614,6 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.hybrid_tiles') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.hybrid_tiles_hint') }}
-                </div>
-              </div>
-              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.hybridTileMegapixels">
-                <option :value="0">{{ $t('settings.image_view.hybrid_tiles_off') }}</option>
-                <option :value="24">24 MP</option>
-                <option :value="36">36 MP</option>
-                <option :value="60">60 MP</option>
-                <option :value="100">100 MP</option>
-                <option :value="150">150 MP</option>
-              </select>
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.png_backend_preview') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.png_backend_preview_hint') }}
@@ -577,12 +623,12 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.pan_beyond_edges') }}</div>
+                <div>{{ $t('settings.image_view.raster_warm') }}</div>
                 <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.pan_beyond_edges_hint') }}
+                  {{ $t('settings.image_view.raster_warm_hint') }}
                 </div>
               </div>
-              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.panBeyondEdges" />
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.rasterWarm" />
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
@@ -592,38 +638,6 @@
                 </div>
               </div>
               <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.stageBeforeShow" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.loading_background') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.loading_background_hint') }}
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.loadingBackgroundColor" />
-                <button class="btn btn-ghost btn-sm" @click="config.settings.loadingBackgroundColor = '#000000'">{{ $t('settings.image_view.transparency_color_reset') }}</button>
-              </div>
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.transparency_color') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.transparency_color_hint') }}
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.transparencyColor" />
-                <button class="btn btn-ghost btn-sm" @click="config.settings.transparencyColor = '#5a5a5a'">{{ $t('settings.image_view.transparency_color_reset') }}</button>
-              </div>
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.slide_show_transition') }}</div>
-              </div>
-                <select class="select select-bordered select-sm min-w-32" v-model="config.settings.slideShowTransition">
-                  <option v-for="(option, index) in slideShowTransitionOptions" :key="index" :value="option.value">{{ option.label }}</option>
-              </select>
             </div>
           </div>
 
