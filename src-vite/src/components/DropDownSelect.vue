@@ -10,7 +10,7 @@
         iconOnly
           ? (size === 'small' ? 'px-0 w-6 justify-center' : 'px-0 w-8 justify-center')
           : (size === 'small' ? 'px-1.5 w-full gap-1 border' : 'px-2 w-full gap-1 border'),
-        iconOnly ? '' : (selected ? 'border-primary' : 'border-base-content/15'),
+        iconOnly ? '' : (selected && !keepTextWhenDisabled ? 'border-primary' : 'border-base-content/15'),
         disabled
           ? (keepTextWhenDisabled ? '!text-base-content/70 cursor-default' : 'text-base-content/30 cursor-default')
           : (keepTextWhenDisabled ? '!text-base-content/70' : (selected ? '!text-primary' : 'text-base-content/70')),
