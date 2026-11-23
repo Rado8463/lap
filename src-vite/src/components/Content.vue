@@ -6934,9 +6934,15 @@ onMounted( async() => {
       // Avoid duplicated refresh: this explicit refresh replaces the
       // watch(isIndexing) idle refresh for this finish cycle.
       suppressNextIndexingIdleRefresh.value = true;
-      selectedItemIndex.value = 0;
-      setTimeout(() => {
-        updateContent(true);
+      // Keep the selected photo (a rescan only adds/removes files); fall back to the first one.
+      const keepFileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
+      if (keepFileId <= 0) selectedItemIndex.value = 0;
+      setTimeout(async () => {
+        await updateContent(true);
+        if (keepFileId > 0) {
+          const idx = fileList.value.findIndex((f: any) => Number(f?.id || 0) === keepFileId);
+          selectedItemIndex.value = idx >= 0 ? idx : 0;
+        }
       }, 200);
     }
 
