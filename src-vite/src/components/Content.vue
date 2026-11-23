@@ -6843,6 +6843,11 @@ onMounted( async() => {
     const addedIds: number[] = (p.addedIds || []).map(Number);
     const removedIds: number[] = (p.removedIds || []).map(Number);
     let applied = !groupedModeActive.value && !isMapView.value && !isLoading.value;
+    // The awaits below can outlive an album switch; never touch a list of another view.
+    const watchRequestId = currentContentRequestId;
+    const watchAlbumKey = [libConfig._libraryId, libConfig.album.id, libConfig.album.folderPath, libConfig.album.selected].join('|');
+    const watchStale = () => watchRequestId !== currentContentRequestId
+      || watchAlbumKey !== [libConfig._libraryId, libConfig.album.id, libConfig.album.folderPath, libConfig.album.selected].join('|');
     if (applied && removedIds.length) applied = removeDeletedRows(new Set(removedIds));
     if (applied) {
       // overwritten files: refresh their row (size, dimensions, date) and thumbnail in place
@@ -6850,8 +6855,10 @@ onMounted( async() => {
         const at = fileList.value.findIndex((f: any) => Number(f?.id) === id);
         if (at < 0) continue;
         const info: any = await getFileInfo(id);
+        if (watchStale()) return;
         if (!info) continue;
         const previous = fileList.value[at];
+        if (!previous || Number(previous.id) !== id) continue;
         // a new version of the file: the viewer must not reuse its cached preview
         uiStore.updateFileVersion(previous.file_path);
         clearPreviewPreloadCache(previous.file_path);
@@ -6865,8 +6872,10 @@ onMounted( async() => {
       for (const id of addedIds) {
         if (fileList.value.some((f: any) => Number(f?.id) === id)) continue;
         const info: any = await getFileInfo(id);
+        if (watchStale()) return;
         if (!info) { applied = false; break; }
         const position = await getCurrentQueryFilePosition(id);
+        if (watchStale()) return;
         if (position === null || position < 0) continue; // not part of this view (filters)
         const nextFile = { ...info, isSelected: false, rotate: info.rotate || 0 };
         const at = Math.min(position, fileList.value.length);
