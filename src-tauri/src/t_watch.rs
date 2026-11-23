@@ -23,6 +23,7 @@ struct WatchChanged {
     folder_path: String,
     added: usize,
     changed: usize,
+    removed: usize,
 }
 
 /// wait until a file stops growing and can be opened (the writing program may still be busy)
@@ -42,6 +43,7 @@ fn wait_until_stable(path: &Path) -> bool {
 
 fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths: HashSet<PathBuf>) {
     let mut added = 0usize;
+    let mut removed = 0usize;
     let mut changed_ids: Vec<i64> = Vec::new();
     let mut added_any = false;
     for path in paths {
@@ -49,6 +51,26 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
         // keep the catalog's own spelling of the path: folder + file name
         let file_path = Path::new(folder).join(name).to_string_lossy().to_string();
         let Some(file_type) = t_utils::get_file_type(&file_path) else { continue };
+        if !Path::new(&file_path).exists() {
+            // deleted (or renamed away): drop it from the catalog if it is there
+            let result = crate::t_cmds::with_current_library(library_id, || {
+                let folder_row = AFolder::add_to_db(album_id, folder)?;
+                let folder_id = folder_row.id.ok_or_else(|| "folder without id".to_string())?;
+                match AFile::fetch(folder_id, &file_path)?.and_then(|f| f.id) {
+                    Some(id) => {
+                        AFile::delete(id)?;
+                        Ok(true)
+                    }
+                    None => Ok(false),
+                }
+            });
+            match result {
+                Ok(true) => removed += 1,
+                Ok(false) => {}
+                Err(e) => eprintln!("watch: failed to remove {}: {}", file_path, e),
+            }
+            continue;
+        }
         if !wait_until_stable(Path::new(&file_path)) {
             continue;
         }
@@ -70,7 +92,7 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
             Err(e) => eprintln!("watch: failed to add {}: {}", file_path, e),
         }
     }
-    if !added_any && changed_ids.is_empty() {
+    if !added_any && changed_ids.is_empty() && removed == 0 {
         return;
     }
     if !changed_ids.is_empty() {
@@ -93,6 +115,7 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
             folder_path: folder.to_string(),
             added,
             changed: changed_ids.len(),
+            removed,
         },
     );
 }
@@ -115,7 +138,7 @@ pub fn watch_folder(
     let (tx, rx) = mpsc::channel::<PathBuf>();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
         let Ok(event) = res else { return };
-        if matches!(event.kind, EventKind::Remove(_) | EventKind::Access(_)) {
+        if matches!(event.kind, EventKind::Access(_)) {
             return;
         }
         for path in event.paths {
