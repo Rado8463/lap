@@ -1123,6 +1123,17 @@ const selectedItemIndex = ref(-1);
 let pendingInitialSelectedIndex = -1;
 let pendingInitialScrollTop = 0;
 let scrollSaveTimer: any = null;
+// After a restart, the list may reload and reset the grid to the top. While this guard
+// is active the saved scroll is re-applied and not overwritten; user input ends it.
+let scrollGuardTop = 0;
+let scrollGuardUntil = 0;
+function endScrollGuard() { scrollGuardTop = 0; }
+function reapplyScrollGuard(current: number) {
+  if (scrollGuardTop <= 0) return false;
+  if (Date.now() > scrollGuardUntil) { scrollGuardTop = 0; return false; }
+  if (current < scrollGuardTop - 2) gridViewRef.value?.scrollToPosition(scrollGuardTop);
+  return true;
+}
 let hasRestoredInitialSelection = false;
 
 // mutil select mode
@@ -5397,7 +5408,9 @@ function updateScrollPosition(currentScrollTop: number, currentScrollHeight: num
 
 function handleGridScroll(event: any) {
   if (event && event.target) {
-    if (hasRestoredInitialSelection || pendingInitialSelectedIndex < 0) {
+    if (reapplyScrollGuard(event.target.scrollTop)) {
+      // restoring: neither save nor track the transient position
+    } else if (hasRestoredInitialSelection || pendingInitialSelectedIndex < 0) {
       const top = event.target.scrollTop;
       if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
       scrollSaveTimer = setTimeout(() => { void setLastScrollTop(Number(top) || 0); }, 500);
@@ -5411,6 +5424,9 @@ function handleGridScroll(event: any) {
 
 function handleLayoutUpdate({ height }: { height: number }) {
   layoutContentHeight.value = height;
+  if (gridViewRef.value && scrollGuardTop > 0) {
+    reapplyScrollGuard(gridViewRef.value.getScrollTop());
+  }
   if (gridViewRef.value) {
     updateScrollPosition(gridViewRef.value.getScrollTop(), 0);
   }
@@ -6572,6 +6588,9 @@ onMounted( async() => {
     pendingInitialScrollTop = Number(appConfig?.last_scroll_top ?? 0);
   }
 
+  window.addEventListener('wheel', endScrollGuard, { passive: true });
+  window.addEventListener('pointerdown', endScrollGuard, true);
+  window.addEventListener('keydown', endScrollGuard, true);
   window.addEventListener('keydown', handleLocalKeyDown);
   window.addEventListener('keydown', handlePreviewSpaceKeyDown, true);
   window.addEventListener(PREVIEW_WINDOW_FOCUS_RESTORED, restoreOpenPreviewFocus);
@@ -7218,6 +7237,8 @@ function restoreInitialSelectionIfNeeded() {
   const savedTop = pendingInitialScrollTop;
   pendingInitialScrollTop = 0;
   if (savedTop > 0) {
+    scrollGuardTop = savedTop;
+    scrollGuardUntil = Date.now() + 10000;
     // Apply after the selection's own scroll-into-view and layout have settled.
     for (const delay of [0, 150, 500]) {
       setTimeout(() => gridViewRef.value?.scrollToPosition(savedTop), delay);
@@ -7226,6 +7247,9 @@ function restoreInitialSelectionIfNeeded() {
 }
 
 onBeforeUnmount(() => {
+  window.removeEventListener('wheel', endScrollGuard);
+  window.removeEventListener('pointerdown', endScrollGuard, true);
+  window.removeEventListener('keydown', endScrollGuard, true);
   if (scanStreamFlushTimer) {
     clearTimeout(scanStreamFlushTimer);
     scanStreamFlushTimer = null;
