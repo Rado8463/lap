@@ -1723,9 +1723,19 @@ async function applyHistoryFocusRequest() {
   }
 }
 
+// Where the focused item sat in the viewport before a filter/sort/group refresh, so the same
+// spot can be restored afterwards (scrollToItem alone leaves it at an arbitrary edge).
+let presentationAnchorOffset: number | null = null;
 function rememberFocusedFileForPresentationRefresh() {
   const fileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
   pendingFocusedFileId = fileId > 0 ? fileId : null;
+  presentationAnchorOffset = null;
+  if (fileId > 0 && !groupedModeActive.value) {
+    const grid = gridViewRef.value;
+    const itemTop = grid?.getItemTop?.(selectedItemIndex.value);
+    const scrollTop = Number(grid?.getScrollTop?.() ?? 0) || 0;
+    if (typeof itemTop === 'number' && itemTop >= 0) presentationAnchorOffset = itemTop - scrollTop;
+  }
 }
 
 function resolveRefreshedFileIndex(fileId: number) {
@@ -1781,6 +1791,13 @@ async function restoreFocusedFileAfterListRefresh() {
     pendingAlbumRestore = null;
     await restoreRefreshedFileSelection(fileIndex,
       () => requestId === currentContentRequestId && !pendingScopeSelectionChange);
+    const presentationOffset = presentationAnchorOffset;
+    presentationAnchorOffset = null;
+    if (!albumRestore && presentationOffset !== null && !groupedModeActive.value
+      && requestId === currentContentRequestId && !pendingScopeSelectionChange) {
+      startScrollAnchor(currentAlbumStateKey(), fileIndex, presentationOffset);
+      scrollRestoring.value = false; // keep the grid visible, just follow the item until layout settles
+    }
     if (albumRestore && albumRestore.key === currentAlbumStateKey() && requestId === currentContentRequestId) {
       if (typeof albumRestore.offset === 'number') {
         startScrollAnchor(albumRestore.key, fileIndex, albumRestore.offset);
