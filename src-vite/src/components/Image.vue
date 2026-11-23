@@ -2757,7 +2757,8 @@ const onImageReady = (nextIndex: number, preserveLoading: boolean = false) => {
       leavingSavedViewport = true;
       const wasFit = zoomFitBeforeRestore;
       zoomFitBeforeRestore = null;
-      if (wasFit) {
+      // With zoom lock on, the locked zoom/position is carried over instead.
+      if (wasFit && !zoomLocked.value) {
         isZoomFit.value = true;
         if (!props.isZoomFit) emit('update:isZoomFit', true);
       }
