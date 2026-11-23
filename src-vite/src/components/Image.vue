@@ -19,7 +19,7 @@
 
     <div
       v-if="loadTimingText && infoTipLines.length === 0"
-      class="absolute left-2 bottom-2 z-[60] px-2 py-1 rounded bg-black/70 text-white text-xs font-mono pointer-events-none select-none"
+      class="absolute left-2 top-2 z-[60] max-w-[95%] px-2 py-1 rounded bg-black/70 text-amber-300 text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none select-none"
     >{{ loadTimingText }}</div>
 
     <!-- Loading overlay -->
