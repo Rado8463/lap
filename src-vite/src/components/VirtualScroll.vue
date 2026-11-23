@@ -9,7 +9,7 @@
       <div 
         v-for="poolItem in visibleItems" 
         :key="getItemKey(poolItem)"
-        class="absolute"
+        class="absolute vs-item"
         :class="{ 'transition-all duration-500 ease-in-out': transition }"
         :style="[getItemStyle(poolItem), poolItem.index === props.raisedIndex ? { zIndex: 20 } : null]"
       >
@@ -407,6 +407,8 @@ defineExpose({
 </script>
 
 <style scoped>
+/* a hovered item (possibly enlarged by the hover highlight) is drawn above its neighbours */
+.vs-item:hover { z-index: 19; }
 .virtual-scroller {
   /* Ensure it has a position context */
   position: relative;

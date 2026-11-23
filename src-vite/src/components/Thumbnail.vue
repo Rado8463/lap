@@ -12,6 +12,8 @@
       config.settings.grid.style === 0 && isSelected ? 'bg-base-100 hover:bg-base-100' : 'hover:bg-base-100/30 hover:text-base-content ',
     ]"
     :style="[highlightStyle, enlargeStyle]"
+    @pointerenter="isHovered = true"
+    @pointerleave="isHovered = false"
     @click="(event: MouseEvent) => $emit('clicked', { shiftKey: event.shiftKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey })"
     @dblclick="handleDoubleClick"
     @contextmenu="handleContextMenu"
@@ -317,9 +319,12 @@ const rootRef = ref<HTMLElement | null>(null);
 
 // Enlarged selection (Settings > Grid): scale the whole tile; near the edges of the scrolling
 // area grow inward so the tile is not clipped.
+const isHovered = ref(false);
 const enlargePct = computed(() => {
-  const pct = Number(config.settings.thumbEnlargePct) || 100;
-  return pct > 100 && config.settings.grid.viewMode !== 'filmstrip' ? pct : 100;
+  if (config.settings.grid.viewMode === 'filmstrip') return 100;
+  // The selected tile uses its own size; any other tile under the cursor uses the hover size.
+  const pct = Number(props.isActive ? config.settings.thumbEnlargePct : (isHovered.value ? config.settings.thumbHoverEnlargePct : 100)) || 100;
+  return pct > 100 ? pct : 100;
 });
 const enlargeOrigin = ref('50% 50%');
 function updateEnlargeOrigin() {
@@ -337,16 +342,16 @@ function updateEnlargeOrigin() {
   enlargeOrigin.value = `${hx} ${hy}`;
 }
 const enlargeStyle = computed((): CSSProperties | undefined => {
-  if (!props.isActive || enlargePct.value <= 100) return undefined;
+  if (enlargePct.value <= 100) return undefined;
   return {
     transform: `scale(${enlargePct.value / 100})`,
     transformOrigin: enlargeOrigin.value,
     zIndex: 20,
-    ...(config.settings.thumbHighlightEnabled ? {} : { boxShadow: '0 6px 18px rgba(0,0,0,0.55)' }),
+    ...(config.settings.thumbHighlightEnabled && props.isActive ? {} : { boxShadow: '0 6px 18px rgba(0,0,0,0.55)' }),
   };
 });
-watch(() => [props.isActive, enlargePct.value], () => {
-  if (props.isActive && enlargePct.value > 100) void nextTick(updateEnlargeOrigin);
+watch(enlargePct, (pct) => {
+  if (pct > 100) updateEnlargeOrigin();
 }, { immediate: true, flush: 'post' });
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
 const previewVideoRef = ref<HTMLVideoElement | null>(null);

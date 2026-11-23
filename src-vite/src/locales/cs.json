@@ -1565,6 +1565,8 @@
       "thumbnail_corners": "Rohy miniatur",
       "enlarge_selected": "Zvýraznit vybraný náhled",
       "enlarge_selected_hint": "Vybraný náhled se vykreslí větší než ostatní a překryje sousední (rozložení ani scroll se nemění).",
+      "enlarge_hover": "Zvýraznit náhled pod kurzorem",
+      "enlarge_hover_hint": "Náhled, na který ukazujete, se vykreslí větší než ostatní, bez barevného rámečku.",
       "enlarge_off": "Vypnuto",
       "thumbnail_corner_options": [
         "Podle motivu",

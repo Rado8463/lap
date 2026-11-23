@@ -73,7 +73,7 @@
       <div
         v-else
         class="w-full h-full flex items-center justify-center"
-        :class="{ 'opacity-50': draggedFileIds.has(Number(getFileItem(item)?.id)), 'overflow-hidden': !(enlargeSelected && getFileIndex(item, index) === selectedItemIndex) }"
+        :class="{ 'opacity-50': draggedFileIds.has(Number(getFileItem(item)?.id)), 'overflow-hidden': !(enlargeHover || (enlargeSelected && getFileIndex(item, index) === selectedItemIndex)) }"
         @pointerdown="onItemPointerDown($event, getFileIndex(item, index), getFileItem(item))"
       >
         <Thumbnail
@@ -189,6 +189,9 @@ const props = withDefaults(defineProps<{
 // Settings > Grid: draw the selected thumbnail larger than its neighbours.
 const enlargeSelected = computed(() =>
   Number(config.settings.thumbEnlargePct) > 100 && config.settings.grid.viewMode !== 'filmstrip');
+
+const enlargeHover = computed(() =>
+  Number(config.settings.thumbHoverEnlargePct) > 100 && config.settings.grid.viewMode !== 'filmstrip');
 
 const emit = defineEmits([
   'item-clicked',
