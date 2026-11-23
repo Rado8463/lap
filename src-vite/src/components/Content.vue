@@ -6770,6 +6770,9 @@ onMounted( async() => {
         const info: any = await getFileInfo(id);
         if (!info) continue;
         const previous = fileList.value[at];
+        // a new version of the file: the viewer must not reuse its cached preview
+        uiStore.updateFileVersion(previous.file_path);
+        clearPreviewPreloadCache(previous.file_path);
         const nextFile = { ...previous, ...info, isSelected: previous.isSelected, rotate: info.rotate || 0, thumbnail: undefined };
         totalFileSize.value += getMediaItemSize(nextFile) - getMediaItemSize(previous);
         fileList.value.splice(at, 1, nextFile);
