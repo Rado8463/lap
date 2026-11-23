@@ -71,6 +71,24 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
             }
             continue;
         }
+        // Antivirus / indexers touch files and trigger events: ignore files whose size and
+        // modification time already match the catalog (re-adding would re-read the whole file).
+        if let Ok(meta) = std::fs::metadata(&file_path) {
+            let size = meta.len() as i64;
+            let modified = t_utils::systemtime_to_timestamp(meta.modified().ok());
+            let unchanged = crate::t_cmds::with_current_library(library_id, || {
+                let folder_row = AFolder::add_to_db(album_id, folder)?;
+                let folder_id = folder_row.id.ok_or_else(|| "folder without id".to_string())?;
+                Ok(match AFile::fetch(folder_id, &file_path)? {
+                    Some(f) => !f.metadata_pending && f.size == size && f.modified_at == modified,
+                    None => false,
+                })
+            })
+            .unwrap_or(false);
+            if unchanged {
+                continue;
+            }
+        }
         if !wait_until_stable(Path::new(&file_path)) {
             continue;
         }

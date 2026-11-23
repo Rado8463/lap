@@ -671,7 +671,7 @@
     :OkText="deletePermanently ? $t('msgbox.file_delete.confirm', deleteConfirmationCount) : $t('msgbox.move_to_trash.ok')"
     :cancelText="$t('msgbox.cancel')"
     :warningOk="true"
-    :focusCancel="true"
+    :focusCancel="false"
     :isLoading="isTrashDeleting"
     @ok="handleTrashMsgboxOk"
     @cancel="closeTrashMsgbox"
