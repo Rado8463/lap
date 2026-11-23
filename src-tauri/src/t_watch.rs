@@ -24,6 +24,8 @@ struct WatchChanged {
     added: usize,
     changed: usize,
     removed: usize,
+    added_ids: Vec<i64>,
+    removed_ids: Vec<i64>,
 }
 
 /// wait until a file stops growing and can be opened (the writing program may still be busy)
@@ -44,6 +46,8 @@ fn wait_until_stable(path: &Path) -> bool {
 fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths: HashSet<PathBuf>) {
     let mut added = 0usize;
     let mut removed = 0usize;
+    let mut added_ids: Vec<i64> = Vec::new();
+    let mut removed_ids: Vec<i64> = Vec::new();
     let mut changed_ids: Vec<i64> = Vec::new();
     let mut added_any = false;
     for path in paths {
@@ -59,14 +63,17 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
                 match AFile::fetch(folder_id, &file_path)?.and_then(|f| f.id) {
                     Some(id) => {
                         AFile::delete(id)?;
-                        Ok(true)
+                        Ok(Some(id))
                     }
-                    None => Ok(false),
+                    None => Ok(None),
                 }
             });
             match result {
-                Ok(true) => removed += 1,
-                Ok(false) => {}
+                Ok(Some(id)) => {
+                    removed += 1;
+                    removed_ids.push(id);
+                }
+                Ok(None) => {}
                 Err(e) => eprintln!("watch: failed to remove {}: {}", file_path, e),
             }
             continue;
@@ -102,9 +109,12 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
         });
         match result {
             Ok((Some(_), Some(id))) => changed_ids.push(id),
-            Ok((None, _)) => {
+            Ok((None, new_id)) => {
                 added += 1;
                 added_any = true;
+                if let Some(id) = new_id {
+                    added_ids.push(id);
+                }
             }
             Ok(_) => {}
             Err(e) => eprintln!("watch: failed to add {}: {}", file_path, e),
@@ -134,6 +144,8 @@ fn process(app: &AppHandle, library_id: &str, album_id: i64, folder: &str, paths
             added,
             changed: changed_ids.len(),
             removed,
+            added_ids,
+            removed_ids,
         },
     );
 }

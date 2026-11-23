@@ -6756,14 +6756,38 @@ onMounted( async() => {
     if (Number(p.albumId) !== Number(libConfig.album.id)) return;
     if (!libConfig.album.selected && !samePath(p.folderPath, libConfig.album.folderPath)) return;
     if (Number(libConfig.index.albumQueue[0] || 0) === Number(p.albumId)) return; // a scan is running anyway
-    const keepFileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
-    const oldIndex = selectedItemIndex.value;
-    if (gridViewRef.value) pendingRestoreScrollTop.value = gridViewRef.value.getScrollTop();
-    await updateContent(true);
-    if (keepFileId > 0) {
-      const idx = fileList.value.findIndex((f: any) => Number(f?.id || 0) === keepFileId);
-      // the selected file was deleted: select the one to its left
-      selectedItemIndex.value = idx >= 0 ? idx : Math.max(0, Math.min(oldIndex - 1, fileList.value.length - 1));
+    // Apply the change to the loaded list in place (keeps scroll and the selected photo);
+    // fall back to a reload that restores the selection if that is not possible.
+    const addedIds: number[] = (p.addedIds || []).map(Number);
+    const removedIds: number[] = (p.removedIds || []).map(Number);
+    let applied = !groupedModeActive.value && !isMapView.value && !isLoading.value;
+    if (applied && removedIds.length) applied = removeDeletedRows(new Set(removedIds));
+    if (applied) {
+      for (const id of addedIds) {
+        if (fileList.value.some((f: any) => Number(f?.id) === id)) continue;
+        const info: any = await getFileInfo(id);
+        if (!info) { applied = false; break; }
+        const position = await getCurrentQueryFilePosition(id);
+        if (position === null || position < 0) continue; // not part of this view (filters)
+        const nextFile = { ...info, isSelected: false, rotate: info.rotate || 0 };
+        const at = Math.min(position, fileList.value.length);
+        fileList.value.splice(at, 0, nextFile);
+        totalFileCount.value += 1;
+        totalFileSize.value += getMediaItemSize(nextFile);
+        if (selectedItemIndex.value >= at) selectedItemIndex.value += 1;
+        await nextTick();
+        if (fileList.value[at]) void updateThumbForFile(fileList.value[at]);
+      }
+    }
+    if (!applied) {
+      const keepFileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
+      const oldIndex = selectedItemIndex.value;
+      if (gridViewRef.value) pendingRestoreScrollTop.value = gridViewRef.value.getScrollTop();
+      await updateContent(true);
+      if (keepFileId > 0) {
+        const idx = fileList.value.findIndex((f: any) => Number(f?.id || 0) === keepFileId);
+        selectedItemIndex.value = idx >= 0 ? idx : Math.max(0, Math.min(oldIndex - 1, fileList.value.length - 1));
+      }
     }
     refreshLibraryTotalCount();
   });
