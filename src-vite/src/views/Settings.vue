@@ -373,24 +373,6 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.auto_rescan') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.auto_rescan_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.autoRescanOnOpen !== false" @change="config.settings.autoRescanOnOpen = $event.target.checked" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.info_in_window') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.info_in_window_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.infoInWindow" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.show_load_timing') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.show_load_timing_hint') }}
@@ -804,6 +786,28 @@
                 <div class="text-xs text-base-content/30">{{ $t('settings.advanced.external_app.manage_hint') }}</div>
               </div>
               <button class="btn btn-sm shrink-0" @click="showExternalAppsDialog = true">{{ $t('settings.advanced.external_app.choose_app') }}</button>
+            </div>
+          </section>
+
+          <section class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm" aria-labelledby="behavior-settings">
+            <h2 id="behavior-settings" class="font-bold uppercase text-[10px] tracking-widest text-base-content/30">{{ $t('settings.advanced.behavior_section') }}</h2>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.auto_rescan') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.auto_rescan_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.autoRescanOnOpen !== false" @change="config.settings.autoRescanOnOpen = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.info_in_window') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.info_in_window_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.infoInWindow" />
             </div>
           </section>
 

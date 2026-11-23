@@ -1848,6 +1848,7 @@
     },
     "advanced": {
       "file_delete_section": "File deletion",
+      "behavior_section": "Behaviour",
       "file_delete_behavior": "When deleting files",
       "file_delete_trash_hint": "Files are moved to the trash and can be restored",
       "confirm_file_delete": "Confirm before deleting",

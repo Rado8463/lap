@@ -1852,6 +1852,7 @@
       "confirm_file_delete_hint": "Před přesunem souborů do koše nebo jejich odstraněním zobrazit potvrzení",
       "file_delete_permanent_hint": "Trvalé odstranění vždy vyžaduje potvrzení",
       "file_delete_section": "Odstraňování souborů",
+      "behavior_section": "Chování",
       "title": "Pokročilé",
       "external_app": {
         "section_external_apps": "Externí aplikace",

@@ -954,6 +954,7 @@ function handleKeyDown(event: KeyboardEvent) {
   }
 
   const matchedAction = getMatchedViewAction(event);
+  if (matchedAction === 'view.closeEnter' && (isEditingText || event.repeat)) return;
   if (matchedAction) {
     event.preventDefault();
     viewActions[matchedAction]?.();
@@ -1010,6 +1011,7 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.saveViewport': () => getViewerRef(getActivePane())?.saveViewport?.(),
   'view.clearViewport': () => getViewerRef(getActivePane())?.clearSavedViewport?.(),
   'view.close': () => closeWindow(),
+  'view.closeEnter': () => closeWindow(),
 };
 
 const viewActionOrder: ShortcutActionId[] = [
@@ -1033,6 +1035,7 @@ const viewActionOrder: ShortcutActionId[] = [
   'view.saveViewport',
   'view.clearViewport',
   'view.close',
+  'view.closeEnter',
 ];
 
 function getMatchedViewAction(event: KeyboardEvent) {

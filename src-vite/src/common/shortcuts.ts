@@ -54,6 +54,7 @@ export type ShortcutActionId =
   | 'view.quickPreview'
   | 'view.togglePlayback'
   | 'view.close'
+  | 'view.closeEnter'
   | 'view.next'
   | 'view.previous'
   | 'view.first'
@@ -409,6 +410,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.close',
     contexts: ['content', 'image-viewer', 'settings'],
     defaultBindings: [{ key: 'Escape', label: 'Esc' }],
+  },
+  {
+    id: 'view.closeEnter',
+    contexts: ['image-viewer'],
+    defaultBindings: [{ key: 'Enter', label: 'Enter' }],
   },
   {
     id: 'view.togglePlayback',
