@@ -3317,7 +3317,7 @@ fn should_process_synced_file(file: &AFile, file_type: i64, threshold: i64) -> b
     if !file.has_thumbnail.unwrap_or(false) {
         return true;
     }
-    matches!(file_type, 1 | 3) && !file.has_embedding.unwrap_or(false)
+    matches!(file_type, 1 | 3) && crate::t_startup::ai_search_enabled() && !file.has_embedding.unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -3437,7 +3437,7 @@ fn schedule_synced_file_processing(app_handle: tauri::AppHandle, task: SyncedFil
             }),
         );
 
-        if !matches!(task.file_type, 1 | 3) {
+        if !matches!(task.file_type, 1 | 3) || !crate::t_startup::ai_search_enabled() {
             return;
         }
 
@@ -4312,7 +4312,8 @@ fn index_single_file(
                             &file, thumbnail_size, prefer_embedded_raw_thumbnail,
                         ).unwrap_or(true);
                         let thumbnail_ready = has_thumbnail && !needs_thumbnail_regeneration;
-                        let has_embedding = file.has_embedding.unwrap_or(false);
+                        // With AI search off nothing waits for an embedding.
+                        let has_embedding = file.has_embedding.unwrap_or(false) || !crate::t_startup::ai_search_enabled();
                         let processed_immediately = thumbnail_ready;
                         let search_ready_immediately = match ftype {
                             1 | 3 => thumbnail_ready && has_embedding,
@@ -4439,7 +4440,7 @@ async fn process_thumbnail_task(
         });
     }
 
-    if !matches!(task.file_type, 1 | 3) {
+    if !matches!(task.file_type, 1 | 3) || !crate::t_startup::ai_search_enabled() {
         return Ok(true);
     }
 

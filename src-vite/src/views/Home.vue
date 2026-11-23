@@ -395,7 +395,7 @@ const buttons = computed(() =>  [
   { index: SIDEBAR.LIBRARY, icon: IconPhotoAll, component: Library, text: localeMsg.value.sidebar.library, hidden: !config.settings.showLibrarySidebar },
   { index: SIDEBAR.ALBUM, icon: IconFolders, component: AlbumList, text: localeMsg.value.sidebar.album, props: { selectionSource: 'album' } },
   { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list, hidden: !config.settings.showSmartAlbumSidebar },
-  { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search },
+  { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search, hidden: !config.settings.aiSearchEnabled },
   { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },
   { index: SIDEBAR.TAG, icon: IconTag, component: Tag, text: localeMsg.value.sidebar.tag },
   { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },
@@ -448,10 +448,11 @@ const isSidebarIndexHidden = (index: number) => (
   || (index === SIDEBAR.SMART_ALBUM && !config.settings.showSmartAlbumSidebar)
   || (index === SIDEBAR.LOCATION && !config.settings.showLocationSidebar)
   || (index === SIDEBAR.CAMERA && !config.settings.showCameraSidebar)
+  || (index === SIDEBAR.SEARCH && !config.settings.aiSearchEnabled)
 );
 watch(
   [() => config.main.sidebarIndex, () => config.settings.showLibrarySidebar, () => config.settings.showSmartAlbumSidebar,
-    () => config.settings.showLocationSidebar, () => config.settings.showCameraSidebar],
+    () => config.settings.showLocationSidebar, () => config.settings.showCameraSidebar, () => config.settings.aiSearchEnabled],
   () => {
     if (isSidebarIndexHidden(config.main.sidebarIndex)) config.main.sidebarIndex = SIDEBAR.ALBUM;
   },
@@ -525,11 +526,21 @@ function handleAccessRecovery() {
   void recheckOfflineAlbums();
 }
 
+// Tell the backend which optional heavy features are on (it defaults to off).
+function pushFeatureFlags() {
+  return invoke('set_feature_flags', {
+    aiSearch: config.settings.aiSearchEnabled === true,
+    motionPhoto: config.settings.detectMotionPhotos === true,
+  }).catch(console.error);
+}
+watch([() => config.settings.aiSearchEnabled, () => config.settings.detectMotionPhotos], () => { void pushFeatureFlags(); });
+
 async function finishStartup() {
   if (startupFinished) return;
   startupFinished = true;
   uiStore.startupReady = true;
   performance.mark('startup-first-content-ready');
+  await pushFeatureFlags();
   void invoke('finish_startup', { model: config.settings.imageSearch.model || 0 }).catch(console.error);
   if (config.settings.autoCheckUpdates !== false) void checkForUpdates(false);
 }

@@ -155,7 +155,9 @@ export const useConfigStore = defineStore('configStore', {
       showToolTip: true,          // show button tooltip
       statusBarFields: null,
       showStatusBar: true,        // show status bar
-      autoCheckUpdates: true,      // automatically check for updates
+      autoCheckUpdates: false,     // automatically check for updates (off in this build)
+      aiSearchEnabled: false,      // AI image search: load the models and build embeddings while indexing
+      detectMotionPhotos: false,   // look for an embedded MP4 in every JPEG while indexing
       fileDeleteBehavior: 'trash',
       confirmFileDelete: true,    // ask for confirmation before deleting files (also single file to trash)
       debugMode: false,           // debug mode

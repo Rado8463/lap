@@ -793,6 +793,24 @@
             <h2 id="behavior-settings" class="font-bold uppercase text-[10px] tracking-widest text-base-content/30">{{ $t('settings.advanced.behavior_section') }}</h2>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.ai_search_enabled') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.advanced.ai_search_enabled_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.aiSearchEnabled === true" @change="config.settings.aiSearchEnabled = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.detect_motion_photos') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.advanced.detect_motion_photos_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.detectMotionPhotos === true" @change="config.settings.detectMotionPhotos = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.advanced.detect_cloud_files') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.advanced.detect_cloud_files_hint') }}
@@ -2315,6 +2333,12 @@ watch(() => config.settings.hybridTileHoverMs, (newValue) => {
 });
 watch(() => config.settings.hybridTileHoverRadius, (newValue) => {
   emit('settings-hybridTileHoverRadius-changed', newValue);
+});
+watch(() => config.settings.aiSearchEnabled, (newValue) => {
+  emit('settings-aiSearchEnabled-changed', newValue === true);
+});
+watch(() => config.settings.detectMotionPhotos, (newValue) => {
+  emit('settings-detectMotionPhotos-changed', newValue === true);
 });
 watch(() => config.settings.detectCloudFiles, (newValue) => {
   emit('settings-detectCloudFiles-changed', newValue === true);

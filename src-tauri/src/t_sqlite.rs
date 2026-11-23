@@ -2514,7 +2514,7 @@ impl AFile {
         }
 
         // Android Motion Photo: JPEG with an embedded MP4 appended after EOI.
-        if file_type == 1 && t_image::is_jpeg_path(file_path) {
+        if file_type == 1 && t_image::is_jpeg_path(file_path) && crate::t_startup::motion_photo_detection_enabled() {
             // Zero records that this JPEG has been checked and is not a Motion Photo.
             // NULL is reserved for JPEGs indexed before Motion Photo support, so a
             // later rescan can detect them once.
@@ -4198,6 +4198,7 @@ impl AFile {
             // JPEGs indexed before Motion Photo support have no detection marker.
             // Recheck those files once on their next album scan.
             let needs_motion_photo_detection = file_type == 1
+                && crate::t_startup::motion_photo_detection_enabled()
                 && t_image::is_jpeg_path(file_path)
                 && file.motion_photo_offset.is_none();
 

@@ -10,6 +10,20 @@ use std::{
 };
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Optional heavy features. Both default to off; the frontend pushes the user's choice at startup
+/// (and whenever it changes) through `set_feature_flags`.
+static AI_SEARCH_ENABLED: AtomicBool = AtomicBool::new(false);
+static MOTION_PHOTO_DETECTION_ENABLED: AtomicBool = AtomicBool::new(false);
+
+pub fn ai_search_enabled() -> bool { AI_SEARCH_ENABLED.load(Ordering::Relaxed) }
+pub fn motion_photo_detection_enabled() -> bool { MOTION_PHOTO_DETECTION_ENABLED.load(Ordering::Relaxed) }
+
+#[tauri::command]
+pub fn set_feature_flags(ai_search: bool, motion_photo: bool) {
+    AI_SEARCH_ENABLED.store(ai_search, Ordering::Relaxed);
+    MOTION_PHOTO_DETECTION_ENABLED.store(motion_photo, Ordering::Relaxed);
+}
+
 pub struct StartupState {
     started: Instant,
     stages: Mutex<HashSet<String>>,
@@ -124,9 +138,13 @@ pub fn finish_startup(app: AppHandle, model: i64) {
         } else {
             model
         };
-        if let Err(error) = ensure_ai(&app, Some(model)) {
-            eprintln!("Failed to start AI Engine: {}", error);
-            report_ai_dependency_error();
+        // AI image search is optional: load the models only when it is enabled (they are
+        // otherwise loaded lazily by the first search / embedding request).
+        if ai_search_enabled() {
+            if let Err(error) = ensure_ai(&app, Some(model)) {
+                eprintln!("Failed to start AI Engine: {}", error);
+                report_ai_dependency_error();
+            }
         }
         if let Some(library_id) = library_id {
             let _ = crate::t_cmds::with_current_library(&library_id, || {
