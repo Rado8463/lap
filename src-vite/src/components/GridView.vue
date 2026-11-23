@@ -839,6 +839,18 @@ function scrollToItem(index: number, center = false) {
   }
 }
 
+// Top of an item in scroll coordinates (-1 when unknown); used to restore a scroll position
+// relative to a file, which survives layout changes better than a pixel value.
+function getItemTop(index: number): number {
+  if (isFilmstripView.value) return -1;
+  const displayIndex = fileIndexToRowIndex.value.get(index) ?? index;
+  if (virtualScrollGeometry.value && layoutGeometry.value[displayIndex]) {
+    return layoutGeometry.value[displayIndex].y;
+  }
+  if (!(columnCount.value > 0)) return -1;
+  return Math.floor(displayIndex / columnCount.value) * itemHeight.value;
+}
+
 function scrollToPosition(scrollTop: number) {
   if (scroller.value && !isFilmstripView.value) {
     scroller.value.$el.scrollTop = scrollTop;
@@ -1062,6 +1074,7 @@ defineExpose({
   scrollToPosition,
   scrollToRowIndex,
   getScrollTop,
+  getItemTop,
   centerItem,
   refreshLayout: updateLayout,
   getNextItemIndex

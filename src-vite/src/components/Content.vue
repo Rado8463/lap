@@ -1122,12 +1122,20 @@ const totalFileSize = ref(0);     // total files' size
 const selectedItemIndex = ref(-1);
 let pendingInitialSelectedIndex = -1;
 let pendingInitialScrollTop = 0;
+// Rows of an Albums view must belong to the open album; drops rows that leaked in from a
+// previously shown album through a late response.
+function rowBelongsToCurrentView(file: any): boolean {
+  if (!file || config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.activePane === 'collection') return true;
+  if (tempViewMode.value !== 'none' || !libConfig.album.id || libConfig.album.id <= 0) return true;
+  const albumId = Number(file.album_id || 0);
+  return albumId <= 0 || albumId === Number(libConfig.album.id);
+}
 // Per-album remembered selection + scroll (localStorage; survives restarts).
 const ALBUM_STATE_KEY = 'lap.albumViewState.v1';
 const ALBUM_STATE_MAX = 400;
 let albumStateSaveKey: string | null = null;
 let albumStateTimer: any = null;
-let pendingAlbumRestore: { key: string; scrollTop: number } | null = null;
+let pendingAlbumRestore: { key: string; scrollTop: number; offset?: number } | null = null;
 function currentAlbumStateKey(): string | null {
   if (config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.activePane === 'collection') return null;
   if (!libConfig.album.id || libConfig.album.id <= 0) return null;
@@ -1136,20 +1144,23 @@ function currentAlbumStateKey(): string | null {
 function readAlbumStates(): Record<string, any> {
   try { return JSON.parse(localStorage.getItem(ALBUM_STATE_KEY) || '{}') || {}; } catch { return {}; }
 }
+function applyScrollAnchorActive() { return !!scrollAnchor && Date.now() <= scrollAnchor.until; }
 function saveAlbumStateSoon() {
   if (albumStateTimer) clearTimeout(albumStateTimer);
   albumStateTimer = setTimeout(() => {
     albumStateTimer = null;
     const key = currentAlbumStateKey();
-    if (!key || key !== albumStateSaveKey || tempViewMode.value !== 'none' || scrollGuardTop > 0) return;
+    if (!key || key !== albumStateSaveKey || tempViewMode.value !== 'none' || scrollGuardTop > 0 || applyScrollAnchorActive()) return;
     if (!contentReady.value || isLoading.value || pendingFocusedFileId || pendingAlbumRestore) return;
     const fileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
     if (fileId <= 0) return;
     const scrollTop = Number(gridViewRef.value?.getScrollTop() ?? 0) || 0;
+    const itemTop = gridViewRef.value?.getItemTop?.(selectedItemIndex.value);
+    const offset = typeof itemTop === 'number' && itemTop >= 0 ? itemTop - scrollTop : undefined;
     try {
       const all = readAlbumStates();
       delete all[key];
-      all[key] = { fileId, scrollTop };
+      all[key] = { fileId, scrollTop, offset };
       const keys = Object.keys(all);
       for (const k of keys.slice(0, Math.max(0, keys.length - ALBUM_STATE_MAX))) delete all[k];
       localStorage.setItem(ALBUM_STATE_KEY, JSON.stringify(all));
@@ -1167,7 +1178,21 @@ let scrollSaveTimer: any = null;
 // is active the saved scroll is re-applied and not overwritten; user input ends it.
 let scrollGuardTop = 0;
 let scrollGuardUntil = 0;
-function endScrollGuard() { scrollGuardTop = 0; }
+// Anchor restore: keep a file at the same offset from the viewport top while the layout settles.
+let scrollAnchor: { key: string; index: number; offset: number; until: number } | null = null;
+function applyScrollAnchor(): boolean {
+  const a = scrollAnchor;
+  if (!a) return false;
+  if (Date.now() > a.until || a.key !== currentAlbumStateKey()) { scrollAnchor = null; return false; }
+  const grid = gridViewRef.value;
+  const top = grid?.getItemTop?.(a.index);
+  if (grid && typeof top === 'number' && top >= 0) {
+    const target = Math.max(0, top - a.offset);
+    if (Math.abs(grid.getScrollTop() - target) > 1) grid.scrollToPosition(target);
+  }
+  return true;
+}
+function endScrollGuard() { scrollGuardTop = 0; scrollAnchor = null; }
 function reapplyScrollGuard(current: number) {
   if (scrollGuardTop <= 0) return false;
   if (Date.now() > scrollGuardUntil) { scrollGuardTop = 0; return false; }
@@ -1727,12 +1752,19 @@ async function restoreFocusedFileAfterListRefresh() {
     await restoreRefreshedFileSelection(fileIndex,
       () => requestId === currentContentRequestId && !pendingScopeSelectionChange);
     if (albumRestore && albumRestore.key === currentAlbumStateKey() && requestId === currentContentRequestId) {
-      for (const delay of [0, 150, 500]) {
-        setTimeout(() => {
-          if (albumRestore.key === currentAlbumStateKey() && requestId === currentContentRequestId) {
-            gridViewRef.value?.scrollToPosition(albumRestore.scrollTop);
-          }
-        }, delay);
+      if (typeof albumRestore.offset === 'number') {
+        scrollAnchor = { key: albumRestore.key, index: fileIndex, offset: albumRestore.offset, until: Date.now() + 4000 };
+        for (const delay of [0, 120, 350, 800, 1500, 2500]) {
+          setTimeout(() => { if (requestId === currentContentRequestId) applyScrollAnchor(); }, delay);
+        }
+      } else {
+        for (const delay of [0, 150, 500]) {
+          setTimeout(() => {
+            if (albumRestore.key === currentAlbumStateKey() && requestId === currentContentRequestId) {
+              gridViewRef.value?.scrollToPosition(albumRestore.scrollTop);
+            }
+          }, delay);
+        }
       }
       enableAlbumStateSaveSoon();
     }
@@ -5462,7 +5494,9 @@ function updateScrollPosition(currentScrollTop: number, currentScrollHeight: num
 
 function handleGridScroll(event: any) {
   if (event && event.target) {
-    if (reapplyScrollGuard(event.target.scrollTop)) {
+    if (applyScrollAnchor()) {
+      // restoring relative to the selected file: do not save transient positions
+    } else if (reapplyScrollGuard(event.target.scrollTop)) {
       // restoring: neither save nor track the transient position
     } else if (hasRestoredInitialSelection || pendingInitialSelectedIndex < 0) {
       const top = event.target.scrollTop;
@@ -5482,6 +5516,7 @@ function handleLayoutUpdate({ height }: { height: number }) {
   if (gridViewRef.value && scrollGuardTop > 0) {
     reapplyScrollGuard(gridViewRef.value.getScrollTop());
   }
+  if (scrollAnchor) applyScrollAnchor();
   if (gridViewRef.value) {
     updateScrollPosition(gridViewRef.value.getScrollTop(), 0);
   }
@@ -7300,7 +7335,14 @@ function restoreInitialSelectionIfNeeded() {
   void updateSelectedImage(selectedItemIndex.value);
   const savedTop = pendingInitialScrollTop;
   pendingInitialScrollTop = 0;
-  if (savedTop > 0) {
+  const startKey = currentAlbumStateKey();
+  const startSaved = startKey ? readAlbumStates()[startKey] : null;
+  const startIndex = selectedItemIndex.value;
+  if (startKey && startSaved && typeof startSaved.offset === 'number'
+      && Number(startSaved.fileId) === Number(fileList.value[startIndex]?.id || 0)) {
+    scrollAnchor = { key: startKey, index: startIndex, offset: startSaved.offset, until: Date.now() + 5000 };
+    for (const delay of [0, 150, 500, 1000, 2000, 3500]) setTimeout(() => applyScrollAnchor(), delay);
+  } else if (savedTop > 0) {
     scrollGuardTop = savedTop;
     scrollGuardUntil = Date.now() + 10000;
     // Apply after the selection's own scroll-into-view and layout have settled.
@@ -7478,7 +7520,7 @@ watch(
       const saved = albumKey ? readAlbumStates()[albumKey] : null;
       if (albumKey && saved && Number(saved.fileId) > 0) {
         pendingFocusedFileId = Number(saved.fileId);
-        pendingAlbumRestore = { key: albumKey, scrollTop: Number(saved.scrollTop) || 0 };
+        pendingAlbumRestore = { key: albumKey, scrollTop: Number(saved.scrollTop) || 0, offset: typeof saved.offset === 'number' ? saved.offset : undefined };
       }
     }
   },
@@ -7974,6 +8016,7 @@ async function fetchDataRange(start: number, end: number, reverse = false) {
               if (requestId !== currentContentRequestId) return;
               if (chunkStart + j >= fileList.value.length) continue;
 
+              if (!rowBelongsToCurrentView(newFiles[j])) continue;
               const existingItem = fileList.value[chunkStart + j];
               // Avoid replacing already-loaded items; this prevents thumbnail flicker.
               if (existingItem && !existingItem.isPlaceholder) {
@@ -8309,6 +8352,7 @@ async function hydrateRangeForSelection(startIndex: number, endIndex: number) {
       if (!needsLoad) continue;
 
       const loadedFiles = await getCurrentQueryFiles(chunkStart, chunkSize);
+      if (requestId !== currentContentRequestId) return false; // view changed while loading
       if (!loadedFiles || loadedFiles.length === 0) return false;
       hydratedPlaceholders = true;
 
@@ -8316,6 +8360,7 @@ async function hydrateRangeForSelection(startIndex: number, endIndex: number) {
         const targetIndex = chunkStart + i;
         if (targetIndex >= fileList.value.length || targetIndex >= cappedEnd) break;
         if (targetIndex < cappedStart) continue;
+        if (!rowBelongsToCurrentView(loadedFiles[i])) continue;
         const existingItem = fileList.value[targetIndex];
         const fileId = Number(loadedFiles[i]?.id || 0);
         const isSelected = Boolean(existingItem?.isSelected) || (fileId > 0 && selectedFileIds.has(fileId));
