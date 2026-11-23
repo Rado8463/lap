@@ -547,7 +547,7 @@ const clickFolder = async (albumIdVal: number, folder: Folder) => {
     uiStore.setActivePane('left-sidebar');
   }
   await selection.selectFolder(albumIdVal, folder);
-  if (props.allowContextMenu && !isWatchedFolder(folder.path)) autoRescanAlbum(albumIdVal);
+  if (props.allowContextMenu) autoRescanAlbum(albumIdVal, folder.path);
 };
 
 const hoveredFolderPath = ref('');

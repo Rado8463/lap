@@ -1,25 +1,22 @@
 import { config, libConfig } from '@/common/config';
 import { isWin } from '@/common/utils';
+import { invoke } from '@tauri-apps/api/core';
 
-// Lap has no folder watcher, so photos added to a folder from outside (Photoshop exports,
-// renders) appear only after a scan. Opening an album or one of its folders queues a scan,
-// at most once per album per interval, unless the album is already queued/scanning.
-const MIN_INTERVAL_MS = 30_000;
-const lastAutoScan = new Map<number, number>();
+// Lap watches a folder only when the user turned that on for it. Otherwise, opening an album or a
+// folder runs a quick background check (files on disk vs. catalog, no thumbnails, no full scan) that
+// adds new and drops missing files; the view refreshes by itself if something changed.
+const MIN_INTERVAL_MS = 15_000;
+const lastCheck = new Map<string, number>();
 
-export function autoRescanAlbum(albumId: number) {
+export function autoRescanAlbum(albumId: number, folderPath: string) {
   if (config.settings.autoRescanOnOpen === false) return;
   const id = Number(albumId);
-  if (!(id > 0)) return;
-  const queue = libConfig.index.albumQueue as any[];
-  if (queue.some(q => Number(q) === id)) return;
-  if (((libConfig.index.pausedAlbumIds as any[]) || []).some(q => Number(q) === id)) return;
-  if (Number(libConfig.index.status || 0) === 2) return; // recovery dialog pending
+  if (!(id > 0) || !folderPath) return;
+  const key = `${id}|${folderPath}`;
   const now = Date.now();
-  if (now - (lastAutoScan.get(id) || 0) < MIN_INTERVAL_MS) return;
-  lastAutoScan.set(id, now);
-  queue.push(id);
-  libConfig.index.status = 1;
+  if (now - (lastCheck.get(key) || 0) < MIN_INTERVAL_MS) return;
+  lastCheck.set(key, now);
+  void invoke('sync_folder', { albumId: id, folderPath }).catch(() => {});
 }
 
 const norm = (p: string) => (isWin ? p.toLowerCase() : p).replace(/[\\/]+$/, '');

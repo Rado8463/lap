@@ -166,3 +166,47 @@ pub fn watch_folder(
     *guard = Some(watcher);
     Ok(())
 }
+
+/// Quick background check of one folder: compare the files on disk with the catalog and add
+/// the new ones / drop the missing ones. Much cheaper than a full album scan.
+#[tauri::command]
+pub async fn sync_folder(app_handle: AppHandle, album_id: i64, folder_path: String) -> Result<(), String> {
+    if folder_path.is_empty() || !Path::new(&folder_path).is_dir() {
+        return Ok(());
+    }
+    let library_id = crate::t_config::current_library_id()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let on_disk: HashSet<String> = match std::fs::read_dir(&folder_path) {
+            Ok(rd) => rd
+                .flatten()
+                .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+                .filter_map(|e| e.file_name().into_string().ok())
+                .filter(|name| t_utils::get_file_type(&Path::new(&folder_path).join(name).to_string_lossy()).is_some())
+                .collect(),
+            Err(_) => return,
+        };
+        let in_db = crate::t_cmds::with_current_library(&library_id, || {
+            let folder_row = AFolder::add_to_db(album_id, &folder_path)?;
+            let folder_id = folder_row.id.ok_or_else(|| "folder without id".to_string())?;
+            AFile::list_names_in_folder(folder_id)
+        });
+        let Ok(in_db) = in_db else { return };
+        let db_names: HashSet<&str> = in_db.iter().map(|(_, n)| n.as_str()).collect();
+        let mut todo: HashSet<PathBuf> = HashSet::new();
+        for name in &on_disk {
+            if !db_names.contains(name.as_str()) {
+                todo.insert(Path::new(&folder_path).join(name));
+            }
+        }
+        for (_, name) in &in_db {
+            if !on_disk.contains(name) {
+                todo.insert(Path::new(&folder_path).join(name));
+            }
+        }
+        if !todo.is_empty() {
+            process(&app_handle, &library_id, album_id, &folder_path, todo);
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())
+}

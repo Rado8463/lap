@@ -337,6 +337,7 @@ async fn main() {
             t_cmds::edit_image,
             t_cmds::render_montage,
             t_watch::watch_folder,
+            t_watch::sync_folder,
             t_cmds::copy_edited_image,
             t_cmds::copy_images,
             t_cmds::copy_file_paths,

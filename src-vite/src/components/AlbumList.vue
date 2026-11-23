@@ -303,7 +303,7 @@ import { useI18n } from 'vue-i18n';
 import { VueDraggable, type DraggableEvent } from 'vue-draggable-plus'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event';
 import { config, libConfig } from '@/common/config';
-import { autoRescanAlbum } from '@/common/autoRescan';
+import { autoRescanAlbum, isWatchedFolder, samePath } from '@/common/autoRescan';
 import { useUIStore } from '@/stores/uiStore';
 import {
   scrollToFolder,
@@ -933,6 +933,17 @@ const getMoreMenuItems = async (album: any) => {
       action: () => toggleIndexAlbum(album.id)
     },
     {
+      label: isWatchedFolder(album.path) ? t('menu.album.unwatch_folder') : t('menu.album.watch_folder'),
+      icon: IconUpdate,
+      disabled: !isAccessible,
+      action: () => {
+        const list = ((config.main as any).watchedFolders || []) as string[];
+        (config.main as any).watchedFolders = isWatchedFolder(album.path)
+          ? list.filter(p => !samePath(p, album.path))
+          : [...list, album.path];
+      }
+    },
+    {
       label: "-",   // separator
       action: () => {}
     },
@@ -1439,7 +1450,7 @@ const clickAlbum = async (album: Album) => {
   const selectionChanged = !isMainSourceActive.value || config.main.sidebarIndex !== SIDEBAR.ALBUM
     || selection.albumId.value !== album.id || !selection.selected.value;
   selection.selectAlbum(album);
-  if (album.is_accessible !== false) autoRescanAlbum(album.id);
+  if (album.is_accessible !== false) autoRescanAlbum(album.id, album.path);
   requestAnimationFrame(() => {
     setTimeout(async () => {
       const previous = album.is_accessible;

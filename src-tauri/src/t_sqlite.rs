@@ -3375,6 +3375,22 @@ impl AFile {
     }
 
     // delete a file from db
+    /// (id, name) of every catalogued file directly inside a folder
+    pub fn list_names_in_folder(folder_id: i64) -> Result<Vec<(i64, String)>, String> {
+        let conn = open_conn()?;
+        let mut stmt = conn
+            .prepare("SELECT id, name FROM afiles WHERE folder_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![folder_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|e| e.to_string())?);
+        }
+        Ok(out)
+    }
+
     pub fn delete(id: i64) -> Result<usize, String> {
         let mut conn = open_conn()?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;

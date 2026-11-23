@@ -6753,7 +6753,8 @@ onMounted( async() => {
   unlistenWatchChanged = await listen('watch-folder-changed', async (event: any) => {
     const p = event.payload || {};
     if (p.libraryId && p.libraryId !== libConfig._libraryId) return;
-    if (Number(p.albumId) !== Number(libConfig.album.id) || !samePath(p.folderPath, libConfig.album.folderPath)) return;
+    if (Number(p.albumId) !== Number(libConfig.album.id)) return;
+    if (!libConfig.album.selected && !samePath(p.folderPath, libConfig.album.folderPath)) return;
     if (Number(libConfig.index.albumQueue[0] || 0) === Number(p.albumId)) return; // a scan is running anyway
     const keepFileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
     const oldIndex = selectedItemIndex.value;
