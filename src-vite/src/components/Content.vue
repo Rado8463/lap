@@ -286,6 +286,7 @@
             <div ref="gridScrollContainerRef" class="absolute w-full h-full">
               <Welcome v-if="showWelcomeContent" />
               <GridView v-else ref="gridViewRef"
+                :class="{ 'opacity-0': scrollRestoring }"
                 :selected-item-index="selectedItemIndex"
                 :fileList="gridRows"
                 :timeline-data="timelineData"
@@ -1179,20 +1180,48 @@ let scrollSaveTimer: any = null;
 let scrollGuardTop = 0;
 let scrollGuardUntil = 0;
 // Anchor restore: keep a file at the same offset from the viewport top while the layout settles.
-let scrollAnchor: { key: string; index: number; offset: number; until: number } | null = null;
+type ScrollAnchor = { key: string; index: number; offset: number; until: number; hardUntil: number; revealAt: number; lastTop: number; lastChange: number };
+let scrollAnchor: ScrollAnchor | null = null;
+let scrollAnchorTimer: any = null;
+// True while the grid is being positioned after a restart/switch; the grid is hidden then so
+// the user does not watch it sweep through the list while the layout grows.
+const scrollRestoring = ref(false);
+function finishScrollAnchor() {
+  scrollAnchor = null;
+  scrollRestoring.value = false;
+  if (scrollAnchorTimer) { clearInterval(scrollAnchorTimer); scrollAnchorTimer = null; }
+}
+function startScrollAnchor(key: string, index: number, offset: number) {
+  const now = Date.now();
+  scrollAnchor = { key, index, offset, until: now + 3000, hardUntil: now + 30000, revealAt: now + 10000, lastTop: -1, lastChange: now };
+  scrollRestoring.value = true;
+  if (scrollAnchorTimer) clearInterval(scrollAnchorTimer);
+  scrollAnchorTimer = setInterval(() => { applyScrollAnchor(); }, 120);
+  applyScrollAnchor();
+}
 function applyScrollAnchor(): boolean {
   const a = scrollAnchor;
   if (!a) return false;
-  if (Date.now() > a.until || a.key !== currentAlbumStateKey()) { scrollAnchor = null; return false; }
+  const now = Date.now();
+  if (now > a.until || now > a.hardUntil || a.key !== currentAlbumStateKey()) { finishScrollAnchor(); return false; }
   const grid = gridViewRef.value;
   const top = grid?.getItemTop?.(a.index);
   if (grid && typeof top === 'number' && top >= 0) {
+    // The item's position keeps changing while rows above it are still being laid out;
+    // keep following it until it has been stable for a moment.
+    if (Math.abs(top - a.lastTop) > 1) {
+      a.lastTop = top;
+      a.lastChange = now;
+      a.until = Math.min(a.hardUntil, Math.max(a.until, now + 3000));
+    }
     const target = Math.max(0, top - a.offset);
     if (Math.abs(grid.getScrollTop() - target) > 1) grid.scrollToPosition(target);
+    if (scrollRestoring.value && now - a.lastChange > 700) scrollRestoring.value = false;
   }
+  if (scrollRestoring.value && now > a.revealAt) scrollRestoring.value = false;
   return true;
 }
-function endScrollGuard() { scrollGuardTop = 0; scrollAnchor = null; }
+function endScrollGuard() { scrollGuardTop = 0; if (scrollAnchor) finishScrollAnchor(); }
 function reapplyScrollGuard(current: number) {
   if (scrollGuardTop <= 0) return false;
   if (Date.now() > scrollGuardUntil) { scrollGuardTop = 0; return false; }
@@ -1753,10 +1782,7 @@ async function restoreFocusedFileAfterListRefresh() {
       () => requestId === currentContentRequestId && !pendingScopeSelectionChange);
     if (albumRestore && albumRestore.key === currentAlbumStateKey() && requestId === currentContentRequestId) {
       if (typeof albumRestore.offset === 'number') {
-        scrollAnchor = { key: albumRestore.key, index: fileIndex, offset: albumRestore.offset, until: Date.now() + 4000 };
-        for (const delay of [0, 120, 350, 800, 1500, 2500]) {
-          setTimeout(() => { if (requestId === currentContentRequestId) applyScrollAnchor(); }, delay);
-        }
+        startScrollAnchor(albumRestore.key, fileIndex, albumRestore.offset);
       } else {
         for (const delay of [0, 150, 500]) {
           setTimeout(() => {
@@ -7340,8 +7366,7 @@ function restoreInitialSelectionIfNeeded() {
   const startIndex = selectedItemIndex.value;
   if (startKey && startSaved && typeof startSaved.offset === 'number'
       && Number(startSaved.fileId) === Number(fileList.value[startIndex]?.id || 0)) {
-    scrollAnchor = { key: startKey, index: startIndex, offset: startSaved.offset, until: Date.now() + 5000 };
-    for (const delay of [0, 150, 500, 1000, 2000, 3500]) setTimeout(() => applyScrollAnchor(), delay);
+    startScrollAnchor(startKey, startIndex, startSaved.offset);
   } else if (savedTop > 0) {
     scrollGuardTop = savedTop;
     scrollGuardUntil = Date.now() + 10000;
