@@ -1122,6 +1122,46 @@ const totalFileSize = ref(0);     // total files' size
 const selectedItemIndex = ref(-1);
 let pendingInitialSelectedIndex = -1;
 let pendingInitialScrollTop = 0;
+// Per-album remembered selection + scroll (localStorage; survives restarts).
+const ALBUM_STATE_KEY = 'lap.albumViewState.v1';
+const ALBUM_STATE_MAX = 400;
+let albumStateSaveKey: string | null = null;
+let albumStateTimer: any = null;
+let pendingAlbumRestore: { key: string; scrollTop: number } | null = null;
+function currentAlbumStateKey(): string | null {
+  if (config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.activePane === 'collection') return null;
+  if (!libConfig.album.id || libConfig.album.id <= 0) return null;
+  return [libConfig._libraryId, libConfig.album.id, libConfig.album.folderId, libConfig.album.folderPath, libConfig.album.selected].join('|');
+}
+function readAlbumStates(): Record<string, any> {
+  try { return JSON.parse(localStorage.getItem(ALBUM_STATE_KEY) || '{}') || {}; } catch { return {}; }
+}
+function saveAlbumStateSoon() {
+  if (albumStateTimer) clearTimeout(albumStateTimer);
+  albumStateTimer = setTimeout(() => {
+    albumStateTimer = null;
+    const key = currentAlbumStateKey();
+    if (!key || key !== albumStateSaveKey || tempViewMode.value !== 'none' || scrollGuardTop > 0) return;
+    if (!contentReady.value || isLoading.value || pendingFocusedFileId || pendingAlbumRestore) return;
+    const fileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
+    if (fileId <= 0) return;
+    const scrollTop = Number(gridViewRef.value?.getScrollTop() ?? 0) || 0;
+    try {
+      const all = readAlbumStates();
+      delete all[key];
+      all[key] = { fileId, scrollTop };
+      const keys = Object.keys(all);
+      for (const k of keys.slice(0, Math.max(0, keys.length - ALBUM_STATE_MAX))) delete all[k];
+      localStorage.setItem(ALBUM_STATE_KEY, JSON.stringify(all));
+    } catch { /* storage unavailable */ }
+  }, 500);
+}
+function enableAlbumStateSaveSoon() {
+  const key = currentAlbumStateKey();
+  setTimeout(() => {
+    if (key && key === currentAlbumStateKey()) albumStateSaveKey = key;
+  }, 900);
+}
 let scrollSaveTimer: any = null;
 // After a restart, the list may reload and reset the grid to the top. While this guard
 // is active the saved scroll is re-applied and not overwritten; user input ends it.
@@ -1682,8 +1722,20 @@ async function restoreFocusedFileAfterListRefresh() {
       selectedItemIndex.value = totalFileCount.value > 0 ? 0 : -1;
       return;
     }
+    const albumRestore = pendingAlbumRestore;
+    pendingAlbumRestore = null;
     await restoreRefreshedFileSelection(fileIndex,
       () => requestId === currentContentRequestId && !pendingScopeSelectionChange);
+    if (albumRestore && albumRestore.key === currentAlbumStateKey() && requestId === currentContentRequestId) {
+      for (const delay of [0, 150, 500]) {
+        setTimeout(() => {
+          if (albumRestore.key === currentAlbumStateKey() && requestId === currentContentRequestId) {
+            gridViewRef.value?.scrollToPosition(albumRestore.scrollTop);
+          }
+        }, delay);
+      }
+      enableAlbumStateSaveSoon();
+    }
   } catch (error) {
     console.error('restoreFocusedFileAfterListRefresh error:', error);
   } finally {
@@ -1767,6 +1819,8 @@ watch([fileList, contentReady], () => {
     void restoreSelectionAfterFileListRefresh();
   } else if (pendingFocusedFileId && fileList.value.length > 0) {
     void restoreFocusedFileAfterListRefresh();
+  } else if (!pendingAlbumRestore && !albumStateSaveKey && fileList.value.length > 0) {
+    enableAlbumStateSaveSoon();
   }
 });
 
@@ -5414,6 +5468,7 @@ function handleGridScroll(event: any) {
       const top = event.target.scrollTop;
       if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
       scrollSaveTimer = setTimeout(() => { void setLastScrollTop(Number(top) || 0); }, 500);
+      saveAlbumStateSoon();
     }
     updateScrollPosition(
         event.target.scrollTop, 
@@ -7408,6 +7463,14 @@ watch(
       hasRestoredInitialSelection = true;
       clearSelectionForFileListUpdate();
       selectedItemIndex.value = 0;
+      albumStateSaveKey = null;
+      pendingAlbumRestore = null;
+      const albumKey = currentAlbumStateKey();
+      const saved = albumKey ? readAlbumStates()[albumKey] : null;
+      if (albumKey && saved && Number(saved.fileId) > 0) {
+        pendingFocusedFileId = Number(saved.fileId);
+        pendingAlbumRestore = { key: albumKey, scrollTop: Number(saved.scrollTop) || 0 };
+      }
     }
   },
 );
@@ -7541,6 +7604,7 @@ watch(() => selectedItemIndex.value, (newIndex, oldIndex) => {
     fileList.value[oldIndex].rotate %= 360;
   }
   void setLastSelectedItemIndex(Number(newIndex ?? -1));
+  saveAlbumStateSoon();
   updateSelectedImage(newIndex);
   // Keep an open image viewer in sync with the main-window selection.
   if (!suppressImageViewerSync) {
