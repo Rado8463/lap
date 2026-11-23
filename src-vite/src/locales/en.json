@@ -1666,6 +1666,8 @@
       "hybrid_tiles_hint": "Photos (JPEG, PSD/PSB, TIFF) above this size are never opened at full resolution by the browser. Instead the visible part is decoded by the app and shown over the preview when you zoom in (fixes missing blocks and blank zoom steps of huge photos).",
       "hybrid_tiles_off": "Off",
       "hybrid_tile_prefetch": "Prepare the 100 % view of large JPEG, PSD/PSB and TIFF in advance",
+      "auto_rescan": "Scan new files when opening an album",
+      "auto_rescan_hint": "Opening an album or one of its folders starts a scan (at most every 30 s per album), so photos saved there by other programs appear without scanning by hand.",
       "info_in_window": "Open Image Info in a window",
       "info_in_window_hint": "When on, the Info button and Alt+I open Image Info in a separate window instead of the side panel.",
       "hybrid_tile_center": "Also prepare the photo centre",

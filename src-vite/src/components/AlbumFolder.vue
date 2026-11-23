@@ -187,6 +187,7 @@ import { ref, nextTick, computed, inject, provide, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
+import { autoRescanAlbum } from '@/common/autoRescan';
 import { isMac, shortenFilename, isValidFileName, getFolderPath, getFullPath, normalizePathForCompare, isWithinRootPath } from '@/common/utils';
 import {
   createFolder, renameFolder, fetchFolder, getAllAlbums, moveFolder, moveFolderOutsideLibrary,
@@ -531,6 +532,7 @@ const clickFolder = async (albumIdVal: number, folder: Folder) => {
     uiStore.setActivePane('left-sidebar');
   }
   await selection.selectFolder(albumIdVal, folder);
+  if (props.allowContextMenu) autoRescanAlbum(albumIdVal);
 };
 
 const hoveredFolderPath = ref('');

@@ -467,6 +467,15 @@ onMounted(async () => {
   if (cur && !albumFor(cur)) {
     const node = nodes.get(cur) || ({ path: cur, name: cur.split(/[\\/]/).filter(Boolean).pop() || cur } as any);
     await openFolder(node);
+  } else if (cur && !libConfig.album.selected) {
+    // The album survived the restart, but the backend has forgotten the selected folder: select it
+    // again, otherwise its previews load only after clicking the folder.
+    albums.value = (await getAllAlbums()) || [];
+    const album = albumFor(cur);
+    if (album) {
+      const name = cur.split(/[\\/]/).filter(Boolean).pop() || cur;
+      await selection.selectFolder(album.id, { id: 0, name, path: cur } as any);
+    }
   }
   await cleanupDiskAlbums(currentPath.value);
 });

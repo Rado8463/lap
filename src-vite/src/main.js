@@ -296,6 +296,9 @@ if (isMainWindow) {
   listen('settings-hybridTileHoverRadius-changed', (event) => {
     config.settings.hybridTileHoverRadius = event.payload
   })
+  listen('settings-autoRescanOnOpen-changed', (event) => {
+    config.settings.autoRescanOnOpen = event.payload
+  })
   listen('settings-infoInWindow-changed', (event) => {
     config.settings.infoInWindow = event.payload
   })

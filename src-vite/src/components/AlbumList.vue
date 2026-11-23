@@ -303,6 +303,7 @@ import { useI18n } from 'vue-i18n';
 import { VueDraggable, type DraggableEvent } from 'vue-draggable-plus'
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event';
 import { config, libConfig } from '@/common/config';
+import { autoRescanAlbum } from '@/common/autoRescan';
 import { useUIStore } from '@/stores/uiStore';
 import {
   scrollToFolder,
@@ -1438,6 +1439,7 @@ const clickAlbum = async (album: Album) => {
   const selectionChanged = !isMainSourceActive.value || config.main.sidebarIndex !== SIDEBAR.ALBUM
     || selection.albumId.value !== album.id || !selection.selected.value;
   selection.selectAlbum(album);
+  if (album.is_accessible !== false) autoRescanAlbum(album.id);
   requestAnimationFrame(() => {
     setTimeout(async () => {
       const previous = album.is_accessible;

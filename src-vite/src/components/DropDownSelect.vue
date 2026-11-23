@@ -13,14 +13,14 @@
         iconOnly ? '' : (selected ? 'border-primary' : 'border-base-content/15'),
         disabled
           ? (keepTextWhenDisabled ? (selected ? '!text-primary cursor-default' : '!text-base-content/70 cursor-default') : 'text-base-content/30 cursor-default')
-          : (selected ? 'text-primary' : 'text-base-content/70'),
+          : (selected ? '!text-primary' : 'text-base-content/70'),
         disabled ? '' : 'hover:bg-base-100/30 hover:text-base-content cursor-pointer'
       ]"
       :disabled="disabled"
       @click="toggleDropdown"
     >
       <component v-if="icon" :is="icon" class="w-4 h-4 shrink-0" />
-      <span v-if="!iconOnly" :class="disabled && keepTextWhenDisabled ? '!opacity-100' : ''">{{ triggerLabel }}</span>
+      <span v-if="!iconOnly" :class="[disabled && keepTextWhenDisabled ? '!opacity-100' : '', selected ? '!text-primary' : '']">{{ triggerLabel }}</span>
       <slot name="trigger-suffix" />
       <IconArrowDown v-if="!iconOnly" class="w-3 h-3 shrink-0 opacity-50" />
     </button>

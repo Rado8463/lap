@@ -1665,6 +1665,8 @@
       "hybrid_tiles_hint": "Fotky (JPEG, PSD/PSB, TIFF) nad touto velikostí prohlížeč nikdy neotevírá v plném rozlišení. Aplikace místo toho dekóduje viditelnou část a při přiblížení ji zobrazí nad náhledem (řeší chybějící bloky a prázdné kroky zoomu u obřích fotek).",
       "hybrid_tiles_off": "Vypnuto",
       "hybrid_tile_prefetch": "Předem připravit 100% pohled velkých JPEG, PSD/PSB a TIFF",
+      "auto_rescan": "Skenovat nové soubory při otevření alba",
+      "auto_rescan_hint": "Otevření alba nebo jeho složky spustí sken (nejvýše jednou za 30 s na album), takže fotky uložené jinými programy se objeví bez ručního skenování.",
       "info_in_window": "Otevírat Info o obrázku v okně",
       "info_in_window_hint": "Když je zapnuto, tlačítko Info a Alt+I otevřou informace o obrázku v samostatném okně místo bočního panelu.",
       "hybrid_tile_center": "Připravit také střed fotky",

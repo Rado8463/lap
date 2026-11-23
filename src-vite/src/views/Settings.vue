@@ -353,6 +353,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.auto_rescan') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.auto_rescan_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.autoRescanOnOpen !== false" @change="config.settings.autoRescanOnOpen = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.info_in_window') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.info_in_window_hint') }}
@@ -2243,6 +2252,9 @@ watch(() => config.settings.hybridTileHoverMs, (newValue) => {
 });
 watch(() => config.settings.hybridTileHoverRadius, (newValue) => {
   emit('settings-hybridTileHoverRadius-changed', newValue);
+});
+watch(() => config.settings.autoRescanOnOpen, (newValue) => {
+  emit('settings-autoRescanOnOpen-changed', newValue !== false);
 });
 watch(() => config.settings.infoInWindow, (newValue) => {
   emit('settings-infoInWindow-changed', newValue === true);
