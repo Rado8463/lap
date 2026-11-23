@@ -187,7 +187,7 @@ import { ref, nextTick, computed, inject, provide, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
-import { autoRescanAlbum } from '@/common/autoRescan';
+import { autoRescanAlbum, isWatchedFolder, samePath } from '@/common/autoRescan';
 import { isMac, shortenFilename, isValidFileName, getFolderPath, getFullPath, normalizePathForCompare, isWithinRootPath } from '@/common/utils';
 import {
   createFolder, renameFolder, fetchFolder, getAllAlbums, moveFolder, moveFolderOutsideLibrary,
@@ -218,6 +218,7 @@ import {
   IconFolder,
   IconFolderOff,
   IconRefresh,
+  IconUpdate,
   IconClipboard,
   IconDownload,
   IconHeart,
@@ -506,6 +507,12 @@ const getMenuItemsForFolder = async (folder: any) => {
       action: () => { void refreshFolders(folder); }
     },
     {
+      label: isFolderWatched(folder.path) ? localeMsg.value.menu.album.unwatch_folder : localeMsg.value.menu.album.watch_folder,
+      icon: IconUpdate,
+      disabled: unavailable,
+      action: () => { toggleFolderWatched(folder.path); }
+    },
+    {
       label: folder?.is_excluded_from_search ? localeMsg.value.menu.album.include_in_search : localeMsg.value.menu.album.exclude_from_search,
       icon: folder?.is_excluded_from_search ? IconFolder : IconFolderOff,
       action: () => {
@@ -523,6 +530,14 @@ const getMenuItemsForFolder = async (folder: any) => {
       action: () => { void startDeleteFolder(folder); }
     },
   ];
+};
+
+const isFolderWatched = (path: string) => isWatchedFolder(path);
+const toggleFolderWatched = (path: string) => {
+  const list = ((config.main as any).watchedFolders || []) as string[];
+  (config.main as any).watchedFolders = isWatchedFolder(path)
+    ? list.filter(p => !samePath(p, path))
+    : [...list, path];
 };
 
 /// click folder to select

@@ -14,6 +14,7 @@ export const useConfigStore = defineStore('configStore', {
       sidebarIndex: SIDEBAR.ALBUM, // toolbar index
       diskTreeActive: false,       // left panel shows the disk tree instead of the album list
       diskAlbumIds: [],            // albums created only to browse a folder from the disk tree (hidden in the album list)
+      watchedFolders: [],          // folder paths followed for new files (watched while the folder is open)
       albumRatingFilters: {},      // album id (0: all files) -> rating filter of the Albums view (-2 rated only, 1-5 stars)
       diskAlbumPaths: {},          // id -> folder path of those albums (guards the cleanup against reused ids)
       diskAlbumLibraryId: '',      // library the browse-only albums belong to

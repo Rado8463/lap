@@ -760,7 +760,9 @@
       "exclude_from_search": "Vyloučit z vyhledávání",
       "remove": "Odebrat",
       "delete_folder": "Odstranit složku",
-      "refresh_folders": "Aktualizovat složky"
+      "refresh_folders": "Aktualizovat složky",
+      "watch_folder": "Sledovat nové soubory",
+      "unwatch_folder": "Přestat sledovat nové soubory"
     },
     "file": {
       "new_folder": "Nová složka",

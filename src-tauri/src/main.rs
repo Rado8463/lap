@@ -39,6 +39,7 @@ mod t_raw_display;
 mod t_menu;
 mod t_migration;
 mod t_montage;
+mod t_watch;
 mod t_tags;
 mod t_motion_photo;
 mod t_pasteboard;
@@ -335,6 +336,7 @@ async fn main() {
             // file operations
             t_cmds::edit_image,
             t_cmds::render_montage,
+            t_watch::watch_folder,
             t_cmds::copy_edited_image,
             t_cmds::copy_images,
             t_cmds::copy_file_paths,

@@ -849,6 +849,8 @@ import { getExternalDropUris, getExternalHttpDropUrls, getExternalFileDropPaths,
 import PrintImage from '@/components/PrintImage.vue';
 import { defineAsyncComponent, ref, shallowRef, watch, computed, createVNode, onMounted, onBeforeUnmount, nextTick, render, markRaw } from 'vue';
 import { emit as tauriEmit, listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { isWatchedFolder, samePath } from '@/common/autoRescan';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { PREVIEW_WINDOW_FOCUS_RESTORED } from '@/common/previewWindow';
@@ -4614,6 +4616,7 @@ let unlistenAlbumAccessChanged: (() => void) | undefined;
 let unlistenKeydown: () => void;
 let unlistenImageViewer: () => void;
 let unlistenInfoReady: (() => void) | null = null;
+let unlistenWatchChanged: (() => void) | null = null;
 let unlistenImageEditor: (() => void) | null = null;
 let unlistenMontage: (() => void) | null = null;
 let unlistenFaceIndexProgress: (() => void) | null = null;
@@ -4695,6 +4698,7 @@ onBeforeUnmount(() => {
   if (unlistenKeydown) unlistenKeydown();
   if (unlistenImageViewer) unlistenImageViewer();
   if (unlistenInfoReady) unlistenInfoReady();
+  if (unlistenWatchChanged) unlistenWatchChanged();
   if (unlistenImageEditor) unlistenImageEditor();
   if (unlistenLibraryTotalRefreshed) unlistenLibraryTotalRefreshed();
   if (unlistenImportFilesAdded) unlistenImportFilesAdded();
@@ -6746,6 +6750,20 @@ onMounted( async() => {
   document.addEventListener('dragend', domDragEnd);
   document.addEventListener('drop', domDrop);
 
+  unlistenWatchChanged = await listen('watch-folder-changed', async (event: any) => {
+    const p = event.payload || {};
+    if (p.libraryId && p.libraryId !== libConfig._libraryId) return;
+    if (Number(p.albumId) !== Number(libConfig.album.id) || !samePath(p.folderPath, libConfig.album.folderPath)) return;
+    if (Number(libConfig.index.albumQueue[0] || 0) === Number(p.albumId)) return; // a scan is running anyway
+    const keepFileId = Number(fileList.value[selectedItemIndex.value]?.id || 0);
+    if (gridViewRef.value) pendingRestoreScrollTop.value = gridViewRef.value.getScrollTop();
+    await updateContent(true);
+    if (keepFileId > 0) {
+      const idx = fileList.value.findIndex((f: any) => Number(f?.id || 0) === keepFileId);
+      if (idx >= 0) selectedItemIndex.value = idx;
+    }
+    refreshLibraryTotalCount();
+  });
   unlistenInfoReady = await listen('info-window-ready', () => { void pushInfoWindowFile(); });
   unlistenImageViewer = await listen('message-from-image-viewer', async (event) => {
     const { message } = event.payload as any;
@@ -11486,6 +11504,17 @@ const pushInfoWindowFile = async () => {
   const w = await WebviewWindow.getByLabel('info');
   if (w) await w.emit('info-window-file', { file: currentInfoFile() });
 };
+// Follow the open folder for new files when the user turned that on for it (folder context menu).
+watch(
+  () => [libConfig.album.id, libConfig.album.folderPath, ((config.main as any).watchedFolders || []).join('|')],
+  () => {
+    const path = String(libConfig.album.folderPath || '');
+    const enabled = Number(libConfig.album.id) > 0 && !!path && isWatchedFolder(path);
+    void invoke('watch_folder', { albumId: Number(libConfig.album.id) || 0, folderPath: path, enabled }).catch(() => {});
+  },
+  { immediate: true },
+);
+
 const toggleInfoWindow = async () => {
   const existing = await WebviewWindow.getByLabel('info');
   if (existing) {

@@ -1,4 +1,5 @@
 import { config, libConfig } from '@/common/config';
+import { isWin } from '@/common/utils';
 
 // Lap has no folder watcher, so photos added to a folder from outside (Photoshop exports,
 // renders) appear only after a scan. Opening an album or one of its folders queues a scan,
@@ -20,3 +21,8 @@ export function autoRescanAlbum(albumId: number) {
   queue.push(id);
   libConfig.index.status = 1;
 }
+
+const norm = (p: string) => (isWin ? p.toLowerCase() : p).replace(/[\\/]+$/, '');
+export const samePath = (a: string, b: string) => norm(String(a || '')) === norm(String(b || ''));
+export const isWatchedFolder = (path: string) =>
+  (((config.main as any).watchedFolders || []) as string[]).some(p => samePath(p, path));

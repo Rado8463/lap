@@ -32,6 +32,7 @@ tauri = { version = "2", features = [
     "protocol-asset",
     "image-png",
 ] }
+notify = "6"
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-shell = "2.3.5"
 tauri-plugin-os = "2.3.2"

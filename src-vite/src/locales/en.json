@@ -760,7 +760,9 @@
       "exclude_from_search": "Exclude from search",
       "remove": "Remove",
       "delete_folder": "Delete folder",
-      "refresh_folders": "Refresh folders"
+      "refresh_folders": "Refresh folders",
+      "watch_folder": "Watch for new files",
+      "unwatch_folder": "Stop watching for new files"
     },
     "file": {
       "new_folder": "New folder",
