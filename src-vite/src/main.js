@@ -302,6 +302,9 @@ if (isMainWindow) {
   listen('settings-infoInWindow-changed', (event) => {
     config.settings.infoInWindow = event.payload
   })
+  listen('settings-hybridTileQuality-changed', (event) => {
+    config.settings.hybridTileQuality = event.payload
+  })
   listen('settings-hybridTileCenter-changed', (event) => {
     config.settings.hybridTileCenter = event.payload
   })

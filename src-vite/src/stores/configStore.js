@@ -216,6 +216,7 @@ export const useConfigStore = defineStore('configStore', {
       hybridTileHoverRadius: 20,  // px the cursor may move during that wait
       autoRescanOnOpen: true,  // scan an album when it (or one of its folders) is opened, to pick up new files
       infoInWindow: false,  // Image Info opens in its own window instead of the side panel
+      hybridTileQuality: true,  // 100%-region tiles of JPEGs: full-resolution decode + Lanczos (sharper, slower)
       hybridTileCenter: false,  // also prepare the region around the photo centre (otherwise only under the cursor)
       hybridTilePrefetch: true,  // prepare the 100 % region around the photo centre / the cursor in advance (tiled photos)
       hybridTileMegapixels: 36, // JPEGs above this many megapixels are shown tiled (0 = off)

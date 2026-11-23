@@ -1686,6 +1686,9 @@ pub struct FitOpts {
     pub filter: u32,
     /// Keep the finished preview on disk (otherwise only in memory).
     pub disk: bool,
+    /// Region previews: decode JPEGs at full resolution and let Lanczos do the whole reduction
+    /// (sharper, slower) instead of letting the decoder pre-shrink them.
+    pub hq: bool,
 }
 
 /// Mild unsharp mask (3x1 / 1x3 binomial blur) to bring a Lanczos-downscaled preview closer to the
@@ -1800,8 +1803,11 @@ fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opt
     let out_w = out_w.clamp(1, reg_w);
     let out_h = ((reg_h as f64 * out_w as f64 / reg_w as f64).round() as u32).max(1);
     // Largest DCT downscale that still leaves at least the output size.
+    // In high-quality mode keep at least 4x oversampling before the DCT shrink, so the final
+    // reduction (and the sharpening) always works on real pixels.
+    let margin = if opts.hq { 4 } else { 2 };
     let mut denom = 1u32;
-    while denom < 8 && reg_w >= out_w * denom * 2 && reg_h >= out_h * denom * 2 {
+    while denom < 8 && reg_w >= out_w * denom * margin && reg_h >= out_h * denom * margin {
         denom *= 2;
     }
     // Rectangle in the stored (unrotated) image.
@@ -1877,7 +1883,7 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
         "psd" | "psb" => 2,
         _ => return None,
     };
-    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: false };
+    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: false, hq: opts.hq };
     // The last few regions are kept: a repeated zoom to the same place is instant.
     let cache_key = psd_cache_key(file_path).map(|(mtime, len)| {
         format!("{}\u{0}{}\u{0}{}\u{0}{:?}\u{0}{}\u{0}{}\u{0}{}", file_path, mtime, len, rect, out_w, opts.sharp, opts.filter)
@@ -1949,7 +1955,7 @@ pub async fn get_fit_preview(file_path: &str, max_edge: u32, opts: FitOpts) -> O
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())?;
     let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
-    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: opts.disk };
+    let opts = FitOpts { sharp: opts.sharp.min(100), filter: opts.filter.min(2), disk: opts.disk, hq: opts.hq };
     // The "fit-" prefix means the preview is also kept on disk, "fitm-" memory only.
     let tag = format!(
         "{}-{}-{}-{}-{}",

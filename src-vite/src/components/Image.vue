@@ -1059,7 +1059,7 @@ function tileRegionUrl(info: HybridInfo, x0: number, y0: number, x1: number, y1:
   if (!base) return '';
   const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
   const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
-  return withQuery(base, `region=${x0},${y0},${x1},${y1}&out=${outW}&sharp=${sharp}&filter=${filter}`);
+  return withQuery(base, `region=${x0},${y0},${x1},${y1}&out=${outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}`);
 }
 
 function prefetchTileAround(u: number, v: number) {
@@ -1192,7 +1192,7 @@ async function runTileOverlay() {
   try {
     const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
     const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
-    const src = withQuery(base, `region=${req.x0},${req.y0},${req.x1},${req.y1}&out=${req.outW}&sharp=${sharp}&filter=${filter}`);
+    const src = withQuery(base, `region=${req.x0},${req.y0},${req.x1},${req.y1}&out=${req.outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}`);
     const startedAt = performance.now();
     const img = new Image();
     img.decoding = 'async';

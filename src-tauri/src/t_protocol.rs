@@ -309,7 +309,8 @@ pub fn register_protocols(builder: Builder<Wry>) -> Builder<Wry> {
                         .find_map(|param| param.strip_prefix("out="))
                         .and_then(|value| value.parse::<u32>().ok())
                         .unwrap_or(0);
-                    let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter, disk: false };
+                    let fit_hq = request.uri().query().unwrap_or_default().split('&').any(|param| param == "hq=1");
+                    let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter, disk: false, hq: fit_hq };
                     let response = match t_image::get_region_preview(&file_path, rect, out_w, opts).await {
                         Some(data) => image_response(data),
                         None => text_response(http::StatusCode::NOT_FOUND, "region not available"),
@@ -322,7 +323,7 @@ pub fn register_protocols(builder: Builder<Wry>) -> Builder<Wry> {
                         .find_map(|param| param.strip_prefix("cache="))
                         .map(|value| value != "0")
                         .unwrap_or(true);
-                    let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter, disk: fit_disk };
+                    let opts = t_image::FitOpts { sharp: fit_sharp, filter: fit_filter, disk: fit_disk, hq: false };
                     if let Some(data) = t_image::get_fit_preview(&file_path, edge, opts).await {
                         responder.respond(image_response(data));
                         return;
