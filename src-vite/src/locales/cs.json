@@ -1563,6 +1563,9 @@
         "Roztáhnout pro vyplnění"
       ],
       "thumbnail_corners": "Rohy miniatur",
+      "enlarge_selected": "Zvýraznit vybraný náhled",
+      "enlarge_selected_hint": "Vybraný náhled se vykreslí větší než ostatní a překryje sousední (rozložení ani scroll se nemění).",
+      "enlarge_off": "Vypnuto",
       "thumbnail_corner_options": [
         "Podle motivu",
         "Čtvercové"

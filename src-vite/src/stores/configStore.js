@@ -237,6 +237,7 @@ export const useConfigStore = defineStore('configStore', {
       albumCoverIcons: true,        // album list shows a photo thumbnail as the album icon (off: plain folder icon)
       scrollbarNarrow: true,        // thin (4 px) scrollbar in the main grid, without the page arrows
       thumbHighlightBar: true,      // thick bar on the bottom edge of the current thumbnail
+      thumbEnlargePct: 100,         // selected thumbnail drawn larger than the others (100 = off)
       thumbHighlightEnabled: false, // use a custom colour for the current thumbnail's border
       thumbHighlightColor: '#f59e0b', // border colour of the current thumbnail (when enabled)
       showLoadTiming: false,    // diagnostics: overlay with image load timings in the viewer

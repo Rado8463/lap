@@ -11,7 +11,7 @@
         :key="getItemKey(poolItem)"
         class="absolute"
         :class="{ 'transition-all duration-500 ease-in-out': transition }"
-        :style="getItemStyle(poolItem)"
+        :style="[getItemStyle(poolItem), poolItem.index === props.raisedIndex ? { zIndex: 20 } : null]"
       >
         <slot 
           :item="poolItem.item" 
@@ -38,6 +38,7 @@ const props = withDefaults(defineProps<{
   geometry?: { x: number, y: number, width: number, height: number }[]; // Pre-calculated layout
   contentHeight?: number; // Total height for pre-calculated layout
   transition?: boolean;
+  raisedIndex?: number; // item drawn above its neighbours (e.g. an enlarged selection)
 }>(), {
   gridItems: 1,
   direction: 'vertical',

@@ -26,6 +26,7 @@
       :geometry="virtualScrollGeometry"
       :content-height="virtualScrollContentHeight"
       :transition="isLayoutTransitioning"
+      :raised-index="enlargeSelected ? selectedItemIndex : -1"
       key-field="id"
       :emit-update="true"
       :buffer="4"
@@ -71,8 +72,8 @@
       </div>
       <div
         v-else
-        class="w-full h-full flex items-center justify-center overflow-hidden"
-        :class="{ 'opacity-50': draggedFileIds.has(Number(getFileItem(item)?.id)) }"
+        class="w-full h-full flex items-center justify-center"
+        :class="{ 'opacity-50': draggedFileIds.has(Number(getFileItem(item)?.id)), 'overflow-hidden': !(enlargeSelected && getFileIndex(item, index) === selectedItemIndex) }"
         @pointerdown="onItemPointerDown($event, getFileIndex(item, index), getFileItem(item))"
       >
         <Thumbnail
@@ -184,6 +185,10 @@ const props = withDefaults(defineProps<{
   gridSize: 120,
   selectionScrollSuppressed: false,
 });
+
+// Settings > Grid: draw the selected thumbnail larger than its neighbours.
+const enlargeSelected = computed(() =>
+  Number(config.settings.thumbEnlargePct) > 100 && config.settings.grid.viewMode !== 'filmstrip');
 
 const emit = defineEmits([
   'item-clicked',

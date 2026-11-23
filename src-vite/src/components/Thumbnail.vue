@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="rootRef"
     :class="[
       'border-2 flex flex-col items-center cursor-pointer group relative',
       thumbnailCornerClass,
@@ -10,7 +11,7 @@
         : 'border-transparent',
       config.settings.grid.style === 0 && isSelected ? 'bg-base-100 hover:bg-base-100' : 'hover:bg-base-100/30 hover:text-base-content ',
     ]"
-    :style="highlightStyle"
+    :style="[highlightStyle, enlargeStyle]"
     @click="(event: MouseEvent) => $emit('clicked', { shiftKey: event.shiftKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey })"
     @dblclick="handleDoubleClick"
     @contextmenu="handleContextMenu"
@@ -312,6 +313,41 @@ const isTransitionDisabled = ref(false);
 let transitionTimeout: NodeJS.Timeout | null = null;
 
 const containerRef = ref<HTMLElement | null>(null);
+const rootRef = ref<HTMLElement | null>(null);
+
+// Enlarged selection (Settings > Grid): scale the whole tile; near the edges of the scrolling
+// area grow inward so the tile is not clipped.
+const enlargePct = computed(() => {
+  const pct = Number(config.settings.thumbEnlargePct) || 100;
+  return pct > 100 && config.settings.grid.viewMode !== 'filmstrip' ? pct : 100;
+});
+const enlargeOrigin = ref('50% 50%');
+function updateEnlargeOrigin() {
+  const el = rootRef.value;
+  const parent = el?.offsetParent as HTMLElement | null;
+  const scroller = el?.closest('.virtual-scroller') as HTMLElement | null;
+  if (!el || !parent || !scroller) { enlargeOrigin.value = '50% 50%'; return; }
+  const w = el.offsetWidth, h = el.offsetHeight;
+  const x = parent.offsetLeft + el.offsetLeft;
+  const y = parent.offsetTop + el.offsetTop;
+  const ox = w * (enlargePct.value - 100) / 200;
+  const oy = h * (enlargePct.value - 100) / 200;
+  const hx = x < ox ? 'left' : (x + w + ox > scroller.clientWidth ? 'right' : 'center');
+  const hy = y < oy ? 'top' : (y + h + oy > scroller.scrollHeight ? 'bottom' : 'center');
+  enlargeOrigin.value = `${hx} ${hy}`;
+}
+const enlargeStyle = computed((): CSSProperties | undefined => {
+  if (!props.isActive || enlargePct.value <= 100) return undefined;
+  return {
+    transform: `scale(${enlargePct.value / 100})`,
+    transformOrigin: enlargeOrigin.value,
+    zIndex: 20,
+    ...(config.settings.thumbHighlightEnabled ? {} : { boxShadow: '0 6px 18px rgba(0,0,0,0.55)' }),
+  };
+});
+watch(() => [props.isActive, enlargePct.value], () => {
+  if (props.isActive && enlargePct.value > 100) void nextTick(updateEnlargeOrigin);
+}, { immediate: true, flush: 'post' });
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null);
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 const containerWidth = ref(0);

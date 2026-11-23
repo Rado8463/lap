@@ -220,6 +220,16 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.enlarge_selected') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.grid.enlarge_selected_hint') }}</div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.thumbEnlargePct">
+                <option :value="100">{{ $t('settings.grid.enlarge_off') }}</option>
+                <option v-for="pct in [110, 115, 120, 125, 130, 140]" :key="pct" :value="pct">{{ pct }} %</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.grid.show_thumbnail_badges') }}</div>
               </div>
               <select class="select select-bordered select-sm min-w-32" v-model="config.settings.grid.thumbnailBadge">
@@ -2254,6 +2264,9 @@ watch(() => config.settings.grid.style, (newValue) => {
 });
 watch(() => config.settings.grid.scaling, (newValue) => {
   emit('settings-gridScaling-changed', newValue);
+});
+watch(() => config.settings.thumbEnlargePct, (newValue) => {
+  emit('settings-thumbEnlargePct-changed', Number(newValue) || 100);
 });
 watch(() => config.settings.grid.thumbnailCorners, (newValue) => {
   emit('settings-gridThumbnailCorners-changed', newValue);

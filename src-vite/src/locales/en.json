@@ -1564,6 +1564,9 @@
         "Stretch to fill"
       ],
       "thumbnail_corners": "Thumbnail corners",
+      "enlarge_selected": "Highlight selected thumbnail",
+      "enlarge_selected_hint": "Draws the selected thumbnail larger than the others, overlapping its neighbours (layout and scroll do not change).",
+      "enlarge_off": "Off",
       "thumbnail_corner_options": [
         "Follow theme",
         "Square"
