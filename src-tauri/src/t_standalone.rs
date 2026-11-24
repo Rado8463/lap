@@ -111,7 +111,8 @@ pub struct StandaloneFiles {
 /// Natural, case-insensitive ordering ("img2" before "img10").
 fn natural_key(name: &str) -> Vec<(bool, String, u64)> {
     let mut out = Vec::new();
-    let mut chars = name.to_lowercase().chars().peekable();
+    let lower = name.to_lowercase();
+    let mut chars = lower.chars().peekable();
     while let Some(&c) = chars.peek() {
         let digit = c.is_ascii_digit();
         let mut run = String::new();
