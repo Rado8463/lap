@@ -464,6 +464,15 @@
               </div>
               <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.showLoadTiming" />
             </div>
+            <div v-if="config.settings.showLoadTiming" class="flex flex-col gap-1 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="text-sm leading-5">{{ $t('settings.image_view.load_timing_fields') }}</div>
+              <div class="flex flex-wrap gap-x-4 gap-y-1">
+                <label v-for="field in loadTimingFieldList" :key="`lt-${field}`" class="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input type="checkbox" class="checkbox checkbox-xs" :checked="loadTimingHas(field)" @change="toggleLoadTimingField(field, ($event.target as HTMLInputElement).checked)" />
+                  {{ $t(`settings.image_view.load_timing_field_${field}`) }}
+                </label>
+              </div>
+            </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.info_tip') }}</div>
@@ -1353,7 +1362,7 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit } from '@tauri-apps/api/event';
-import { INFO_TIP_FIELDS, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, parseInfoTipFields } from '@/common/infoTip';
+import { LOAD_TIMING_FIELDS, parseLoadTimingFields, INFO_TIP_FIELDS, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, parseInfoTipFields } from '@/common/infoTip';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
 import { config, libConfig } from '@/common/config';
@@ -2454,6 +2463,18 @@ watch(() => config.settings.titleBarHidden, (hidden) => {
 });
 watch(() => [config.settings.infoTipEnabled, config.settings.infoTipLine1, config.settings.infoTipLine2, config.settings.infoTipLine3], ([enabled, line1, line2, line3]) => {
   emit('settings-infoTip-changed', { enabled: enabled !== false, line1: String(line1 ?? ''), line2: String(line2 ?? ''), line3: String(line3 ?? '') });
+});
+const loadTimingFieldList = LOAD_TIMING_FIELDS as readonly string[];
+function loadTimingHas(field: string): boolean {
+  return parseLoadTimingFields((config.settings as any).loadTimingFields).includes(field as any);
+}
+function toggleLoadTimingField(field: string, on: boolean) {
+  const current = new Set<string>(parseLoadTimingFields((config.settings as any).loadTimingFields));
+  if (on) current.add(field); else current.delete(field);
+  (config.settings as any).loadTimingFields = loadTimingFieldList.filter((f) => current.has(f)).join(',');
+}
+watch(() => (config.settings as any).loadTimingFields, (value) => {
+  emit('settings-loadTimingFields-changed', String(value ?? ''));
 });
 const infoTipFieldList = INFO_TIP_FIELDS as readonly string[];
 const infoTipLineKey = (line: 1 | 2 | 3) => (['infoTipLine1', 'infoTipLine2', 'infoTipLine3'] as const)[line - 1];

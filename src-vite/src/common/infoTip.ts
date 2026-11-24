@@ -35,3 +35,46 @@ export function toggleInfoTip() {
     line3: config.settings.infoTipLine3,
   }).catch(() => {});
 }
+
+// Parts of the debug tooltip with the load timings; the user picks which are shown (default: all).
+export const LOAD_TIMING_FIELDS = [
+  'cloud', 'fetch', 'decode', 'stage', 'show', 'total', 'size', 'full', 'tile', 'ram', 'lastTile', 'phases', 'path',
+] as const;
+export type LoadTimingField = (typeof LOAD_TIMING_FIELDS)[number];
+
+export function parseLoadTimingFields(value: unknown): LoadTimingField[] {
+  if (typeof value !== 'string') return [...LOAD_TIMING_FIELDS];
+  const wanted = new Set(value.split(',').map((s) => s.trim()));
+  return LOAD_TIMING_FIELDS.filter((f) => wanted.has(f));
+}
+
+function loadTimingFieldOf(part: string): LoadTimingField | null {
+  if (/^cloud-check/.test(part)) return 'cloud';
+  if (/^(fetch\+header|preloaded)/.test(part)) return 'fetch';
+  if (/^decode /.test(part)) return 'decode';
+  if (/^stage /.test(part)) return 'stage';
+  if (/^show /.test(part)) return 'show';
+  if (/^TOTAL /.test(part)) return 'total';
+  if (/^FULL:/.test(part) || /^(waited|painted) /.test(part)) return 'full';
+  if (/^TILE /.test(part)) return 'tile';
+  if (/^RAM tile:/.test(part)) return 'phases';
+  if (/^RAM:/.test(part)) return 'ram';
+  if (/^last tile:/.test(part)) return 'lastTile';
+  if (/^([A-Za-z]:[\\/]|\/)/.test(part)) return 'path';
+  if (/^\d+x\d+/.test(part)) return 'size';
+  return null;
+}
+
+/** Keeps only the selected parts of the pipe-separated timing text. */
+export function filterLoadTiming(text: string, fields: readonly string[]): string {
+  if (!text) return '';
+  const allowed = new Set(fields);
+  let current: LoadTimingField | null = null;
+  const kept: string[] = [];
+  for (const part of text.split(' | ')) {
+    const field = loadTimingFieldOf(part) ?? current; // unknown pieces belong to the part before them
+    current = field;
+    if (!field || allowed.has(field)) kept.push(part);
+  }
+  return kept.join(' | ');
+}

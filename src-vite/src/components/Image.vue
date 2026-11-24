@@ -11,16 +11,16 @@
       class="absolute left-2 top-2 z-[60] max-w-[95%] flex flex-col items-start gap-1 pointer-events-none select-none"
     >
       <!-- separate tooltip above the info tooltip: load timings (diagnostics), only while enabled -->
-      <div v-if="loadTimingText" class="max-w-full px-2 py-1 rounded bg-black/70 text-amber-300 text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis">{{ loadTimingText }}</div>
+      <div v-if="loadTimingShown" class="max-w-full px-2 py-1 rounded bg-black/70 text-amber-300 text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis">{{ loadTimingShown }}</div>
       <div class="max-w-full px-2 py-1 rounded bg-black/70 text-white text-xs font-mono">
         <div v-for="(line, i) in infoTipLines" :key="i" class="whitespace-nowrap overflow-hidden text-ellipsis">{{ line }}</div>
       </div>
     </div>
 
     <div
-      v-if="loadTimingText && infoTipLines.length === 0"
+      v-if="loadTimingShown && infoTipLines.length === 0"
       class="absolute left-2 top-2 z-[60] max-w-[95%] px-2 py-1 rounded bg-black/70 text-amber-300 text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none select-none"
-    >{{ loadTimingText }}</div>
+    >{{ loadTimingShown }}</div>
 
     <!-- Loading overlay -->
     <transition name="fade">
@@ -236,7 +236,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { zoomLocked } from '@/common/zoomLock';
 import { followViewport } from '@/common/viewportFollow';
-import { parseInfoTipFields, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, type InfoTipField } from '@/common/infoTip';
+import { parseLoadTimingFields, filterLoadTiming, parseInfoTipFields, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, type InfoTipField } from '@/common/infoTip';
 import { SIDEBAR, GESTURE_LOCK_THRESHOLD, HORIZONTAL_NAV_THRESHOLD, MOUSE_DRAG_NAV_THRESHOLD } from '@/common/constants';
 import {
   getAssetSrc,
@@ -1594,6 +1594,7 @@ const infoTipLines = computed<string[]>(() => {
 
 // ---- Load timing (diagnostics, enabled by settings.showLoadTiming) ----------
 const loadTimingText = ref('');
+const loadTimingShown = computed(() => filterLoadTiming(loadTimingText.value, parseLoadTimingFields(config.settings.loadTimingFields)));
 watch(() => config.settings.showLoadTiming, (on) => { if (!on) loadTimingText.value = ''; });
 function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean, stageMs = 0) {
   if (!config.settings.showLoadTiming) { loadTimingText.value = ''; return; }

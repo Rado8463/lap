@@ -351,6 +351,9 @@ if (isMainWindow) {
   listen('settings-loadingBackgroundColor-changed', (event) => {
     config.settings.loadingBackgroundColor = event.payload
   })
+  listen('settings-loadTimingFields-changed', (event) => {
+    config.settings.loadTimingFields = event.payload
+  })
   listen('settings-showLoadTiming-changed', (event) => {
     config.settings.showLoadTiming = event.payload
   })

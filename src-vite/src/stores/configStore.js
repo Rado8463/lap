@@ -254,6 +254,7 @@ export const useConfigStore = defineStore('configStore', {
       thumbEnlargePct: 100,         // selected thumbnail drawn larger than the others (100 = off)
       thumbHighlightEnabled: false, // use a custom colour for the current thumbnail's border
       thumbHighlightColor: '#f59e0b', // border colour of the current thumbnail (when enabled)
+      loadTimingFields: 'cloud,fetch,decode,stage,show,total,size,full,tile,ram,lastTile,phases,path',  // parts of the load-timing tooltip
       showLoadTiming: false,    // diagnostics: overlay with image load timings in the viewer
       shiftAdvanceMetadata: false, // Shift+rating/flag/favorite also advances to the next photo
       thumbnailBackgroundLoad: true, // preload thumbnails of the rest of the album in the background after opening it
