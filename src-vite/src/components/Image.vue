@@ -102,7 +102,11 @@
              0.3 s zoom transition would appear at its final transform while the preview is still moving. -->
         <div v-if="index === activeImage && tileLayerMounted(index)"
           :style="{ ...getImageStyle(index), pointerEvents: 'none', backgroundColor: 'transparent' }" aria-hidden="true">
-          <img v-if="tileOverlay && tileOverlay.path === imageFilePath[index]" :src="tileOverlay.src" draggable="false" :style="tileOverlayImgStyle(index)" />
+          <!-- One <img> per tile (keyed by src): a new tile is decoded invisibly on top, and the previous one stays
+               in its own geometry until it is ready, so a src swap never shows an old bitmap in a new box. -->
+          <img v-for="t in tileRenderList" :key="t.src" :src="t.src" draggable="false"
+            :style="{ ...tileOverlayImgStyle(index, t), opacity: tileLayerVisible(t) ? 1 : 0 }"
+            @load="onTileImgLoad($event, t)" />
         </div>
         <!-- AF areas share the image buffer's layout and outer transition. -->
         <div v-if="showAfAreas && !loadError && index === activeImage && imageFilePath[index] === filePath"
@@ -965,8 +969,41 @@ function tileLayerMounted(index: number): boolean {
   return !!info && imageFilePath.value[index] === info.path && usesTiles(info.path, info.meta);
 }
 
-function tileOverlayImgStyle(index: number) {
-  const o = tileOverlay.value;
+// Tile <img> elements: the one on screen (ready) plus the one being decoded.
+const tileReadySrc = ref('');
+const tileShownPrev = ref<TileOverlay | null>(null);
+const tileRenderList = computed<TileOverlay[]>(() => {
+  const target = tileOverlay.value;
+  if (!target) return [];
+  const path = imageFilePath.value[activeImage.value];
+  const list: TileOverlay[] = [];
+  const prev = tileShownPrev.value;
+  if (prev && prev.path === path && prev.src !== target.src) list.push(prev);
+  if (target.path === path) list.push(target);
+  return list;
+});
+function tileLayerVisible(t: TileOverlay): boolean {
+  const target = tileOverlay.value;
+  if (!target) return false;
+  if (t.src === target.src) return tileReadySrc.value === t.src;
+  return true; // the previous tile stays until the new one is ready
+}
+function onTileImgLoad(event: Event, t: TileOverlay) {
+  const el = event.target as HTMLImageElement | null;
+  if (!el) return;
+  const done = () => {
+    if (tileOverlay.value?.src !== t.src) return;
+    tileReadySrc.value = t.src;
+    tileShownPrev.value = t;
+  };
+  el.decode().then(done, done);
+}
+watch(tileOverlay, (o) => {
+  if (!o) { tileReadySrc.value = ''; tileShownPrev.value = null; }
+});
+
+function tileOverlayImgStyle(index: number, tile?: TileOverlay | null) {
+  const o = tile ?? tileOverlay.value;
   const size = imageSize.value[index];
   if (!o || !(size.width > 0) || !(size.height > 0)) return {};
   // The tile holds ~1 pixel per screen pixel, but its box sits at a fractional screen position, so the
