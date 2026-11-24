@@ -547,6 +547,12 @@ const layoutShrink = (index: number) => {
   const longest = Math.max(width, height);
   return longest > LAYOUT_CAP_TRIGGER ? longest / LAYOUT_CAP_EDGE : 1;
 };
+// Checkerboard behind transparent pixels (Settings > Viewer); only photos the browser decodes itself keep
+// their alpha, big PNG / TIFF / PSD come from the backend already flattened over the solid colour.
+const checkerOn = computed(() => config.settings.transparencyChecker === true);
+const checkerA = computed(() => String(config.settings.transparencyCheckerA || '#ffffff'));
+const checkerB = computed(() => String(config.settings.transparencyCheckerB || '#cccccc'));
+const checkerSize = computed(() => Math.min(64, Math.max(2, Number(config.settings.transparencyCheckerSize) || 8)));
 const getImageStyle = (index: number) => {
   const size = imageSize.value[index];
   const k = layoutShrink(index);
@@ -572,8 +578,16 @@ const getImageStyle = (index: number) => {
   pointerEvents: 'auto',
   // Visible only through transparent pixels (PNG, PSD, TIFF ...).
   backgroundColor: slotDecoded.value[index]
-    ? (config.settings.transparencyColor || '#5a5a5a')
+    ? (checkerOn.value ? checkerB.value : (config.settings.transparencyColor || '#5a5a5a'))
     : (config.settings.loadingBackgroundColor || '#000000'),
+  // Checkerboard with squares of a fixed size on the screen: the element is scaled by scale*k, so the
+  // pattern is drawn at size / (scale*k) layout pixels.
+  ...(checkerOn.value && slotDecoded.value[index]
+    ? {
+        backgroundImage: `conic-gradient(${checkerA.value} 25%, ${checkerB.value} 0 50%, ${checkerA.value} 0 75%, ${checkerB.value} 0)`,
+        backgroundSize: `${(checkerSize.value * 2) / Math.max(0.0001, scale.value[index] * k)}px ${(checkerSize.value * 2) / Math.max(0.0001, scale.value[index] * k)}px`,
+      }
+    : {}),
   filter: adjustmentStyle.value(index === activeImage.value ? imageSrc.value[activeImage.value] : imageSrc.value[index]),
   };
 };

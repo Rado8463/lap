@@ -406,6 +406,25 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.transparency_checker') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.transparency_checker_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.transparencyChecker" />
+            </div>
+            <div v-if="config.settings.transparencyChecker" class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="text-sm leading-5">{{ $t('settings.image_view.transparency_checker_colors') }}</div>
+              <div class="flex items-center gap-2">
+                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.transparencyCheckerA" />
+                <input type="color" class="h-8 w-12 cursor-pointer rounded bg-transparent" v-model="config.settings.transparencyCheckerB" />
+                <select class="select select-bordered select-sm" v-model.number="config.settings.transparencyCheckerSize">
+                  <option v-for="n in [4, 8, 12, 16, 24, 32]" :key="n" :value="n">{{ n }} px</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.zoom_step_cursor') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.zoom_step_cursor_hint') }}
@@ -2597,6 +2616,18 @@ watch(() => config.settings.thumbHighlightBar, (value) => {
 });
 watch(() => config.settings.rasterWarm, (newValue) => {
   emit('settings-rasterWarm-changed', newValue);
+});
+watch(() => config.settings.transparencyChecker, (newValue) => {
+  emit('settings-transparencyChecker-changed', newValue);
+});
+watch(() => config.settings.transparencyCheckerA, (newValue) => {
+  emit('settings-transparencyCheckerA-changed', newValue);
+});
+watch(() => config.settings.transparencyCheckerB, (newValue) => {
+  emit('settings-transparencyCheckerB-changed', newValue);
+});
+watch(() => config.settings.transparencyCheckerSize, (newValue) => {
+  emit('settings-transparencyCheckerSize-changed', newValue);
 });
 watch(() => config.settings.transparencyColor, (newValue) => {
   emit('settings-transparencyColor-changed', newValue);

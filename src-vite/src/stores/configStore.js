@@ -262,6 +262,10 @@ export const useConfigStore = defineStore('configStore', {
       fitNoUpscale: true,        // Fit to screen never enlarges photos smaller than the screen (stay at 100 %)
       viewerTitleInfo: false,    // Image Viewer window title also shows zoom, resolution, size and file name
       dblClickNewWindow: true,   // double-click on a thumbnail opens the Image Viewer in a new window (Shift/Ctrl/Cmd inverts)
+      transparencyChecker: false,  // checkerboard instead of the solid transparency colour
+      transparencyCheckerA: '#ffffff',
+      transparencyCheckerB: '#cccccc',
+      transparencyCheckerSize: 8,  // square size in screen pixels
       transparencyColor: '#5a5a5a', // color shown behind transparent areas of PNG/PSD/TIFF in the viewer (default RGB 90,90,90)
       viewBackground: 0,         // 0: default, 1: black, 2: dark gray, 3: medium gray, 4: light gray, 5: white
       autoPlayVideo: true,       // auto play video

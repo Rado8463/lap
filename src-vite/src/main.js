@@ -373,6 +373,11 @@ if (isMainWindow) {
   listen('settings-rasterWarm-changed', (event) => {
     config.settings.rasterWarm = event.payload
   })
+  for (const key of ['transparencyChecker', 'transparencyCheckerA', 'transparencyCheckerB', 'transparencyCheckerSize']) {
+    listen(`settings-${key}-changed`, (event) => {
+      config.settings[key] = event.payload
+    })
+  }
   listen('settings-transparencyColor-changed', (event) => {
     config.settings.transparencyColor = event.payload
   })
