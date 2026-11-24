@@ -38,13 +38,14 @@ export function toggleInfoTip() {
 
 // Parts of the debug tooltip with the load timings; the user picks which are shown (default: all).
 export const LOAD_TIMING_FIELDS = [
-  'cloud', 'fetch', 'decode', 'stage', 'show', 'total', 'size', 'full', 'tile', 'ram', 'lastTile', 'phases', 'path',
+  'cloud', 'fetch', 'decode', 'stage', 'show', 'total', 'size', 'full', 'tile', 'ramMode', 'ramInfo', 'lastTile', 'phases', 'path',
 ] as const;
 export type LoadTimingField = (typeof LOAD_TIMING_FIELDS)[number];
 
 export function parseLoadTimingFields(value: unknown): LoadTimingField[] {
   if (typeof value !== 'string') return [...LOAD_TIMING_FIELDS];
   const wanted = new Set(value.split(',').map((s) => s.trim()));
+  if (wanted.has('ram')) { wanted.add('ramMode'); wanted.add('ramInfo'); } // older setting: one RAM part
   return LOAD_TIMING_FIELDS.filter((f) => wanted.has(f));
 }
 
@@ -58,11 +59,21 @@ function loadTimingFieldOf(part: string): LoadTimingField | null {
   if (/^FULL:/.test(part) || /^(waited|painted) /.test(part)) return 'full';
   if (/^TILE /.test(part)) return 'tile';
   if (/^RAM tile:/.test(part)) return 'phases';
-  if (/^RAM:/.test(part)) return 'ram';
+  if (/^RAM:/.test(part)) return 'ramMode';
   if (/^last tile:/.test(part)) return 'lastTile';
   if (/^([A-Za-z]:[\\/]|\/)/.test(part)) return 'path';
   if (/^\d+x\d+/.test(part)) return 'size';
   return null;
+}
+
+/** Splits "RAM: sequential (no usable ...), 2345 ms, half copy 90 ms" into the mode and the rest. */
+function splitRamPart(part: string): { mode: string; info: string } {
+  const m = /^RAM: (sequential|parallel)(.*)$/.exec(part);
+  if (!m) return { mode: part, info: '' };
+  // "(no usable restart markers, or progressive)" only says why it is sequential: dropped.
+  let rest = m[2].replace(/^ \(no usable restart markers, or progressive\)/, '');
+  rest = rest.replace(/^, /, '');
+  return { mode: `RAM: ${m[1]}`, info: rest };
 }
 
 /** Keeps only the selected parts of the pipe-separated timing text. */
@@ -74,6 +85,13 @@ export function filterLoadTiming(text: string, fields: readonly string[]): strin
   for (const part of text.split(' | ')) {
     const field = loadTimingFieldOf(part) ?? current; // unknown pieces belong to the part before them
     current = field;
+    if (field === 'ramMode') {
+      const { mode, info } = splitRamPart(part);
+      if (allowed.has('ramMode')) kept.push(mode);
+      if (info && allowed.has('ramInfo')) kept.push(info);
+      current = info ? 'ramInfo' : 'ramMode';
+      continue;
+    }
     if (!field || allowed.has(field)) kept.push(part);
   }
   return kept.join(' | ');
