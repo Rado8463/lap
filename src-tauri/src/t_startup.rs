@@ -29,6 +29,12 @@ pub fn set_jpeg_ram(enabled: bool, max_mp: u32, budget_mb: u32) {
     crate::t_image::jpeg_ram_configure(enabled, max_mp, budget_mb);
 }
 
+/// The viewer opened a big JPEG: start decoding it into RAM now (no-op when not applicable).
+#[tauri::command]
+pub async fn start_jpeg_ram(path: String) {
+    let _ = tauri::async_runtime::spawn_blocking(move || crate::t_image::jpeg_ram_prepare(&path)).await;
+}
+
 #[tauri::command]
 pub fn get_jpeg_ram_status(path: String) -> String {
     crate::t_image::jpeg_ram_status(&path)

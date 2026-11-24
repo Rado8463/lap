@@ -1249,6 +1249,24 @@ async function appendJpegRamStatus(part: string, attempt = 0) {
   }
 }
 
+// A big JPEG shown tiled gets its whole-picture RAM copy decoded as soon as it has stayed open for a
+// moment (not with the first tile): by the time the user zooms it is ready. The short delay keeps
+// quick browsing through big photos from decoding every one of them.
+let jpegRamPrepareTimer: ReturnType<typeof setTimeout> | null = null;
+watch(() => [activeImage.value, imageFilePath.value[activeImage.value], hybridSlot.value[activeImage.value]?.path], () => {
+  if (jpegRamPrepareTimer) { clearTimeout(jpegRamPrepareTimer); jpegRamPrepareTimer = null; }
+  const slot = activeImage.value;
+  const info = hybridSlot.value[slot];
+  if (!info || imageFilePath.value[slot] !== info.path) return;
+  if (!/\.(jpe?g|jpe)$/i.test(info.path) || !usesTiles(info.path, info.meta)) return;
+  const path = info.path;
+  jpegRamPrepareTimer = setTimeout(() => {
+    jpegRamPrepareTimer = null;
+    if (imageFilePath.value[activeImage.value] !== path) return;
+    invoke('start_jpeg_ram', { path }).catch(() => {});
+  }, 400);
+});
+
 // Button pressed on the photo: a zoom to 100 % around the cursor may follow.
 function prefetchTileAtCursor(event: { clientX: number; clientY: number }) {
   const slot = activeImage.value;

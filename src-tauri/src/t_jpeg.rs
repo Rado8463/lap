@@ -58,6 +58,17 @@ unsafe extern "C" {
         err_buf: *mut c_char,
         err_buf_len: usize,
     ) -> c_int;
+    fn lap_jpeg_decode_parallel_scaled_rgb8(
+        file_path: *const c_char,
+        target_width: u32,
+        target_height: u32,
+        nthreads: u32,
+        out_width: *mut u32,
+        out_height: *mut u32,
+        out_data: *mut *mut u8,
+        err_buf: *mut c_char,
+        err_buf_len: usize,
+    ) -> c_int;
     fn lap_jpeg_free_buffer(data: *mut u8);
 }
 
@@ -144,6 +155,57 @@ pub fn decode_full_parallel(file_path: &str, width: u32, height: u32, threads: u
             // The decoder has written every byte of the buffer.
             unsafe { out.set_len(len) };
             Ok(Some(out))
+        }
+        2 => Ok(None),
+        _ => {
+            let err = unsafe { CStr::from_ptr(err_buf.as_ptr()) }.to_string_lossy().trim().to_string();
+            Err(if err.is_empty() { "parallel JPEG decode failed".to_string() } else { err })
+        }
+    }
+}
+
+/// Number of worker threads for the parallel decoders.
+pub fn decode_threads() -> u32 {
+    std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(4).min(32)
+}
+
+/// Like `decode_rgb8_scaled` (same DCT downscale), but on several threads for a JPEG with restart
+/// markers. Ok(None) means the file cannot be split; the caller then decodes it the usual way.
+pub fn decode_scaled_parallel(
+    file_path: &str,
+    target_width: u32,
+    target_height: u32,
+    threads: u32,
+) -> Result<Option<(Vec<u8>, u32, u32)>, String> {
+    let c_path = std::ffi::CString::new(file_path).map_err(|e| e.to_string())?;
+    let mut out_data: *mut u8 = std::ptr::null_mut();
+    let (mut out_width, mut out_height) = (0u32, 0u32);
+    let mut err_buf = vec![0 as c_char; 512];
+    let rc = unsafe {
+        lap_jpeg_decode_parallel_scaled_rgb8(
+            c_path.as_ptr(),
+            target_width,
+            target_height,
+            threads,
+            &mut out_width,
+            &mut out_height,
+            &mut out_data,
+            err_buf.as_mut_ptr(),
+            err_buf.len(),
+        )
+    };
+    match rc {
+        1 => {
+            if out_data.is_null() || out_width == 0 || out_height == 0 {
+                return Err("parallel JPEG decode returned empty pixels".to_string());
+            }
+            let bytes = unsafe {
+                let len = (out_width as usize) * (out_height as usize) * 3;
+                let v = std::slice::from_raw_parts(out_data, len).to_vec();
+                lap_jpeg_free_buffer(out_data);
+                v
+            };
+            Ok(Some((bytes, out_width, out_height)))
         }
         2 => Ok(None),
         _ => {

@@ -117,8 +117,10 @@ static bool analyse(const unsigned char *d, size_t n, Layout &L) {
 }
 
 static bool decode_strip(const unsigned char *d, const Layout &L, unsigned row0, unsigned row1,
-                         unsigned ctx0, unsigned ctx1, unsigned char *out, char *err, size_t err_len) {
-  // Rows [ctx0, ctx1) are decoded, rows [row0, row1) are kept (MCU rows).
+                         unsigned ctx0, unsigned ctx1, unsigned char *out, char *err, size_t err_len,
+                         unsigned denom = 1) {
+  // Rows [ctx0, ctx1) are decoded, rows [row0, row1) are kept (MCU rows). `denom` (1, 2, 4, 8) is the
+  // DCT downscale: `out` then holds the strip at 1/denom size (a whole MCU row is mcu_h / denom rows).
   unsigned mcus_per_row = (L.width + L.mcu_w - 1) / L.mcu_w;
   size_t ipr = mcus_per_row / L.restart_interval;
   size_t i0 = static_cast<size_t>(ctx0) * ipr, i1 = static_cast<size_t>(ctx1) * ipr;
@@ -162,16 +164,22 @@ static bool decode_strip(const unsigned char *d, const Layout &L, unsigned row0,
   jpeg_mem_src(&cinfo, buf.data(), static_cast<unsigned long>(buf.size()));
   jpeg_read_header(&cinfo, TRUE);
   cinfo.out_color_space = JCS_RGB;
+  cinfo.scale_num = 1;
+  cinfo.scale_denom = denom;
   jpeg_start_decompress(&cinfo);
-  if (cinfo.output_width != L.width || cinfo.output_height != strip_px) {
+  const unsigned out_w = (L.width + denom - 1) / denom;
+  const unsigned strip_out_h = (strip_px + denom - 1) / denom;
+  if (cinfo.output_width != out_w || cinfo.output_height != strip_out_h) {
     jpeg_destroy_decompress(&cinfo);
     if (err && err_len) std::snprintf(err, err_len, "Unexpected strip size");
     return false;
   }
-  const size_t stride = static_cast<size_t>(L.width) * 3;
+  const size_t stride = static_cast<size_t>(out_w) * 3;
   row_buf.resize(stride);
-  const unsigned skip_rows = (row0 - ctx0) * L.mcu_h;
-  const unsigned keep_end = (std::min)(row1 * L.mcu_h, L.height) - ctx0 * L.mcu_h;
+  const unsigned mh = L.mcu_h / denom;                       // output rows per MCU row
+  const unsigned total_out_h = (L.height + denom - 1) / denom;
+  const unsigned skip_rows = (row0 - ctx0) * mh;
+  const unsigned keep_end = (std::min)(row1 * mh, total_out_h) - ctx0 * mh;
   for (unsigned y = 0; y < keep_end; ++y) {
     unsigned char *rows[1];
     rows[0] = y < skip_rows ? row_buf.data() : out + static_cast<size_t>(y - skip_rows) * stride;
@@ -179,6 +187,42 @@ static bool decode_strip(const unsigned char *d, const Layout &L, unsigned row0,
   }
   jpeg_destroy_decompress(&cinfo);
   return true;
+}
+
+// Decodes all strips on `nt` threads into `out` (the whole picture at 1/denom size).
+static bool run_strips(const unsigned char *data, const Layout &L, unsigned denom, unsigned nt,
+                       unsigned char *out, char *msg, size_t msg_len) {
+  const unsigned out_w = (L.width + denom - 1) / denom;
+  const unsigned mh = L.mcu_h / denom;
+  const unsigned mcu_rows = (L.height + L.mcu_h - 1) / L.mcu_h;
+  nt = (std::max)(1u, nt);
+  unsigned strips = (std::max)(1u, (std::min)(nt * 2, mcu_rows / 8));
+  const unsigned per = (mcu_rows + strips - 1) / strips;
+  strips = (mcu_rows + per - 1) / per;
+  std::atomic<unsigned> next(0);
+  std::atomic<bool> failed(false);
+  std::mutex mu;
+  auto worker = [&]() {
+    for (;;) {
+      const unsigned s = next.fetch_add(1);
+      if (s >= strips || failed.load()) return;
+      const unsigned r0 = s * per, r1 = (std::min)(mcu_rows, r0 + per);
+      const unsigned c0 = r0 > 0 ? r0 - 1 : 0, c1 = (std::min)(mcu_rows, r1 + 1);
+      char e[512];
+      e[0] = 0;
+      unsigned char *dst = out + static_cast<size_t>(r0) * mh * out_w * 3;
+      if (!decode_strip(data, L, r0, r1, c0, c1, dst, e, sizeof(e), denom)) {
+        std::lock_guard<std::mutex> g(mu);
+        if (!failed.exchange(true) && msg && msg_len) std::snprintf(msg, msg_len, "%s", e);
+        return;
+      }
+    }
+  };
+  std::vector<std::thread> pool;
+  for (unsigned i = 1; i < (std::min)(nt, strips); ++i) pool.emplace_back(worker);
+  worker();
+  for (auto &t : pool) t.join();
+  return !failed.load();
 }
 
 }  // namespace lapjpar
@@ -550,41 +594,56 @@ int lap_jpeg_decode_parallel_rgb8(const char *file_path, unsigned int width,
   if (L.width != width || L.height != height ||
       out_cap < static_cast<size_t>(width) * height * 3)
     return 2;
-  const unsigned mcu_rows = (L.height + L.mcu_h - 1) / L.mcu_h;
-  const unsigned nt = (std::max)(1u, nthreads);
-  unsigned strips = (std::max)(1u, (std::min)(nt * 2, mcu_rows / 8));
-  const unsigned per = (mcu_rows + strips - 1) / strips;
-  strips = (mcu_rows + per - 1) / per;
-  std::atomic<unsigned> next(0);
-  std::atomic<bool> failed(false);
-  std::mutex mu;
   char msg[512];
   msg[0] = 0;
-  auto worker = [&]() {
-    for (;;) {
-      const unsigned s = next.fetch_add(1);
-      if (s >= strips || failed.load()) return;
-      const unsigned r0 = s * per, r1 = (std::min)(mcu_rows, r0 + per);
-      const unsigned c0 = r0 > 0 ? r0 - 1 : 0, c1 = (std::min)(mcu_rows, r1 + 1);
-      char e[512];
-      e[0] = 0;
-      unsigned char *dst = out + static_cast<size_t>(r0) * L.mcu_h * width * 3;
-      if (!lapjpar::decode_strip(file.data(), L, r0, r1, c0, c1, dst, e, sizeof(e))) {
-        std::lock_guard<std::mutex> g(mu);
-        if (!failed.exchange(true)) std::snprintf(msg, sizeof(msg), "%s", e);
-        return;
-      }
-    }
-  };
-  std::vector<std::thread> pool;
-  for (unsigned i = 1; i < (std::min)(nt, strips); ++i) pool.emplace_back(worker);
-  worker();
-  for (auto &t : pool) t.join();
-  if (failed.load()) {
+  if (!lapjpar::run_strips(file.data(), L, 1, nthreads, out, msg, sizeof(msg))) {
     if (err_buf && err_buf_len > 0)
       std::snprintf(err_buf, err_buf_len, "%s", msg[0] ? msg : "strip decode failed");
     return 0;
   }
+  return 1;
+}
+
+// Same, but at a DCT downscale chosen like lap_jpeg_decode_rgb8 does for the target size. The result
+// is allocated here (free it with lap_jpeg_free_buffer). Returns 1, 2 (cannot be split) or 0 (error).
+int lap_jpeg_decode_parallel_scaled_rgb8(const char *file_path, unsigned int target_width,
+                                         unsigned int target_height, unsigned int nthreads,
+                                         unsigned int *out_width, unsigned int *out_height,
+                                         unsigned char **out_data, char *err_buf,
+                                         size_t err_buf_len) {
+  if (!file_path || !out_width || !out_height || !out_data) return 0;
+  *out_data = nullptr;
+  std::vector<unsigned char> file;
+  if (!lap_read_file(file_path, file) || file.empty()) {
+    if (err_buf && err_buf_len > 0)
+      std::snprintf(err_buf, err_buf_len, "Could not read file: %s", file_path);
+    return 0;
+  }
+  lapjpar::Layout L;
+  if (!lapjpar::analyse(file.data(), file.size(), L)) return 2;
+  unsigned int denom = 1;
+  if (target_width > 0 && target_height > 0) {
+    while (denom < 8 && L.width >= target_width * denom * 2 && L.height >= target_height * denom * 2)
+      denom *= 2;
+  }
+  if (L.mcu_h % denom != 0) return 2;
+  const unsigned ow = (L.width + denom - 1) / denom, oh = (L.height + denom - 1) / denom;
+  unsigned char *buf = static_cast<unsigned char *>(std::malloc(static_cast<size_t>(ow) * oh * 3));
+  if (!buf) {
+    if (err_buf && err_buf_len > 0) std::snprintf(err_buf, err_buf_len, "Memory allocation failed");
+    return 0;
+  }
+  char msg[512];
+  msg[0] = 0;
+  if (!lapjpar::run_strips(file.data(), L, denom, nthreads, buf, msg, sizeof(msg))) {
+    std::free(buf);
+    if (err_buf && err_buf_len > 0)
+      std::snprintf(err_buf, err_buf_len, "%s", msg[0] ? msg : "strip decode failed");
+    return 0;
+  }
+  *out_width = ow;
+  *out_height = oh;
+  *out_data = buf;
   return 1;
 }
 

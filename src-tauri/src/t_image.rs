@@ -1766,7 +1766,18 @@ fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8
     // The decoder picks the largest DCT downscale that still yields at least this size.
     let target_w = ((w as f64 * ratio).ceil() as u32).max(1);
     let target_h = ((h as f64 * ratio).ceil() as u32).max(1);
-    let (pixels, pw, ph) = crate::t_jpeg::decode_rgb8_scaled(file_path, target_w, target_h)?;
+    // A big JPEG with restart markers is decoded on all cores; anything else the usual way.
+    let parallel = if (w as u64) * (h as u64) >= 24_000_000 {
+        crate::t_jpeg::decode_scaled_parallel(file_path, target_w, target_h, crate::t_jpeg::decode_threads())
+            .ok()
+            .flatten()
+    } else {
+        None
+    };
+    let (pixels, pw, ph) = match parallel {
+        Some(decoded) => decoded,
+        None => crate::t_jpeg::decode_rgb8_scaled(file_path, target_w, target_h)?,
+    };
     let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG pixel buffer".to_string())?;
     let oriented = apply_orientation(DynamicImage::ImageRgb8(rgb), get_image_orientation(file_path));
     fit_resize_encode(oriented.into_rgb8(), max_edge, opts)
@@ -1939,6 +1950,84 @@ pub fn jpeg_ram_status(file_path: &str) -> String {
 static JPEG_RAM_INFLIGHT: Lazy<std::sync::Mutex<std::collections::HashSet<String>>> =
     Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
 
+/// Files whose in-RAM decode is under way and looks parallel-capable (restart interval in the header).
+static JPEG_RAM_PARALLEL: Lazy<std::sync::Mutex<std::collections::HashSet<String>>> =
+    Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+/// True when the header of a baseline JPEG declares a restart interval (the decode can be split).
+fn jpeg_has_restart_interval(file_path: &str) -> bool {
+    use std::io::Read;
+    let Ok(file) = std::fs::File::open(file_path) else { return false };
+    let mut buf = Vec::with_capacity(65536);
+    if file.take(65536).read_to_end(&mut buf).is_err() || buf.len() < 4 || buf[0] != 0xFF || buf[1] != 0xD8 {
+        return false;
+    }
+    let mut pos = 2usize;
+    let mut dri = false;
+    while pos + 4 <= buf.len() {
+        if buf[pos] != 0xFF {
+            return false;
+        }
+        let marker = buf[pos + 1];
+        if marker == 0xFF {
+            pos += 1;
+            continue;
+        }
+        if marker == 0xD8 || marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+            pos += 2;
+            continue;
+        }
+        if marker == 0xDA {
+            return dri;
+        }
+        if (0xC2..=0xCF).contains(&marker) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC {
+            return false; // progressive, lossless, arithmetic
+        }
+        let len = ((buf[pos + 2] as usize) << 8) | buf[pos + 3] as usize;
+        if marker == 0xDD && len == 4 && pos + 6 <= buf.len() {
+            dri = (((buf[pos + 4] as u16) << 8) | buf[pos + 5] as u16) > 0;
+        }
+        pos += 2 + len;
+    }
+    false
+}
+
+/// A tile asked for while the whole-picture decode of a parallel-capable file is still running waits
+/// for it (about a second) instead of decoding the same pixels again from the file, which is slower.
+fn jpeg_ram_wait(file_path: &str) -> Option<std::sync::Arc<RgbImage>> {
+    let candidate = JPEG_RAM_PARALLEL.lock().ok().map(|s| s.contains(file_path)).unwrap_or(false);
+    if !candidate {
+        return None;
+    }
+    let started = std::time::Instant::now();
+    while started.elapsed() < std::time::Duration::from_millis(2500) {
+        if let Some(rgb) = jpeg_ram_lookup(file_path) {
+            return Some(rgb);
+        }
+        let running = JPEG_RAM_INFLIGHT.lock().ok().map(|s| s.contains(file_path)).unwrap_or(false);
+        if !running {
+            return jpeg_ram_lookup(file_path);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    None
+}
+
+/// Called when a big JPEG is opened in the viewer: starts the whole-picture decode right away
+/// (instead of with the first tile). Does nothing for photos that are not tiled.
+pub fn jpeg_ram_prepare(file_path: &str) {
+    if !JPEG_RAM_ENABLED.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let lower = file_path.to_ascii_lowercase();
+    if !(lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".jpe")) {
+        return;
+    }
+    if jpeg_fit_eligible(file_path) {
+        jpeg_ram_start(file_path);
+    }
+}
+
 fn jpeg_ram_budget_bytes() -> u64 {
     JPEG_RAM_BUDGET_MB.load(std::sync::atomic::Ordering::Relaxed) as u64 * 1024 * 1024
 }
@@ -2015,6 +2104,11 @@ fn jpeg_ram_start(file_path: &str) {
         }
     }
     jpeg_ram_set_status(file_path, "decoding...".to_string());
+    if jpeg_has_restart_interval(file_path) {
+        if let Ok(mut p) = JPEG_RAM_PARALLEL.lock() {
+            p.insert(file_path.to_string());
+        }
+    }
     let path = file_path.to_string();
     tauri::async_runtime::spawn_blocking(move || {
         let started = std::time::Instant::now();
@@ -2060,6 +2154,9 @@ fn jpeg_ram_start(file_path: &str) {
         if let Ok(mut inflight) = JPEG_RAM_INFLIGHT.lock() {
             inflight.remove(&path);
         }
+        if let Ok(mut p) = JPEG_RAM_PARALLEL.lock() {
+            p.remove(&path);
+        }
     });
 }
 
@@ -2096,7 +2193,7 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
         match kind {
             0 => {
                 // Optional: the whole JPEG kept decoded in RAM, so a tile is only cropped and resized.
-                if let Some(rgb) = jpeg_ram_lookup(&path) {
+                if let Some(rgb) = jpeg_ram_lookup(&path).or_else(|| jpeg_ram_wait(&path)) {
                     jpeg_tile_source_set(&path, "from RAM");
                     return rgb_region_jpeg(&rgb, rect, out_w, opts).ok();
                 }
