@@ -1884,6 +1884,19 @@ static JPEG_RAM_CACHE: Lazy<std::sync::Mutex<Vec<ViewerRgbEntry>>> =
 static JPEG_RAM_STATUS: Lazy<std::sync::Mutex<HashMap<String, String>>> =
     Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
 
+/// Where the most recent tile of each JPEG came from (for the debug tooltip).
+static JPEG_TILE_SOURCE: Lazy<std::sync::Mutex<HashMap<String, &'static str>>> =
+    Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+fn jpeg_tile_source_set(file_path: &str, source: &'static str) {
+    if let Ok(mut m) = JPEG_TILE_SOURCE.lock() {
+        if m.len() > 64 && !m.contains_key(file_path) {
+            m.clear();
+        }
+        m.insert(file_path.to_string(), source);
+    }
+}
+
 fn jpeg_ram_set_status(file_path: &str, status: String) {
     if let Ok(mut map) = JPEG_RAM_STATUS.lock() {
         if map.len() > 64 {
@@ -1903,7 +1916,7 @@ pub fn jpeg_ram_status(file_path: &str) -> String {
         return "RAM: off".to_string();
     }
     let stored = JPEG_RAM_STATUS.lock().ok().and_then(|m| m.get(file_path).cloned());
-    match stored {
+    let ram = match stored {
         Some(text) => {
             let cached = jpeg_ram_lookup(file_path).is_some();
             if text.starts_with("decoding") || cached {
@@ -1913,7 +1926,14 @@ pub fn jpeg_ram_status(file_path: &str) -> String {
             }
         }
         None => "RAM: not started".to_string(),
+    };
+    let source = JPEG_TILE_SOURCE.lock().ok().and_then(|m| m.get(file_path).copied());
+    let mut out = ram;
+    if let Some(src) = source {
+        out.push_str(&format!(" | last tile: {}", src));
     }
+    out.push_str(&format!(" | {}", file_path));
+    out
 }
 
 static JPEG_RAM_INFLIGHT: Lazy<std::sync::Mutex<std::collections::HashSet<String>>> =
@@ -2064,6 +2084,9 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
     if let Some(key) = &cache_key {
         if let Ok(cache) = REGION_CACHE.lock() {
             if let Some((_, data)) = cache.iter().find(|(k, _)| k == key) {
+                if kind == 0 {
+                    jpeg_tile_source_set(file_path, "from tile cache");
+                }
                 return Some(data.as_ref().clone());
             }
         }
@@ -2074,6 +2097,7 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
             0 => {
                 // Optional: the whole JPEG kept decoded in RAM, so a tile is only cropped and resized.
                 if let Some(rgb) = jpeg_ram_lookup(&path) {
+                    jpeg_tile_source_set(&path, "from RAM");
                     return rgb_region_jpeg(&rgb, rect, out_w, opts).ok();
                 }
                 if !jpeg_fit_eligible(&path) {
@@ -2081,6 +2105,7 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
                 }
                 // Not ready yet: decode it in the background and serve this tile the usual way.
                 jpeg_ram_start(&path);
+                jpeg_tile_source_set(&path, "from file");
                 jpeg_region_jpeg(&path, rect, out_w, opts).ok()
             }
             1 => {
