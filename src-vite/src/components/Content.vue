@@ -6990,7 +6990,7 @@ onMounted( async() => {
       await updateContent(true);
       if (keepFileId > 0) {
         const idx = fileList.value.findIndex((f: any) => Number(f?.id || 0) === keepFileId);
-        selectedItemIndex.value = idx >= 0 ? idx : Math.max(0, Math.min(oldIndex - 1, fileList.value.length - 1));
+        selectedItemIndex.value = idx >= 0 ? idx : Math.max(0, Math.min(oldIndex, fileList.value.length - 1));
       }
     }
     refreshLibraryTotalCount();
@@ -10552,12 +10552,12 @@ const onTrashAllDuplicates = async () => {
   }
 };
 
-// New selected index after files were removed: the file to the left of a deleted selected one.
+// New selected index after files were removed: the file to the right of a deleted selected one
+// (the last file when the removed one was last).
 function indexAfterRemoval(oldList: any[], oldIndex: number, isRemoved: (file: any) => boolean, remainingLength: number) {
   if (remainingLength <= 0) return -1;
   let idx = 0;
   for (let i = 0; i < oldIndex && i < oldList.length; i++) if (!isRemoved(oldList[i])) idx++;
-  if (oldIndex >= 0 && oldIndex < oldList.length && isRemoved(oldList[oldIndex])) idx--;
   return Math.max(0, Math.min(idx, remainingLength - 1));
 }
 
@@ -10939,8 +10939,8 @@ function removeFromFileList(index: number = 0) {
   
   // update selected item index (ensure it's always a valid number)
   if (fileList.value.length > 0) {
-    // after deleting, select the file to the left of the removed one
-    selectedItemIndex.value = Math.max(0, Math.min(index - 1, fileList.value.length - 1));
+    // after deleting, select the file to the right of the removed one
+    selectedItemIndex.value = Math.max(0, Math.min(index, fileList.value.length - 1));
   } else {
     selectedItemIndex.value = -1;
   }
