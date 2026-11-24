@@ -18,7 +18,6 @@ import { useLibraryStore } from '@/stores/libraryStore';
 import { useUIStore } from '@/stores/uiStore';
 import { clearIndexRecoveryInfo, getAllAlbums } from '@/common/api';
 import { isMac, SCALE_VALUES } from '@/common/utils';
-import { SIDEBAR } from '@/common/constants';
 import { useAppTheme } from '@/composables/useAppearance';
 import { matchesShortcut } from '@/common/shortcuts';
 import ToastContainer from '@/components/ToastContainer.vue';
