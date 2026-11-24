@@ -137,7 +137,7 @@ onMounted(async () => {
         libConfig.album.folderId = null;
         libConfig.album.selected = false;
         // In the Disk tab the folder path stays: the tree reopens that folder (new browse-only album).
-        if (config.main.sidebarIndex !== SIDEBAR.DISK) libConfig.album.folderPath = '';
+        if (!config.main.diskTreeActive) libConfig.album.folderPath = '';
       }
     }
   } catch (error) {
@@ -146,7 +146,10 @@ onMounted(async () => {
   } finally {
     isReady.value = true;
     // Leftovers of a crashed or killed session (the normal close already removes them).
-    if (win.label === 'main') void cleanupAllDiskAlbums();
+    if (win.label === 'main') {
+      const keep = config.main.diskTreeActive ? String(libConfig.album.folderPath || '') : '';
+      void cleanupAllDiskAlbums(keep);
+    }
     if (win.label === 'main') {
       performance.mark('startup-library-state-ready');
       void invoke('record_startup_stage', { stage: 'library-state-ready' }).catch(console.error);
