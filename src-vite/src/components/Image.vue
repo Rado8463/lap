@@ -1045,6 +1045,7 @@ function onTileViewChange() {
   const info = hybridSlot.value[slot];
   if (tileOverlay.value && tileOverlay.value.path !== imageFilePath.value[slot]) tileOverlay.value = null;
   if (tilePre && tilePre.path !== imageFilePath.value[slot]) { tilePre = null; tilePreImg = null; }
+  if (tileNext && tileNext.path !== imageFilePath.value[slot]) { tileNext = null; tileNextImg = null; }
   if (!info || imageFilePath.value[slot] !== info.path || !usesTiles(info.path, info.meta)) return;
   if (computeTileRequest(slot) === 'hide') {
     tileOverlay.value = null;
@@ -1072,10 +1073,20 @@ function onTileViewChange() {
 // around the photo centre at rest and around the cursor when the button goes down. It serves any zoom
 // whose visible part lies inside it, so the first zoom shows sharp pixels at once.
 let tilePre: TileOverlay | null = null;
+let tileNext: TileOverlay | null = null; // next-step region (does not replace the 100 % region)
+let tileNextImg: HTMLImageElement | null = null;
 let tilePreImg: HTMLImageElement | null = null; // keeps the decoded bitmap alive
 let tilePrePromise: Promise<void> | null = null;
 let tilePreBusyKey = '';
 let tilePreTimer: ReturnType<typeof setTimeout> | null = null;
+
+// img.decode() that cannot hang the tile queue: a region that does not arrive in time is dropped.
+function decodeWithTimeout(img: HTMLImageElement, ms = 20000): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const t = setTimeout(() => { img.src = ''; reject(new Error('tile timeout')); }, ms);
+    img.decode().then(() => { clearTimeout(t); resolve(); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
 
 function tileRegionUrl(info: HybridInfo, x0: number, y0: number, x1: number, y1: number, outW: number): string {
   const base = getPreviewUrl(info.meta?.id ?? props.fileId, info.path, false, info.meta?.version ?? props.fileVersion);
@@ -1115,7 +1126,7 @@ function prefetchTileAround(u: number, v: number) {
   const img = new Image();
   img.decoding = 'async';
   img.src = src;
-  const promise: Promise<void> = img.decode().then(() => {
+  const promise: Promise<void> = decodeWithTimeout(img).then(() => {
     if (imageFilePath.value[activeImage.value] !== info.path) return;
     noteTileTiming('ahead', startedAt, w, h);
     tilePre = { path: info.path, src, x0, y0, x1: x0 + w, y1: y0 + h, outW: w };
@@ -1165,7 +1176,7 @@ function prefetchNextStepTile() {
   // Already prepared (or on screen) with enough detail?
   const have = (o: TileOverlay | null) => !!o && o.path === info.path && vx0 >= o.x0 && vy0 >= o.y0 && vx1 <= o.x1 && vy1 <= o.y1
     && o.outW / (o.x1 - o.x0) >= (outW / (x1 - x0)) * 0.95;
-  if (have(tilePre) || have(tileOverlay.value)) return;
+  if (have(tilePre) || have(tileNext) || have(tileOverlay.value)) return;
   const key = `${info.path}|${x0},${y0},${x1},${y1}|${outW}`;
   if (tilePreBusyKey === key) return;
   const src = tileRegionUrl(info, x0, y0, x1, y1, outW);
@@ -1175,31 +1186,35 @@ function prefetchNextStepTile() {
   const img = new Image();
   img.decoding = 'async';
   img.src = src;
-  const promise: Promise<void> = img.decode().then(() => {
+  const promise: Promise<void> = decodeWithTimeout(img).then(() => {
     if (imageFilePath.value[activeImage.value] !== info.path) return;
     noteTileTiming('next step', startedAt, outW, Math.round(outW * (y1 - y0) / (x1 - x0)));
-    tilePre = { path: info.path, src, x0, y0, x1, y1, outW };
-    tilePreImg = img;
+    tileNext = { path: info.path, src, x0, y0, x1, y1, outW };
+    tileNextImg = img;
   }).catch(() => {}).finally(() => {
     if (tilePreBusyKey === key) tilePreBusyKey = '';
-    if (tilePrePromise === promise) tilePrePromise = null;
   });
-  tilePrePromise = promise;
+  void promise;
 }
 
 // Shows the prepared region when it holds what the view needs; true when it is (now) on screen.
 function useTilePrefetched(): boolean {
   const slot = activeImage.value;
-  const o = tilePre;
-  if (!o || o.path !== imageFilePath.value[slot]) return false;
+  const path = imageFilePath.value[slot];
+  if (tileNext && tileNext.path !== path) tileNext = null;
   const req = computeTileRequest(slot);
   if (req === 'hide') return false;
-  if (tileOverlay.value?.src === o.src) return true;
   if (tileCovers(req)) return false; // the overlay on screen already does the job
-  if (req.vx0 < o.x0 || req.vy0 < o.y0 || req.vx1 > o.x1 || req.vy1 > o.y1) return false;
-  if (o.outW / (o.x1 - o.x0) < (req.outW / (req.x1 - req.x0)) * 0.95) return false;
-  tileOverlay.value = o;
-  return true;
+  for (const o of [tileNext, tilePre]) {
+    if (!o || o.path !== path) continue;
+    if (tileOverlay.value?.src === o.src) return true;
+    if (req.vx0 < o.x0 || req.vy0 < o.y0 || req.vx1 > o.x1 || req.vy1 > o.y1) continue;
+    if (o.outW / (o.x1 - o.x0) < (req.outW / (req.x1 - req.x0)) * 0.95) continue;
+    tileOverlay.value = o;
+    prefetchNextStepTile();
+    return true;
+  }
+  return false;
 }
 
 // Cursor resting on the preview of a tiled photo: prepare the 100 % region under it.
@@ -1280,7 +1295,7 @@ async function runTileOverlay() {
     const img = new Image();
     img.decoding = 'async';
     img.src = src;
-    await img.decode();
+    await decodeWithTimeout(img);
     noteTileTiming('view', startedAt, req.outW, Math.round(req.outW * (req.y1 - req.y0) / (req.x1 - req.x0)));
     if (seq === tileSeq && imageFilePath.value[activeImage.value] === info.path) {
       tileOverlay.value = { path: info.path, src, x0: req.x0, y0: req.y0, x1: req.x1, y1: req.y1, outW: req.outW };
