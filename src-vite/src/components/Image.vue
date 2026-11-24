@@ -117,7 +117,7 @@
               :style="{
                 left: `${region.x * 100}%`, top: `${region.y * 100}%`,
                 width: `${region.width * 100}%`, height: `${region.height * 100}%`,
-                border: `${2 / scale[index]}px solid ${region.focused === true ? '#22c55e' : region.focused === false ? '#ef4444' : '#94a3b8'}`,
+                border: `${2 / (scale[index] * layoutShrink(index))}px solid ${region.focused === true ? '#22c55e' : region.focused === false ? '#ef4444' : '#94a3b8'}`,
               }" />
           </div>
         </div>
@@ -536,15 +536,33 @@ function handleSlotLoad(index: number, event: Event) {
 // A will-change: transform layer keeps the highest raster scale it has had, so after a zoom to 100 %
 // a huge photo at fit would be rasterised at full size (160 MP+ of tiles: black blocks, vanishing overlays).
 const isHugeLayout = (index: number) => imageSize.value[index].width * imageSize.value[index].height >= 60_000_000;
-const getImageStyle = (index: number) => ({
+// Chrome cannot rasterise a layout box wider/taller than ~20 000 px smoothly (stutter, black areas while
+// the 0.3 s zoom animation runs). For such photos the box is drawn smaller and the scale is raised by the
+// same factor; the transform below keeps the picture exactly where it was. All zoom/position maths keeps
+// using the full-size layout (imageSize), only the rendered element differs.
+const LAYOUT_CAP_TRIGGER = 16_000;  // boxes with a longer edge are shrunk ...
+const LAYOUT_CAP_EDGE = 8_000;      // ... to this longest edge
+const layoutShrink = (index: number) => {
+  const { width, height } = imageSize.value[index];
+  const longest = Math.max(width, height);
+  return longest > LAYOUT_CAP_TRIGGER ? longest / LAYOUT_CAP_EDGE : 1;
+};
+const getImageStyle = (index: number) => {
+  const size = imageSize.value[index];
+  const k = layoutShrink(index);
+  // Box of size/k scaled about its centre by s*k; the translation compensates the moved centre.
+  const comp = 1 - 1 / k;
+  const tx = position.value[index].x + (size.width / 2) * comp;
+  const ty = position.value[index].y + (size.height / 2) * comp;
+  return {
   position: 'absolute',
   // RAW placeholders and full previews can have different intrinsic sizes.
   // Use the same layout box as the centering, zoom and rotation calculations.
-  width: `${imageSize.value[index].width}px`,
-  height: `${imageSize.value[index].height}px`,
+  width: `${size.width / k}px`,
+  height: `${size.height / k}px`,
   maxWidth: 'none', // Override Tailwind's img max-width: 100%; zoom handles fitting.
-  transform: `translate3d(${position.value[index].x}px, ${position.value[index].y}px, 0)
-              scale(${scale.value[index]})
+  transform: `translate3d(${tx}px, ${ty}px, 0)
+              scale(${scale.value[index] * k})
               rotate(${imageRotate.value[index]}deg)`,
   transition: !isSliding.value && (!isDraggingImage.value || loupeAnimating.value) && !noTransition.value && !isResizingContainer.value && !isWheelZooming.value
     ? (isDraggingNavBox.value ? 'transform 0.2s ease-out' : (loupeAnimating.value ? 'transform 0.15s ease-out' : 'transform 0.3s ease-in-out'))
@@ -557,7 +575,8 @@ const getImageStyle = (index: number) => ({
     ? (config.settings.transparencyColor || '#5a5a5a')
     : (config.settings.loadingBackgroundColor || '#000000'),
   filter: adjustmentStyle.value(index === activeImage.value ? imageSrc.value[activeImage.value] : imageSrc.value[index]),
-});
+  };
+};
 // loading and error overlays
 const isLoading = ref(false);
 const loadError = ref(false);
