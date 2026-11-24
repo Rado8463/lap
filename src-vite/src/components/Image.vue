@@ -981,7 +981,7 @@ function tileOverlayImgStyle(index: number) {
 }
 
 // Region (layout = source pixels) the viewer needs now, or 'hide' when the preview is sharp enough.
-function computeTileRequest(slot: number): 'hide' | { x0: number; y0: number; x1: number; y1: number; outW: number; vx0: number; vy0: number; vx1: number; vy1: number } {
+function computeTileRequest(slot: number, margin: number = TILE_MARGIN): 'hide' | { x0: number; y0: number; x1: number; y1: number; outW: number; vx0: number; vy0: number; vx1: number; vy1: number } {
   const info = hybridSlot.value[slot];
   const size = imageSize.value[slot];
   const cont = containerSize.value;
@@ -1001,8 +1001,8 @@ function computeTileRequest(slot: number): 'hide' | { x0: number; y0: number; x1
   const vy0 = clampY(toV(0));
   const vy1 = clampY(toV(cont.height));
   if (!(vx1 > vx0) || !(vy1 > vy0)) return 'hide';
-  const mx = cont.width * TILE_MARGIN / s;
-  const my = cont.height * TILE_MARGIN / s;
+  const mx = cont.width * margin / s;
+  const my = cont.height * margin / s;
   const x0 = Math.floor(clampX(toU(0) - mx));
   const x1 = Math.ceil(clampX(toU(cont.width) + mx));
   const y0 = Math.floor(clampY(toV(0) - my));
@@ -1198,22 +1198,40 @@ async function runTileOverlay() {
   if (!base) return;
   tileBusy = true;
   const seq = ++tileSeq;
-  try {
-    const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
-    const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
-    const src = withQuery(base, `region=${req.x0},${req.y0},${req.x1},${req.y1}&out=${req.outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}`);
+  const sharp = Math.min(100, Math.max(0, Number(config.settings.hybridSharpness ?? 40)));
+  const filter = Math.min(2, Math.max(0, Number(config.settings.hybridFilter ?? 0)));
+  const fetchTile = async (r: Exclude<ReturnType<typeof computeTileRequest>, 'hide'>, kind: string) => {
+    const src = withQuery(base, `region=${r.x0},${r.y0},${r.x1},${r.y1}&out=${r.outW}&sharp=${sharp}&filter=${filter}${config.settings.hybridTileQuality === false ? '' : '&hq=1'}`);
     const startedAt = performance.now();
     const img = new Image();
     img.decoding = 'async';
     img.src = src;
-    await img.decode();
-    noteTileTiming('view', startedAt, req.outW, Math.round(req.outW * (req.y1 - req.y0) / (req.x1 - req.x0)));
-    if (seq === tileSeq && imageFilePath.value[activeImage.value] === info.path) {
-      tileOverlay.value = { path: info.path, src, x0: req.x0, y0: req.y0, x1: req.x1, y1: req.y1, outW: req.outW };
+    try {
+      await img.decode();
+    } catch (e) {
+      if (config.settings.showLoadTiming) loadTimingText.value = `TILE failed: region ${r.x0},${r.y0}-${r.x1},${r.y1} out ${r.outW}px`;
+      throw e;
     }
+    noteTileTiming(kind, startedAt, r.outW, Math.round(r.outW * (r.y1 - r.y0) / (r.x1 - r.x0)));
+    if (seq === tileSeq && imageFilePath.value[activeImage.value] === info.path) {
+      tileOverlay.value = { path: info.path, src, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, outW: r.outW };
+    }
+  };
+  try {
+    // Progressive: the visible part alone first (about 2x fewer pixels, so it appears sooner), then
+    // the region with the margin around it for panning.
+    if (config.settings.hybridTileProgressive !== false) {
+      const first = computeTileRequest(slot, 0);
+      if (first !== 'hide' && (first.x1 - first.x0) * (first.y1 - first.y0) < 0.8 * (req.x1 - req.x0) * (req.y1 - req.y0)) {
+        await fetchTile(first, 'view');
+        // Moved meanwhile? Then the next round handles the new view.
+        const now = computeTileRequest(slot, 0);
+        if (now === 'hide' || now.x0 !== first.x0 || now.y0 !== first.y0 || now.x1 !== first.x1 || now.y1 !== first.y1 || now.outW !== first.outW) return;
+      }
+    }
+    await fetchTile(req, 'view+margin');
   } catch {
     // The region could not be made: the preview stays.
-    if (config.settings.showLoadTiming) loadTimingText.value = `TILE failed: region ${req.x0},${req.y0}-${req.x1},${req.y1} out ${req.outW}px`;
   } finally {
     tileBusy = false;
     // Always look again: the view may have moved while the region was decoded.

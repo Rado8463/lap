@@ -313,6 +313,9 @@ if (isMainWindow) {
   listen('settings-hybridTileCenter-changed', (event) => {
     config.settings.hybridTileCenter = event.payload
   })
+  listen('settings-hybridTileProgressive-changed', (event) => {
+    config.settings.hybridTileProgressive = event.payload
+  })
   listen('settings-hybridTilePrefetch-changed', (event) => {
     config.settings.hybridTilePrefetch = event.payload
   })
