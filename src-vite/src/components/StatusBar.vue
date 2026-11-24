@@ -177,7 +177,8 @@ const restartText = computed(() => {
   const info = restartInfo.value[restartKey(currentFile.value)];
   if (!info) return '';
   const [interval, progressive] = info;
-  const base = interval > 0 ? t('statusbar.restart_markers_yes', { n: interval }) : t('statusbar.restart_markers_no');
+  if (interval <= 0) return ''; // no restart markers: the field stays hidden
+  const base = t('statusbar.restart_markers_yes', { n: interval });
   return progressive ? `${base} · ${t('statusbar.restart_markers_progressive')}` : base;
 });
 const visibleFields = computed(() => {
