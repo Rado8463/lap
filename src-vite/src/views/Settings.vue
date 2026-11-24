@@ -574,24 +574,6 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.hybrid_tile_next_step') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.hybrid_tile_next_step_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridTileNextStep === true" @change="config.settings.hybridTileNextStep = $event.target.checked" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.image_view.hybrid_tile_raw') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.image_view.hybrid_tile_raw_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.hybridTileRaw === true" @change="config.settings.hybridTileRaw = $event.target.checked" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_tile_quality') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.hybrid_tile_quality_hint') }}
@@ -2322,12 +2304,6 @@ watch(() => config.settings.grid.style, (newValue) => {
 });
 watch(() => config.settings.grid.scaling, (newValue) => {
   emit('settings-gridScaling-changed', newValue);
-});
-watch(() => config.settings.hybridTileNextStep, (newValue) => {
-  emit('settings-hybridTileNextStep-changed', newValue === true);
-});
-watch(() => config.settings.hybridTileRaw, (newValue) => {
-  emit('settings-hybridTileRaw-changed', newValue === true);
 });
 watch(() => config.settings.zoomStepAtCursor, (newValue) => {
   emit('settings-zoomStepAtCursor-changed', newValue !== false);

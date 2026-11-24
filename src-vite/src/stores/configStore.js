@@ -237,8 +237,6 @@ export const useConfigStore = defineStore('configStore', {
       albumCoverIcons: true,        // album list shows a photo thumbnail as the album icon (off: plain folder icon)
       scrollbarNarrow: true,        // thin (4 px) scrollbar in the main grid, without the page arrows
       thumbHighlightBar: true,      // thick bar on the bottom edge of the current thumbnail
-      hybridTileRaw: false,         // tiles as uncompressed BMP instead of JPEG
-      hybridTileNextStep: false,    // prepare the tile for the next zoom step in advance
       zoomStepAtCursor: true,       // Image Viewer: = / - zoom around the cursor instead of the window centre
       thumbInnerZoom: true,         // tile/justified views: image zooms slightly inside its tile on hover / selection
       thumbHoverEnlargePct: 100,    // thumbnail under the cursor drawn larger (100 = off)
