@@ -1129,7 +1129,13 @@ function rowBelongsToCurrentView(file: any): boolean {
   if (!file || config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.activePane === 'collection') return true;
   if (tempViewMode.value !== 'none' || !libConfig.album.id || libConfig.album.id <= 0) return true;
   const albumId = Number(file.album_id || 0);
-  return albumId <= 0 || albumId === Number(libConfig.album.id);
+  if (albumId <= 0 || albumId === Number(libConfig.album.id)) return true;
+  // An album can contain another album (a subfolder added on its own): the parent's list includes those
+  // files, and their rows carry the nested album's id. Dropping them left permanent empty slots.
+  const folder = libConfig.album.selected ? '' : String(libConfig.album.folderPath || '');
+  if (!folder || !file.file_path) return true;
+  const norm = (v: string) => v.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return norm(String(file.file_path || '')).startsWith(norm(folder) + '/');
 }
 // Per-album remembered selection + scroll (localStorage; survives restarts).
 const ALBUM_STATE_KEY = 'lap.albumViewState.v1';
