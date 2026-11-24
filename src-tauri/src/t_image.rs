@@ -1880,6 +1880,42 @@ static JPEG_RAM_BUDGET_MB: std::sync::atomic::AtomicU32 = std::sync::atomic::Ato
 const JPEG_RAM_MAX_ENTRIES: usize = 3;
 static JPEG_RAM_CACHE: Lazy<std::sync::Mutex<Vec<ViewerRgbEntry>>> =
     Lazy::new(|| std::sync::Mutex::new(Vec::new()));
+/// Last status of the in-RAM copy per file, shown in the load-timing tooltip.
+static JPEG_RAM_STATUS: Lazy<std::sync::Mutex<HashMap<String, String>>> =
+    Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+fn jpeg_ram_set_status(file_path: &str, status: String) {
+    if let Ok(mut map) = JPEG_RAM_STATUS.lock() {
+        if map.len() > 64 {
+            map.clear();
+        }
+        map.insert(file_path.to_string(), status);
+    }
+}
+
+/// Text for the tooltip: empty when the photo is not a JPEG (nothing to say).
+pub fn jpeg_ram_status(file_path: &str) -> String {
+    let lower = file_path.to_ascii_lowercase();
+    if !(lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".jpe")) {
+        return String::new();
+    }
+    if !JPEG_RAM_ENABLED.load(std::sync::atomic::Ordering::Relaxed) {
+        return "RAM: off".to_string();
+    }
+    let stored = JPEG_RAM_STATUS.lock().ok().and_then(|m| m.get(file_path).cloned());
+    match stored {
+        Some(text) => {
+            let cached = jpeg_ram_lookup(file_path).is_some();
+            if text.starts_with("decoding") || cached {
+                format!("RAM: {}", text)
+            } else {
+                format!("RAM: {} (no longer in memory)", text)
+            }
+        }
+        None => "RAM: not started".to_string(),
+    }
+}
+
 static JPEG_RAM_INFLIGHT: Lazy<std::sync::Mutex<std::collections::HashSet<String>>> =
     Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
 
@@ -1940,10 +1976,12 @@ fn jpeg_ram_start(file_path: &str) {
     let pixels = rw as u64 * rh as u64;
     let max_mp = JPEG_RAM_MAX_MP.load(Ordering::Relaxed) as u64;
     if max_mp > 0 && pixels > max_mp * 1_000_000 {
+        jpeg_ram_set_status(file_path, format!("skipped (over the {} MP limit)", max_mp));
         return;
     }
     let budget = jpeg_ram_budget_bytes();
     if budget > 0 && pixels * 3 > budget {
+        jpeg_ram_set_status(file_path, "skipped (over the memory budget)".to_string());
         return;
     }
     let Some((mtime, len)) = psd_cache_key(file_path) else { return };
@@ -1956,14 +1994,24 @@ fn jpeg_ram_start(file_path: &str) {
             return;
         }
     }
+    jpeg_ram_set_status(file_path, "decoding...".to_string());
     let path = file_path.to_string();
     tauri::async_runtime::spawn_blocking(move || {
+        let started = std::time::Instant::now();
+        let mut mode = String::new();
         let decoded = (|| -> Result<RgbImage, String> {
             // With restart markers the picture is decoded on all cores; otherwise in one pass.
             let threads = std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(4).min(32);
             let rgb = match crate::t_jpeg::decode_full_parallel(&path, rw, rh, threads) {
-                Ok(Some(pixels)) => RgbImage::from_raw(rw, rh, pixels).ok_or_else(|| "Bad JPEG buffer".to_string())?,
-                _ => {
+                Ok(Some(pixels)) => {
+                    mode = format!("parallel, {} threads", threads);
+                    RgbImage::from_raw(rw, rh, pixels).ok_or_else(|| "Bad JPEG buffer".to_string())?
+                }
+                other => {
+                    mode = match other {
+                        Err(e) => format!("sequential (parallel failed: {})", e),
+                        _ => "sequential (no usable restart markers, or progressive)".to_string(),
+                    };
                     let (pixels, pw, ph) = crate::t_jpeg::decode_region_rgb8(&path, 0, 0, rw, rh, 1)?;
                     RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG buffer".to_string())?
                 }
@@ -1975,6 +2023,11 @@ fn jpeg_ram_start(file_path: &str) {
                 Ok(rgb)
             }
         })();
+        let ms = started.elapsed().as_millis();
+        match &decoded {
+            Ok(_) => jpeg_ram_set_status(&path, format!("{}, {} ms", mode, ms)),
+            Err(e) => jpeg_ram_set_status(&path, format!("failed ({})", e)),
+        }
         if let Ok(rgb) = decoded {
             if JPEG_RAM_ENABLED.load(Ordering::Relaxed) {
                 if let Ok(mut cache) = JPEG_RAM_CACHE.lock() {

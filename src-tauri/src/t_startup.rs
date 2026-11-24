@@ -29,6 +29,11 @@ pub fn set_jpeg_ram(enabled: bool, max_mp: u32, budget_mb: u32) {
     crate::t_image::jpeg_ram_configure(enabled, max_mp, budget_mb);
 }
 
+#[tauri::command]
+pub fn get_jpeg_ram_status(path: String) -> String {
+    crate::t_image::jpeg_ram_status(&path)
+}
+
 pub struct StartupState {
     started: Instant,
     stages: Mutex<HashSet<String>>,

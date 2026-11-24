@@ -1210,6 +1210,24 @@ function noteTileTiming(kind: string, startedAt: number, w: number, h: number) {
   const part = `TILE ${kind} ${Math.round(performance.now() - startedAt)} ms ${w}x${h}`;
   const base = loadTimingText.value.replace(/ ?\| TILE .*$|^TILE .*$/, '');
   loadTimingText.value = base ? `${base} | ${part}` : part;
+  void appendJpegRamStatus(part);
+}
+
+// JPEG kept decoded in RAM: how it was decoded (parallel with restart markers or sequential) and how long.
+async function appendJpegRamStatus(part: string, attempt = 0) {
+  const path = imageFilePath.value[activeImage.value];
+  if (!path) return;
+  try {
+    const status = await invoke<string>('get_jpeg_ram_status', { path });
+    if (!status || !loadTimingText.value.includes(part)) return;
+    const base = loadTimingText.value.replace(/ ?\| TILE .*$|^TILE .*$/, '');
+    const text = `${part} | ${status}`;
+    loadTimingText.value = base ? `${base} | ${text}` : text;
+    // Still decoding in the background: look again until it is done (about 40 s at most).
+    if (status.startsWith('RAM: decoding') && attempt < 80) setTimeout(() => { void appendJpegRamStatus(part, attempt + 1); }, 500);
+  } catch {
+    // not available: the timing line stays as it is
+  }
 }
 
 // Button pressed on the photo: a zoom to 100 % around the cursor may follow.
