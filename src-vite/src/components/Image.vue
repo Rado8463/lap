@@ -101,7 +101,7 @@
         <!-- The layer stays mounted while the photo is tiled: a layer inserted in the middle of the
              0.3 s zoom transition would appear at its final transform while the preview is still moving. -->
         <div v-if="index === activeImage && tileLayerMounted(index)"
-          :style="{ ...getImageStyle(index), pointerEvents: 'none', backgroundColor: 'transparent' }" aria-hidden="true">
+          :style="{ ...getImageStyle(index), pointerEvents: 'none', backgroundColor: 'transparent', backgroundImage: 'none' }" aria-hidden="true">
           <!-- One <img> per tile (keyed by src): a new tile is decoded invisibly on top, and the previous one stays
                in its own geometry until it is ready, so a src swap never shows an old bitmap in a new box. -->
           <img v-for="t in tileRenderList" :key="t.src" :src="t.src" draggable="false"
@@ -111,7 +111,7 @@
         <!-- AF areas share the image buffer's layout and outer transition. -->
         <div v-if="showAfAreas && !loadError && index === activeImage && imageFilePath[index] === filePath"
           class="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-          <div :style="{ ...getImageStyle(index), pointerEvents: 'none', filter: 'none', backgroundColor: 'transparent' }">
+          <div :style="{ ...getImageStyle(index), pointerEvents: 'none', filter: 'none', backgroundColor: 'transparent', backgroundImage: 'none' }">
             <div v-for="(region, regionIndex) in afAreas" :key="regionIndex"
               class="absolute box-border"
               :style="{
