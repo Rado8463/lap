@@ -544,6 +544,29 @@ function pushJpegRam() {
 }
 watch([() => config.settings.jpegRam, () => config.settings.jpegRamMaxMp, () => config.settings.jpegRamBudgetMb], () => { void pushJpegRam(); });
 
+function pushTestFlags() {
+  const on = (v) => v !== false;
+  return invoke('set_test_flags', {
+    mtResize: on(config.settings.testMtResize),
+    cropInResizer: on(config.settings.testCropInResizer),
+    parSharpen: on(config.settings.testParSharpen),
+    halfCopy: on(config.settings.testHalfCopy),
+    ramWait: on(config.settings.testRamWait),
+    parFit: on(config.settings.testParFit),
+  }).catch(console.error);
+}
+watch(
+  [
+    () => config.settings.testMtResize,
+    () => config.settings.testCropInResizer,
+    () => config.settings.testParSharpen,
+    () => config.settings.testHalfCopy,
+    () => config.settings.testRamWait,
+    () => config.settings.testParFit,
+  ],
+  () => { void pushTestFlags(); },
+);
+
 async function finishStartup() {
   if (startupFinished) return;
   startupFinished = true;
@@ -551,6 +574,7 @@ async function finishStartup() {
   performance.mark('startup-first-content-ready');
   await pushFeatureFlags();
   await pushJpegRam();
+  await pushTestFlags();
   void invoke('finish_startup', { model: config.settings.imageSearch.model || 0 }).catch(console.error);
   if (config.settings.autoCheckUpdates !== false) void checkForUpdates(false);
 }

@@ -1231,6 +1231,26 @@
             </div>
           </div>
         </div>
+        <!-- Test Tab -->
+        <div v-else-if="config.settings.tabIndex === SETTINGS_TAB.TEST" class="flex flex-col space-y-2">
+          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+            <div class="flex items-center gap-2 text-base-content/30">
+              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.test.section') }}</span>
+            </div>
+            <div class="text-xs text-base-content/40 px-1">{{ $t('settings.test.intro') }}</div>
+            <div
+              v-for="key in testSwitches"
+              :key="key"
+              class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200"
+            >
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.test.' + testSwitchText[key]) }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.test.' + testSwitchText[key] + '_hint') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings[key] !== false" @change="config.settings[key] = $event.target.checked" />
+            </div>
+          </div>
+        </div>
         <!-- About Tab -->
         <div v-else-if="config.settings.tabIndex === SETTINGS_TAB.ABOUT" class="py-2">
             <SettingsAbout />
@@ -1388,8 +1408,19 @@ const settingsTabs = [
   { id: SETTINGS_TAB.IMAGE_SEARCH, label: 'settings.image_search.title' },
   { id: SETTINGS_TAB.ADVANCED, label: 'settings.advanced.title' },
   { id: SETTINGS_TAB.SHORTCUTS, label: 'settings.shortcuts.title' },
+  { id: SETTINGS_TAB.TEST, label: 'settings.test.title' },
   { id: SETTINGS_TAB.ABOUT, label: 'settings.about.title' },
 ];
+const testSwitches = ['testMtResize', 'testCropInResizer', 'testParSharpen', 'testHalfCopy', 'testRamWait', 'testParFit', 'testRamOnOpen'] as const;
+const testSwitchText: Record<string, string> = {
+  testMtResize: 'mt_resize',
+  testCropInResizer: 'crop_in_resizer',
+  testParSharpen: 'par_sharpen',
+  testHalfCopy: 'half_copy',
+  testRamWait: 'ram_wait',
+  testParFit: 'par_fit',
+  testRamOnOpen: 'ram_on_open',
+};
 const rawPreviewFields = [
   { key: 'rawPreviewSource', hint: 'preview_source_hint', options: ['embedded', 'rendered', 'brightened'] },
 ];
@@ -2468,6 +2499,27 @@ watch(() => config.settings.hybridTileQuality, (newValue) => {
 });
 watch(() => config.settings.hybridTileCenter, (newValue) => {
   emit('settings-hybridTileCenter-changed', newValue === true);
+});
+watch(() => config.settings.testMtResize, (newValue) => {
+  emit('settings-testMtResize-changed', newValue !== false);
+});
+watch(() => config.settings.testCropInResizer, (newValue) => {
+  emit('settings-testCropInResizer-changed', newValue !== false);
+});
+watch(() => config.settings.testParSharpen, (newValue) => {
+  emit('settings-testParSharpen-changed', newValue !== false);
+});
+watch(() => config.settings.testHalfCopy, (newValue) => {
+  emit('settings-testHalfCopy-changed', newValue !== false);
+});
+watch(() => config.settings.testRamWait, (newValue) => {
+  emit('settings-testRamWait-changed', newValue !== false);
+});
+watch(() => config.settings.testParFit, (newValue) => {
+  emit('settings-testParFit-changed', newValue !== false);
+});
+watch(() => config.settings.testRamOnOpen, (newValue) => {
+  emit('settings-testRamOnOpen-changed', newValue !== false);
 });
 watch(() => config.settings.jpegRam, (newValue) => {
   emit('settings-jpegRam-changed', newValue);

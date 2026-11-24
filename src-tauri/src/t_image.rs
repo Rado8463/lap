@@ -1691,31 +1691,59 @@ pub struct FitOpts {
     pub hq: bool,
 }
 
-/// Mild unsharp mask (3x1 / 1x3 binomial blur) to bring a Lanczos-downscaled preview closer to the
-/// crispness of a GPU downscale. `amount_pct` 0 disables it; 100 adds the full detail difference once.
-fn unsharp_rgb8(raw: &mut [u8], w: usize, h: usize, amount_pct: u32) {
-    if amount_pct == 0 || w < 3 || h < 3 || raw.len() != w * h * 3 {
-        return;
+// ---- Test switches (Settings > Test) ----------------------------------------------------------
+// Switches for the newer speed-ups, pushed from the frontend through `set_test_flags`. All default on.
+static TEST_MT_RESIZE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static TEST_CROP_IN_RESIZER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static TEST_PAR_SHARPEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static TEST_HALF_COPY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static TEST_RAM_WAIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static TEST_PAR_FIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+pub fn test_flags_set(mt_resize: bool, crop_in_resizer: bool, par_sharpen: bool, half_copy: bool, ram_wait: bool, par_fit: bool) {
+    use std::sync::atomic::Ordering::Relaxed;
+    TEST_MT_RESIZE.store(mt_resize, Relaxed);
+    TEST_CROP_IN_RESIZER.store(crop_in_resizer, Relaxed);
+    TEST_PAR_SHARPEN.store(par_sharpen, Relaxed);
+    TEST_HALF_COPY.store(half_copy, Relaxed);
+    TEST_RAM_WAIT.store(ram_wait, Relaxed);
+    TEST_PAR_FIT.store(par_fit, Relaxed);
+    if !half_copy {
+        if let Ok(mut c) = JPEG_HALF_CACHE.lock() {
+            c.clear();
+        }
     }
+}
+
+fn test_flag(f: &std::sync::atomic::AtomicBool) -> bool {
+    f.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// One-thread rayon pool: resizing inside it is effectively single-threaded (switch off = old behaviour).
+static SINGLE_POOL: Lazy<Option<rayon::ThreadPool>> =
+    Lazy::new(|| rayon::ThreadPoolBuilder::new().num_threads(1).build().ok());
+
+/// Horizontal [1 2 1] pass (x4 scale, no rounding) for rows y0.. into `out` (whole rows).
+fn unsharp_horiz_rows(raw: &[u8], out: &mut [u16], y0: usize, w: usize) {
     let stride = w * 3;
-    // Horizontal pass (kept at x4 scale to avoid rounding): [1 2 1].
-    let mut horiz = vec![0u16; raw.len()];
-    for y in 0..h {
+    for (ry, orow) in out.chunks_mut(stride).enumerate() {
+        let y = y0 + ry;
         let row = &raw[y * stride..(y + 1) * stride];
-        let out = &mut horiz[y * stride..(y + 1) * stride];
         for x in 0..w {
             let l = if x == 0 { 0 } else { x - 1 };
             let r = if x + 1 == w { x } else { x + 1 };
             for c in 0..3 {
-                out[x * 3 + c] =
-                    row[l * 3 + c] as u16 + 2 * row[x * 3 + c] as u16 + row[r * 3 + c] as u16;
+                orow[x * 3 + c] = row[l * 3 + c] as u16 + 2 * row[x * 3 + c] as u16 + row[r * 3 + c] as u16;
             }
         }
     }
-    let amount = amount_pct as i32;
-    // Vertical pass gives blur x16; combine with the source in one go.
-    let mut out_rows = vec![0u8; raw.len()];
-    for y in 0..h {
+}
+
+/// Vertical pass for rows y0.. : blur x16 combined with the source, written into `out` (whole rows).
+fn unsharp_vert_rows(raw: &[u8], horiz: &[u16], out: &mut [u8], y0: usize, w: usize, h: usize, amount: i32) {
+    let stride = w * 3;
+    for (ry, orow) in out.chunks_mut(stride).enumerate() {
+        let y = y0 + ry;
         let u = if y == 0 { 0 } else { y - 1 };
         let d = if y + 1 == h { y } else { y + 1 };
         for i in 0..stride {
@@ -1724,10 +1752,66 @@ fn unsharp_rgb8(raw: &mut [u8], w: usize, h: usize, amount_pct: u32) {
             // detail = src - blur; result = src + amount% * detail  (blur16 is blur * 16)
             let detail16 = src * 16 - blur16;
             let v = src + (detail16 * amount) / (16 * 100);
-            out_rows[y * stride + i] = v.clamp(0, 255) as u8;
+            orow[i] = v.clamp(0, 255) as u8;
+        }
+    }
+}
+
+/// Mild unsharp mask (3x1 / 1x3 binomial blur) to bring a Lanczos-downscaled preview closer to the
+/// crispness of a GPU downscale. `amount_pct` 0 disables it; 100 adds the full detail difference once.
+/// Rows are split over scoped threads when the Test switch is on (same result as the sequential run).
+fn unsharp_rgb8(raw: &mut [u8], w: usize, h: usize, amount_pct: u32) {
+    if amount_pct == 0 || w < 3 || h < 3 || raw.len() != w * h * 3 {
+        return;
+    }
+    let stride = w * 3;
+    let amount = amount_pct as i32;
+    let threads = if test_flag(&TEST_PAR_SHARPEN) && h >= 64 {
+        (crate::t_jpeg::decode_threads() as usize).min(h / 16).max(1)
+    } else {
+        1
+    };
+    let rows_per = h.div_ceil(threads);
+    let mut horiz = vec![0u16; raw.len()];
+    let mut out_rows = vec![0u8; raw.len()];
+    {
+        let src: &[u8] = raw;
+        if threads == 1 {
+            unsharp_horiz_rows(src, &mut horiz, 0, w);
+        } else {
+            std::thread::scope(|s| {
+                for (ci, chunk) in horiz.chunks_mut(rows_per * stride).enumerate() {
+                    s.spawn(move || unsharp_horiz_rows(src, chunk, ci * rows_per, w));
+                }
+            });
+        }
+        let horiz_ref: &[u16] = &horiz;
+        if threads == 1 {
+            unsharp_vert_rows(src, horiz_ref, &mut out_rows, 0, w, h, amount);
+        } else {
+            std::thread::scope(|s| {
+                for (ci, chunk) in out_rows.chunks_mut(rows_per * stride).enumerate() {
+                    s.spawn(move || unsharp_vert_rows(src, horiz_ref, chunk, ci * rows_per, w, h, amount));
+                }
+            });
         }
     }
     raw.copy_from_slice(&out_rows);
+}
+
+/// Resize through fast_image_resize; with the multi-threaded switch off it runs in a one-thread pool.
+fn fir_resize(
+    src: &(impl fir::IntoImageView + Sync),
+    dst: &mut (impl fir::IntoImageViewMut + Send),
+    options: &fir::ResizeOptions,
+) -> Result<(), fir::ResizeError> {
+    let mut resizer = fir::Resizer::new();
+    if !test_flag(&TEST_MT_RESIZE) {
+        if let Some(pool) = SINGLE_POOL.as_ref() {
+            return pool.install(|| resizer.resize(src, dst, options));
+        }
+    }
+    resizer.resize(src, dst, options)
 }
 
 fn fit_resize_encode(rgb: RgbImage, max_edge: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
@@ -1742,15 +1826,13 @@ fn fit_resize_encode(rgb: RgbImage, max_edge: u32, opts: FitOpts) -> Result<Vec<
     let src_image = fir::images::Image::from_vec_u8(src_w, src_h, rgb.into_raw(), fir::PixelType::U8x3)
         .map_err(|e| format!("Failed to prepare image for resize: {}", e))?;
     let mut dst_image = fir::images::Image::new(dst_w, dst_h, fir::PixelType::U8x3);
-    let mut resizer = fir::Resizer::new();
     let options = fir::ResizeOptions::new()
         .resize_alg(fir::ResizeAlg::Convolution(match opts.filter {
             1 => fir::FilterType::CatmullRom,
             2 => fir::FilterType::Mitchell,
             _ => fir::FilterType::Lanczos3,
         }));
-    resizer
-        .resize(&src_image, &mut dst_image, &options)
+    fir_resize(&src_image, &mut dst_image, &options)
         .map_err(|e| format!("Failed to resize preview: {}", e))?;
     let mut buffer = dst_image.into_vec();
     unsharp_rgb8(&mut buffer, dst_w as usize, dst_h as usize, opts.sharp);
@@ -1767,7 +1849,7 @@ fn jpeg_fit_jpeg(file_path: &str, max_edge: u32, opts: FitOpts) -> Result<Vec<u8
     let target_w = ((w as f64 * ratio).ceil() as u32).max(1);
     let target_h = ((h as f64 * ratio).ceil() as u32).max(1);
     // A big JPEG with restart markers is decoded on all cores; anything else the usual way.
-    let parallel = if (w as u64) * (h as u64) >= 24_000_000 {
+    let parallel = if test_flag(&TEST_PAR_FIT) && (w as u64) * (h as u64) >= 24_000_000 {
         crate::t_jpeg::decode_scaled_parallel(file_path, target_w, target_h, crate::t_jpeg::decode_threads())
             .ok()
             .flatten()
@@ -1846,20 +1928,36 @@ fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, 
         }
         return Ok(data);
     }
+    resize_view_encode(oriented.as_raw(), cw, ch, None, reg_w, out_w, out_h, opts)
+}
+
+/// Resize (a crop of) an RGB buffer to out_w x out_h, sharpen when it really was downscaled, encode.
+/// `crop` is (left, top, width, height) in pixels of `src`, fractional allowed; `reg_w` is the width
+/// of the region in full-resolution pixels (decides whether to sharpen).
+fn resize_view_encode(
+    src: &[u8],
+    sw: u32,
+    sh: u32,
+    crop: Option<(f64, f64, f64, f64)>,
+    reg_w: u32,
+    out_w: u32,
+    out_h: u32,
+    opts: FitOpts,
+) -> Result<Vec<u8>, String> {
     let t_resize = std::time::Instant::now();
-    let src_image = fir::images::Image::from_vec_u8(cw, ch, oriented.into_raw(), fir::PixelType::U8x3)
+    let src_image = fir::images::ImageRef::new(sw, sh, src, fir::PixelType::U8x3)
         .map_err(|e| format!("Failed to prepare region for resize: {}", e))?;
     let mut dst_image = fir::images::Image::new(out_w, out_h, fir::PixelType::U8x3);
-    let mut resizer = fir::Resizer::new();
-    let options = fir::ResizeOptions::new()
+    let mut options = fir::ResizeOptions::new()
         .resize_alg(fir::ResizeAlg::Convolution(match opts.filter {
             1 => fir::FilterType::CatmullRom,
             2 => fir::FilterType::Mitchell,
             _ => fir::FilterType::Lanczos3,
         }));
-    resizer
-        .resize(&src_image, &mut dst_image, &options)
-        .map_err(|e| format!("Failed to resize region: {}", e))?;
+    if let Some((l, t, w, h)) = crop {
+        options = options.crop(l, t, w, h);
+    }
+    fir_resize(&src_image, &mut dst_image, &options).map_err(|e| format!("Failed to resize region: {}", e))?;
     let resize_ms = t_resize.elapsed().as_millis();
     let mut buffer = dst_image.into_vec();
     // Sharpen only when the region really was downscaled.
@@ -1871,6 +1969,7 @@ fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, 
     let resized = RgbImage::from_raw(out_w, out_h, buffer).ok_or_else(|| "Failed to build region image".to_string())?;
     let t_enc = std::time::Instant::now();
     let data = crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)?;
+    let (cw, ch) = crop.map(|c| (c.2.round() as u32, c.3.round() as u32)).unwrap_or((sw, sh));
     if let Ok(mut p) = TILE_PHASES.lock() {
         *p = format!(
             "{}x{} -> {}x{}, resize {} ms, sharpen {} ms, encode {} ms",
@@ -1886,8 +1985,15 @@ fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, 
     Ok(data)
 }
 
-/// Region of an already decoded (oriented) RGB image, for PSD/PSB/TIFF.
-fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
+/// Region of an already decoded (oriented) RGB image, for PSD/PSB/TIFF and the JPEG RAM copy.
+/// `half` is the optional half-size copy of the same picture (used for low zoom levels).
+fn rgb_region_jpeg(
+    rgb: &RgbImage,
+    half: Option<&RgbImage>,
+    rect: (u32, u32, u32, u32),
+    out_w: u32,
+    opts: FitOpts,
+) -> Result<Vec<u8>, String> {
     let (w, h) = rgb.dimensions();
     let (x0, y0) = (rect.0.min(w.saturating_sub(1)), rect.1.min(h.saturating_sub(1)));
     let (x1, y1) = (rect.2.min(w), rect.3.min(h));
@@ -1897,6 +2003,35 @@ fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts:
     let (reg_w, reg_h) = (x1 - x0, y1 - y0);
     let out_w = out_w.clamp(1, reg_w);
     let out_h = ((reg_h as f64 * out_w as f64 / reg_w as f64).round() as u32).max(1);
+    // The half-size copy is good enough when the output is at most half of the region (still a downscale).
+    if let Some(hf) = half {
+        let (hw, hh) = hf.dimensions();
+        if out_w as f64 * 2.0 <= reg_w as f64 && hw >= 2 && hh >= 2 {
+            let l = (x0 as f64 / 2.0).min(hw as f64 - 1.0);
+            let t = (y0 as f64 / 2.0).min(hh as f64 - 1.0);
+            let cw = (reg_w as f64 / 2.0).min(hw as f64 - l).max(1.0);
+            let ch = (reg_h as f64 / 2.0).min(hh as f64 - t).max(1.0);
+            let data = resize_view_encode(hf.as_raw(), hw, hh, Some((l, t, cw, ch)), reg_w, out_w, out_h, opts)?;
+            if let Ok(mut p) = TILE_PHASES.lock() {
+                let prev = p.clone();
+                *p = format!("half copy, {}", prev);
+            }
+            return Ok(data);
+        }
+    }
+    if test_flag(&TEST_CROP_IN_RESIZER) && !(out_w == reg_w && out_h == reg_h) {
+        let data = resize_view_encode(
+            rgb.as_raw(),
+            w,
+            h,
+            Some((x0 as f64, y0 as f64, reg_w as f64, reg_h as f64)),
+            reg_w,
+            out_w,
+            out_h,
+            opts,
+        )?;
+        return Ok(data);
+    }
     let t_crop = std::time::Instant::now();
     let src = rgb.as_raw();
     let mut buf = Vec::with_capacity(reg_w as usize * reg_h as usize * 3);
@@ -1927,6 +2062,49 @@ static JPEG_RAM_CACHE: Lazy<std::sync::Mutex<Vec<ViewerRgbEntry>>> =
 /// Last status of the in-RAM copy per file, shown in the load-timing tooltip.
 static JPEG_RAM_STATUS: Lazy<std::sync::Mutex<HashMap<String, String>>> =
     Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+/// Half-size copy (2x2 box average) of the in-RAM picture, used for tiles at 50 % zoom and below.
+static JPEG_HALF_CACHE: Lazy<std::sync::Mutex<Vec<ViewerRgbEntry>>> =
+    Lazy::new(|| std::sync::Mutex::new(Vec::new()));
+
+fn jpeg_half_lookup(file_path: &str) -> Option<std::sync::Arc<RgbImage>> {
+    let (mtime, len) = psd_cache_key(file_path)?;
+    let guard = JPEG_HALF_CACHE.lock().ok()?;
+    guard
+        .iter()
+        .find(|(p, m, l, _)| p == file_path && *m == mtime && *l == len)
+        .map(|e| e.3.clone())
+}
+
+/// 2x2 box average of every pixel group, rows split over scoped threads.
+fn half_size_rgb(src: &RgbImage) -> RgbImage {
+    let (w, h) = src.dimensions();
+    let (hw, hh) = ((w / 2).max(1) as usize, (h / 2).max(1) as usize);
+    let (sw, sh) = (w as usize, h as usize);
+    let raw = src.as_raw();
+    let mut out = vec![0u8; hw * hh * 3];
+    let threads = (crate::t_jpeg::decode_threads() as usize).min(hh).max(1);
+    let rows_per = hh.div_ceil(threads);
+    std::thread::scope(|s| {
+        for (ci, chunk) in out.chunks_mut(rows_per * hw * 3).enumerate() {
+            s.spawn(move || {
+                for (ry, orow) in chunk.chunks_mut(hw * 3).enumerate() {
+                    let y = ci * rows_per + ry;
+                    let (y0, y1) = ((2 * y).min(sh - 1), (2 * y + 1).min(sh - 1));
+                    let (r0, r1) = (&raw[y0 * sw * 3..(y0 + 1) * sw * 3], &raw[y1 * sw * 3..(y1 + 1) * sw * 3]);
+                    for x in 0..hw {
+                        let (x0, x1) = ((2 * x).min(sw - 1), (2 * x + 1).min(sw - 1));
+                        for c in 0..3 {
+                            let sum = r0[x0 * 3 + c] as u32 + r0[x1 * 3 + c] as u32 + r1[x0 * 3 + c] as u32 + r1[x1 * 3 + c] as u32;
+                            orow[x * 3 + c] = ((sum + 2) / 4) as u8;
+                        }
+                    }
+                }
+            });
+        }
+    });
+    RgbImage::from_raw(hw as u32, hh as u32, out).expect("half-size buffer")
+}
 
 /// Where the most recent tile of each JPEG came from (for the debug tooltip).
 static JPEG_TILE_SOURCE: Lazy<std::sync::Mutex<HashMap<String, &'static str>>> =
@@ -2103,6 +2281,9 @@ pub fn jpeg_ram_configure(enabled: bool, max_mp: u32, budget_mb: u32) {
     if let Ok(mut cache) = JPEG_RAM_CACHE.lock() {
         if !enabled {
             cache.clear();
+            if let Ok(mut half) = JPEG_HALF_CACHE.lock() {
+                half.clear();
+            }
         } else {
             jpeg_ram_trim(&mut cache);
         }
@@ -2187,16 +2368,31 @@ fn jpeg_ram_start(file_path: &str) {
             }
         })();
         let ms = started.elapsed().as_millis();
+        let status = format!("{}, {} ms", mode, ms);
         match &decoded {
-            Ok(_) => jpeg_ram_set_status(&path, format!("{}, {} ms", mode, ms)),
+            Ok(_) => jpeg_ram_set_status(&path, status.clone()),
             Err(e) => jpeg_ram_set_status(&path, format!("failed ({})", e)),
         }
         if let Ok(rgb) = decoded {
             if JPEG_RAM_ENABLED.load(Ordering::Relaxed) {
+                let full = std::sync::Arc::new(rgb);
                 if let Ok(mut cache) = JPEG_RAM_CACHE.lock() {
                     cache.retain(|(p, _, _, _)| *p != path);
-                    cache.push((path.clone(), mtime, len, std::sync::Arc::new(rgb)));
+                    cache.push((path.clone(), mtime, len, full.clone()));
                     jpeg_ram_trim(&mut cache);
+                }
+                // Half-size copy for low zoom levels (built after the full picture is available).
+                if test_flag(&TEST_HALF_COPY) {
+                    let t_half = std::time::Instant::now();
+                    let half = half_size_rgb(&full);
+                    if let Ok(mut cache) = JPEG_HALF_CACHE.lock() {
+                        cache.retain(|(p, _, _, _)| *p != path);
+                        cache.push((path.clone(), mtime, len, std::sync::Arc::new(half)));
+                        while cache.len() > JPEG_RAM_MAX_ENTRIES {
+                            cache.remove(0);
+                        }
+                    }
+                    jpeg_ram_set_status(&path, format!("{}, half copy {} ms", status, t_half.elapsed().as_millis()));
                 }
             }
         }
@@ -2242,9 +2438,11 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
         match kind {
             0 => {
                 // Optional: the whole JPEG kept decoded in RAM, so a tile is only cropped and resized.
-                if let Some(rgb) = jpeg_ram_lookup(&path).or_else(|| jpeg_ram_wait(&path)) {
+                let ram = jpeg_ram_lookup(&path).or_else(|| if test_flag(&TEST_RAM_WAIT) { jpeg_ram_wait(&path) } else { None });
+                if let Some(rgb) = ram {
                     jpeg_tile_source_set(&path, "from RAM");
-                    let data = rgb_region_jpeg(&rgb, rect, out_w, opts).ok();
+                    let half = if test_flag(&TEST_HALF_COPY) { jpeg_half_lookup(&path) } else { None };
+                    let data = rgb_region_jpeg(&rgb, half.as_deref(), rect, out_w, opts).ok();
                     if let Some(text) = TILE_PHASES.lock().ok().map(|p| p.clone()) {
                         jpeg_tile_phases_set(&path, text);
                     }
@@ -2263,14 +2461,14 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
                     return None;
                 }
                 let rgb = tiff_decode_shared(&path).ok()?;
-                rgb_region_jpeg(&rgb, rect, out_w, opts).ok()
+                rgb_region_jpeg(&rgb, None, rect, out_w, opts).ok()
             }
             _ => {
                 if !is_big_by_header(&path) {
                     return None;
                 }
                 let rgb = psd_decode_shared(&path).ok()?;
-                rgb_region_jpeg(&rgb, rect, out_w, opts).ok()
+                rgb_region_jpeg(&rgb, None, rect, out_w, opts).ok()
             }
         }
     })

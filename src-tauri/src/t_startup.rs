@@ -24,6 +24,12 @@ pub fn set_feature_flags(ai_search: bool, motion_photo: bool) {
     MOTION_PHOTO_DETECTION_ENABLED.store(motion_photo, Ordering::Relaxed);
 }
 
+/// Settings > Test: switches for the newer viewer speed-ups (all on by default).
+#[tauri::command]
+pub fn set_test_flags(mt_resize: bool, crop_in_resizer: bool, par_sharpen: bool, half_copy: bool, ram_wait: bool, par_fit: bool) {
+    crate::t_image::test_flags_set(mt_resize, crop_in_resizer, par_sharpen, half_copy, ram_wait, par_fit);
+}
+
 #[tauri::command]
 pub fn set_jpeg_ram(enabled: bool, max_mp: u32, budget_mb: u32) {
     crate::t_image::jpeg_ram_configure(enabled, max_mp, budget_mb);

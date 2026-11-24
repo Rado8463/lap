@@ -230,6 +230,13 @@ export const useConfigStore = defineStore('configStore', {
       jpegRam: true,           // keep big JPEGs decoded in RAM for tiles
       jpegRamMaxMp: 0,         // 0 = no limit
       jpegRamBudgetMb: 0,      // 0 = no limit
+      testMtResize: true,  // Settings > Test switch (default on)
+      testCropInResizer: true,  // Settings > Test switch (default on)
+      testParSharpen: true,  // Settings > Test switch (default on)
+      testHalfCopy: true,  // Settings > Test switch (default on)
+      testRamWait: true,  // Settings > Test switch (default on)
+      testParFit: true,  // Settings > Test switch (default on)
+      testRamOnOpen: true,  // Settings > Test switch (default on)
       hybridTileProgressive: true,  // zoom: the visible part of a tile first, the margin after it
       hybridTilePrefetch: true,  // prepare the 100 % region around the photo centre / the cursor in advance (tiled photos)
       hybridTileMegapixels: 36, // JPEGs above this many megapixels are shown tiled (0 = off)

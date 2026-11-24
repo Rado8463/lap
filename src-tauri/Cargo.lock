@@ -41,6 +41,7 @@ dependencies = [
  "png 0.18.1",
  "quick-xml 0.37.5",
  "rand 0.8.5",
+ "rayon",
  "reqwest 0.12.28",
  "rstar",
  "rusqlite",
@@ -1548,6 +1549,7 @@ dependencies = [
  "cfg-if",
  "document-features",
  "num-traits",
+ "rayon",
  "thiserror 2.0.18",
 ]
 

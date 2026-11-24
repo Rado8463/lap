@@ -2001,6 +2001,25 @@
         "Nízká (volnější)"
       ]
     },
+    "test": {
+      "title": "Test",
+      "section": "Nová zrýchlenia",
+      "intro": "Prepínače najnovších zrýchlení prehliadača na porovnanie rýchlosti. Všetky sú predvolene zapnuté; zmeny sa prejavia hneď (dlaždice už v cache dlaždíc sa nepočítajú znova).",
+      "mt_resize": "Viacvláknová zmena veľkosti",
+      "mt_resize_hint": "Zmenšovanie dlaždíc a náhľadu Fit beží na všetkých jadrách CPU. Vypnuté = jedno vlákno.",
+      "crop_in_resizer": "Orezanie priamo v resizeri",
+      "crop_in_resizer_hint": "Dlaždice z RAM kópie orezáva samotný resizer, bez predchádzajúceho kopírovania výrezu.",
+      "par_sharpen": "Paralelné doostrenie",
+      "par_sharpen_hint": "Unsharp mask sa počíta na viacerých vláknach (rovnaký výsledok).",
+      "half_copy": "Polovičná kópia v RAM",
+      "half_copy_hint": "Veľký JPEG držaný v RAM dostane aj kópiu v polovičnom rozlíšení (+25 % pamäte); dlaždice pri zoome 50 % a nižšom sa robia z nej.",
+      "ram_wait": "Dlaždica čaká na dekódovanie do RAM",
+      "ram_wait_hint": "Dlaždica vyžiadaná počas paralelného dekódovania na neho počká namiesto opätovného dekódovania tých istých pixelov zo súboru.",
+      "par_fit": "Paralelné dekódovanie náhľadu Fit",
+      "par_fit_hint": "Náhľad Fit veľkého JPEG s Restart Markers sa dekóduje na všetkých jadrách (DCT scale).",
+      "ram_on_open": "Spustiť dekódovanie do RAM pri otvorení fotky",
+      "ram_on_open_hint": "Dekódovanie celého obrazu sa začne hneď po zobrazení veľkého JPEG, nie až prvou dlaždicou."
+    },
     "about": {
       "title": "O aplikaci",
       "package": {

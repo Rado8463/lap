@@ -319,6 +319,11 @@ if (isMainWindow) {
   listen('settings-jpegRamMaxMp-changed', (event) => {
     config.settings.jpegRamMaxMp = event.payload
   })
+  for (const key of ['testMtResize', 'testCropInResizer', 'testParSharpen', 'testHalfCopy', 'testRamWait', 'testParFit', 'testRamOnOpen']) {
+    listen(`settings-${key}-changed`, (event) => {
+      config.settings[key] = event.payload
+    })
+  }
   listen('settings-jpegRamBudgetMb-changed', (event) => {
     config.settings.jpegRamBudgetMb = event.payload
   })

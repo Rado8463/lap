@@ -381,6 +381,7 @@ async fn main() {
             t_cmds::change_video_thumbnail,
             t_cmds::is_cloud_only_file,
             t_startup::set_feature_flags,
+            t_startup::set_test_flags,
             t_startup::set_jpeg_ram,
             t_startup::get_jpeg_ram_status,
             t_startup::start_jpeg_ram,

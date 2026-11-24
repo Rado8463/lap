@@ -1259,6 +1259,7 @@ watch(() => [activeImage.value, imageFilePath.value[activeImage.value], hybridSl
   const info = hybridSlot.value[slot];
   if (!info || imageFilePath.value[slot] !== info.path) return;
   if (!/\.(jpe?g|jpe)$/i.test(info.path) || !usesTiles(info.path, info.meta)) return;
+  if (config.settings.testRamOnOpen === false) return;
   const path = info.path;
   jpegRamPrepareTimer = setTimeout(() => {
     jpegRamPrepareTimer = null;

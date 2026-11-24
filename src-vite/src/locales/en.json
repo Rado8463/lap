@@ -2012,6 +2012,25 @@
         "Low (Loose)"
       ]
     },
+    "test": {
+      "title": "Test",
+      "section": "New speed-ups",
+      "intro": "Switches for the newest viewer speed-ups, for comparing speed. All are on by default; changes apply immediately (tiles already in the tile cache are not recomputed).",
+      "mt_resize": "Multi-threaded resize",
+      "mt_resize_hint": "Tile and Fit resizing runs on all CPU cores. Off = a single thread.",
+      "crop_in_resizer": "Crop inside the resizer",
+      "crop_in_resizer_hint": "Tiles from the RAM copy are cropped by the resizer itself instead of copying the rectangle first.",
+      "par_sharpen": "Parallel sharpening",
+      "par_sharpen_hint": "The unsharp mask is computed on several threads (same result).",
+      "half_copy": "Half-size copy in RAM",
+      "half_copy_hint": "A big JPEG kept in RAM also gets a half-size copy (+25 % memory); tiles at 50 % zoom and below are made from it.",
+      "ram_wait": "Tile waits for the RAM decode",
+      "ram_wait_hint": "A tile requested while the parallel decode runs waits for it instead of decoding the same pixels from the file.",
+      "par_fit": "Parallel Fit decode",
+      "par_fit_hint": "The Fit preview of a big JPEG with restart markers is decoded on all cores (DCT-scaled).",
+      "ram_on_open": "Start the RAM decode when the photo opens",
+      "ram_on_open_hint": "The whole-picture decode starts when a big JPEG is shown, not with the first tile."
+    },
     "about": {
       "title": "About",
       "package": {
