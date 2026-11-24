@@ -41,6 +41,12 @@ pub async fn start_jpeg_ram(path: String) {
     let _ = tauri::async_runtime::spawn_blocking(move || crate::t_image::jpeg_ram_prepare(&path)).await;
 }
 
+/// Status bar: restart interval of a JPEG (MCUs, 0 = no restart markers) and whether it is progressive.
+#[tauri::command]
+pub async fn get_jpeg_restart_info(path: String) -> Option<(u32, bool)> {
+    tauri::async_runtime::spawn_blocking(move || crate::t_image::jpeg_restart_info(&path)).await.ok().flatten()
+}
+
 #[tauri::command]
 pub fn get_jpeg_ram_status(path: String) -> String {
     crate::t_image::jpeg_ram_status(&path)

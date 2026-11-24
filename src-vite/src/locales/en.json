@@ -722,6 +722,10 @@
     "album_nested": "This folder overlaps another album"
   },
   "statusbar": {
+    "restart_markers": "JPEG restart markers",
+    "restart_markers_yes": "Restart markers: every {n} MCU",
+    "restart_markers_no": "No restart markers",
+    "restart_markers_progressive": "progressive",
     "name_and_size": "File name (size)",
     "color_info": "Color information",
     "customize": "Customize Status Bar…",

@@ -10,6 +10,7 @@ export const statusBarFields: Record<string, string> = {
   lens: 'file_info.lens',
   exposure: 'file_info.capture_settings',
   location: 'file_info.geo_location',
+  restartMarkers: 'statusbar.restart_markers',
 };
 
 const defaultVisibleFields = new Set(['name', 'folder', 'dimension']);

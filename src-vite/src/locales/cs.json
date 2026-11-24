@@ -722,6 +722,10 @@
     "album_nested": "Tato složka se překrývá s jiným albem"
   },
   "statusbar": {
+    "restart_markers": "Restart Markers JPEG",
+    "restart_markers_yes": "Restart Markers: každých {n} MCU",
+    "restart_markers_no": "Bez Restart Markers",
+    "restart_markers_progressive": "progresívny",
     "name_and_size": "Název souboru (velikost)",
     "color_info": "Informace o barvách",
     "customize": "Přizpůsobit stavový řádek…",

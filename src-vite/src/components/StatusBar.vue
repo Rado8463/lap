@@ -49,6 +49,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { invoke } from '@tauri-apps/api/core';
 import { config } from '@/common/config';
 import { normalizeStatusBarFields } from '@/common/statusBarFields';
 import ContextMenu from '@/components/ContextMenu.vue';
@@ -160,6 +161,25 @@ const hasRealSelectedFile = computed(() => {
   const file = currentFile.value;
   return !!file && !file.isPlaceholder;
 });
+// JPEG restart markers (parallel decode needs them): read from the file header, only while the field is shown.
+const restartInfo = ref<Record<string, [number, boolean] | null>>({});
+const restartWanted = computed(() =>
+  normalizeStatusBarFields(config.settings.statusBarFields).some(f => f.key === 'restartMarkers' && f.visible));
+const restartKey = (file: any) => `${file?.file_path || ''}|${file?.modified_at || ''}|${file?.size || ''}`;
+watch([() => restartKey(currentFile.value), restartWanted], ([key, wanted]) => {
+  const p = String(currentFile.value?.file_path || '');
+  if (!wanted || !p || !/\.(jpe?g|jpe)$/i.test(p) || key in restartInfo.value) return;
+  void invoke<[number, boolean] | null>('get_jpeg_restart_info', { path: p })
+    .then((info) => { restartInfo.value = { ...restartInfo.value, [key as string]: info ?? null }; })
+    .catch(() => {});
+}, { immediate: true });
+const restartText = computed(() => {
+  const info = restartInfo.value[restartKey(currentFile.value)];
+  if (!info) return '';
+  const [interval, progressive] = info;
+  const base = interval > 0 ? t('statusbar.restart_markers_yes', { n: interval }) : t('statusbar.restart_markers_no');
+  return progressive ? `${base} · ${t('statusbar.restart_markers_progressive')}` : base;
+});
 const visibleFields = computed(() => {
   const file = currentFile.value;
   if (!file) return [];
@@ -179,6 +199,7 @@ const visibleFields = computed(() => {
     camera: { icon: IconCamera, value: formatCameraInfo(file.e_make, file.e_model) },
     lens: { icon: IconCameraAperture, value: file.e_lens_model },
     location: { icon: IconLocation, value: file.geo_name || file.geo_admin2 || file.geo_admin1 || file.geo_cc },
+    restartMarkers: { icon: IconFile, value: restartText.value },
   } as Record<string, { icon: typeof IconFile; value: string }>;
   return normalizeStatusBarFields(config.settings.statusBarFields)
     .filter(field => field.visible && fields[field.key].value)

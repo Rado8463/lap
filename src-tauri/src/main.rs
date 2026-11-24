@@ -384,6 +384,7 @@ async fn main() {
             t_startup::set_test_flags,
             t_startup::set_jpeg_ram,
             t_startup::get_jpeg_ram_status,
+            t_startup::get_jpeg_restart_info,
             t_startup::start_jpeg_ram,
             t_cmds::prepare_motion_photo_video,
             t_cmds::add_file_to_db,

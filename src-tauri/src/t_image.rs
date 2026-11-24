@@ -2181,19 +2181,20 @@ static JPEG_RAM_INFLIGHT: Lazy<std::sync::Mutex<std::collections::HashSet<String
 static JPEG_RAM_PARALLEL: Lazy<std::sync::Mutex<std::collections::HashSet<String>>> =
     Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
 
-/// True when the header of a baseline JPEG declares a restart interval (the decode can be split).
-fn jpeg_has_restart_interval(file_path: &str) -> bool {
+/// Reads the JPEG header up to the first scan: (restart interval in MCUs, progressive). None = not a readable JPEG.
+fn jpeg_header_restart_info(file_path: &str) -> Option<(u32, bool)> {
     use std::io::Read;
-    let Ok(file) = std::fs::File::open(file_path) else { return false };
+    let file = std::fs::File::open(file_path).ok()?;
     let mut buf = Vec::with_capacity(65536);
     if file.take(65536).read_to_end(&mut buf).is_err() || buf.len() < 4 || buf[0] != 0xFF || buf[1] != 0xD8 {
-        return false;
+        return None;
     }
     let mut pos = 2usize;
-    let mut dri = false;
+    let mut interval = 0u32;
+    let mut progressive = false;
     while pos + 4 <= buf.len() {
         if buf[pos] != 0xFF {
-            return false;
+            return None;
         }
         let marker = buf[pos + 1];
         if marker == 0xFF {
@@ -2205,18 +2206,62 @@ fn jpeg_has_restart_interval(file_path: &str) -> bool {
             continue;
         }
         if marker == 0xDA {
-            return dri;
+            return Some((interval, progressive));
         }
-        if (0xC2..=0xCF).contains(&marker) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC {
-            return false; // progressive, lossless, arithmetic
+        if marker == 0xC2 || marker == 0xC6 || marker == 0xCA || marker == 0xCE {
+            progressive = true;
         }
         let len = ((buf[pos + 2] as usize) << 8) | buf[pos + 3] as usize;
         if marker == 0xDD && len == 4 && pos + 6 <= buf.len() {
-            dri = (((buf[pos + 4] as u16) << 8) | buf[pos + 5] as u16) > 0;
+            interval = ((buf[pos + 4] as u32) << 8) | buf[pos + 5] as u32;
         }
         pos += 2 + len;
     }
+    None
+}
+
+/// True when the header of a baseline JPEG declares a restart interval (the decode can be split).
+fn jpeg_has_restart_interval(file_path: &str) -> bool {
+    let Ok(file) = std::fs::File::open(file_path) else { return false };
+    drop(file);
+    // The old reader also refused progressive, lossless and arithmetic files.
+    let Some((interval, progressive)) = jpeg_header_restart_info(file_path) else { return false };
+    interval > 0 && !progressive && !jpeg_header_unsupported_mode(file_path)
+}
+
+/// Lossless / arithmetic coding (SOF3, SOF9..SOF15 except DHT/JPG/DAC): cannot be split either.
+fn jpeg_header_unsupported_mode(file_path: &str) -> bool {
+    use std::io::Read;
+    let Ok(file) = std::fs::File::open(file_path) else { return true };
+    let mut buf = Vec::with_capacity(65536);
+    if file.take(65536).read_to_end(&mut buf).is_err() || buf.len() < 4 {
+        return true;
+    }
+    let mut pos = 2usize;
+    while pos + 4 <= buf.len() && buf[pos] == 0xFF {
+        let marker = buf[pos + 1];
+        if marker == 0xFF {
+            pos += 1;
+            continue;
+        }
+        if marker == 0xD8 || marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+            pos += 2;
+            continue;
+        }
+        if marker == 0xDA {
+            return false;
+        }
+        if (0xC2..=0xCF).contains(&marker) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC {
+            return true;
+        }
+        pos += 2 + (((buf[pos + 2] as usize) << 8) | buf[pos + 3] as usize);
+    }
     false
+}
+
+/// Restart interval of a JPEG for the status bar: (MCUs between restart markers, 0 = none; progressive).
+pub fn jpeg_restart_info(file_path: &str) -> Option<(u32, bool)> {
+    jpeg_header_restart_info(file_path)
 }
 
 /// A tile asked for while the whole-picture decode of a parallel-capable file is still running waits
