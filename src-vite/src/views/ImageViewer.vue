@@ -465,6 +465,12 @@ async function standaloneShow(index: number) {
 
 async function initStandalone() {
   standaloneViewer.value = true;
+  // The viewer has its own settings profile, so it gets a fixed look: dark "Business" theme,
+  // black viewer background, full screen.
+  config.setAppearance(1);
+  config.setDarkTheme(8);
+  config.setViewBackground(1);
+  isFullScreen.value = true;
   fileIndex.value = -1;
   fileId.value = 0;
   unlistenStandalone = await listen('message-from-image-viewer', (event: any) => {
