@@ -1959,8 +1959,15 @@ fn jpeg_ram_start(file_path: &str) {
     let path = file_path.to_string();
     tauri::async_runtime::spawn_blocking(move || {
         let decoded = (|| -> Result<RgbImage, String> {
-            let (pixels, pw, ph) = crate::t_jpeg::decode_region_rgb8(&path, 0, 0, rw, rh, 1)?;
-            let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG buffer".to_string())?;
+            // With restart markers the picture is decoded on all cores; otherwise in one pass.
+            let threads = std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(4).min(32);
+            let rgb = match crate::t_jpeg::decode_full_parallel(&path, rw, rh, threads) {
+                Ok(Some(pixels)) => RgbImage::from_raw(rw, rh, pixels).ok_or_else(|| "Bad JPEG buffer".to_string())?,
+                _ => {
+                    let (pixels, pw, ph) = crate::t_jpeg::decode_region_rgb8(&path, 0, 0, rw, rh, 1)?;
+                    RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG buffer".to_string())?
+                }
+            };
             let orientation = get_image_orientation(&path);
             if (2..=8).contains(&orientation) {
                 Ok(apply_orientation(DynamicImage::ImageRgb8(rgb), orientation).into_rgb8())

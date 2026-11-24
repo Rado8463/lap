@@ -48,6 +48,16 @@ unsafe extern "C" {
         err_buf: *mut c_char,
         err_buf_len: usize,
     ) -> c_int;
+    fn lap_jpeg_decode_parallel_rgb8(
+        file_path: *const c_char,
+        width: u32,
+        height: u32,
+        nthreads: u32,
+        out: *mut u8,
+        out_cap: usize,
+        err_buf: *mut c_char,
+        err_buf_len: usize,
+    ) -> c_int;
     fn lap_jpeg_free_buffer(data: *mut u8);
 }
 
@@ -104,6 +114,43 @@ pub fn decode_region_rgb8(
         result
     };
     Ok((bytes, out_width, out_height))
+}
+
+/// Decodes a whole JPEG (`width` x `height` as stored) on several threads by splitting it at its
+/// restart markers. Ok(None) means the file cannot be split (no restart markers, progressive ...);
+/// the caller then decodes it the usual way.
+pub fn decode_full_parallel(file_path: &str, width: u32, height: u32, threads: u32) -> Result<Option<Vec<u8>>, String> {
+    let len = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|v| v.checked_mul(3))
+        .ok_or_else(|| "JPEG too large".to_string())?;
+    let c_path = std::ffi::CString::new(file_path).map_err(|e| e.to_string())?;
+    let mut out: Vec<u8> = Vec::with_capacity(len);
+    let mut err_buf = vec![0 as c_char; 512];
+    let rc = unsafe {
+        lap_jpeg_decode_parallel_rgb8(
+            c_path.as_ptr(),
+            width,
+            height,
+            threads,
+            out.as_mut_ptr(),
+            len,
+            err_buf.as_mut_ptr(),
+            err_buf.len(),
+        )
+    };
+    match rc {
+        1 => {
+            // The decoder has written every byte of the buffer.
+            unsafe { out.set_len(len) };
+            Ok(Some(out))
+        }
+        2 => Ok(None),
+        _ => {
+            let err = unsafe { CStr::from_ptr(err_buf.as_ptr()) }.to_string_lossy().trim().to_string();
+            Err(if err.is_empty() { "parallel JPEG decode failed".to_string() } else { err })
+        }
+    }
 }
 
 pub fn decode_rgb8_scaled(
