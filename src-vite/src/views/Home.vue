@@ -537,7 +537,7 @@ watch([() => config.settings.aiSearchEnabled, () => config.settings.detectMotion
 
 function pushJpegRam() {
   return invoke('set_jpeg_ram', {
-    enabled: config.settings.jpegRam === true,
+    enabled: config.settings.jpegRam !== false,
     maxMp: Number(config.settings.jpegRamMaxMp) || 0,
     budgetMb: Number(config.settings.jpegRamBudgetMb) || 0,
   }).catch(console.error);

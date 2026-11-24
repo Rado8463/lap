@@ -227,7 +227,7 @@ export const useConfigStore = defineStore('configStore', {
       infoInWindow: false,  // Image Info opens in its own window instead of the side panel
       hybridTileQuality: true,  // 100%-region tiles of JPEGs: full-resolution decode + Lanczos (sharper, slower)
       hybridTileCenter: false,  // also prepare the region around the photo centre (otherwise only under the cursor)
-      jpegRam: false,          // keep big JPEGs decoded in RAM for tiles (off by default)
+      jpegRam: true,           // keep big JPEGs decoded in RAM for tiles
       jpegRamMaxMp: 0,         // 0 = no limit
       jpegRamBudgetMb: 0,      // 0 = no limit
       hybridTileProgressive: true,  // zoom: the visible part of a tile first, the margin after it

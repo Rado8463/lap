@@ -1355,8 +1355,8 @@ static VIEWER_RGB_CACHE: Lazy<std::sync::Mutex<Vec<ViewerRgbEntry>>> =
 static VIEWER_RGB_INFLIGHT: Lazy<
     std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<std::sync::Mutex<()>>>>,
 > = Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
-/// Total size of the cached RGB pictures (about 750 MB).
-const VIEWER_RGB_CACHE_MAX_BYTES: u64 = 750 * 1024 * 1024;
+/// Total size of the cached RGB pictures (8 GB: a few big PSD/TIFF composites, like the JPEG cache).
+const VIEWER_RGB_CACHE_MAX_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
 fn shared_rgb<F>(file_path: &str, tag: &str, decode: F) -> Result<std::sync::Arc<RgbImage>, String>
 where

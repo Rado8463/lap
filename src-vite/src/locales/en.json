@@ -1688,7 +1688,7 @@
       "hybrid_tiles_hint": "Photos (JPEG, PSD/PSB, TIFF) above this size are never opened at full resolution by the browser. Instead the visible part is decoded by the app and shown over the preview when you zoom in (fixes missing blocks and blank zoom steps of huge photos).",
       "hybrid_tiles_off": "Off",
       "jpeg_ram": "Keep big JPEGs decoded in memory (faster tiles)",
-      "jpeg_ram_hint": "Off by default. When you zoom a tiled JPEG, the whole photo is decoded once in the background and kept in RAM (about 3 bytes per pixel, e.g. 810 MB for 270 MP; at most 3 photos). Later tiles are only cropped and resized, like PSD/TIFF tiles. Until it is ready the usual per-tile decoding is used.",
+      "jpeg_ram_hint": "When you zoom a tiled JPEG, the whole photo is decoded once in the background and kept in RAM (about 3 bytes per pixel, e.g. 810 MB for 270 MP; at most 3 photos). Later tiles are only cropped and resized, like PSD/TIFF tiles. Until it is ready the usual per-tile decoding is used.",
       "jpeg_ram_max_mp": "Largest JPEG kept in memory",
       "jpeg_ram_max_mp_hint": "Photos with more megapixels than this are not kept in memory.",
       "jpeg_ram_budget": "Memory used by kept JPEGs",

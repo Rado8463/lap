@@ -1687,7 +1687,7 @@
       "hybrid_tiles_hint": "Fotky (JPEG, PSD/PSB, TIFF) nad touto velikostí prohlížeč nikdy neotevírá v plném rozlišení. Aplikace místo toho dekóduje viditelnou část a při přiblížení ji zobrazí nad náhledem (řeší chybějící bloky a prázdné kroky zoomu u obřích fotek).",
       "hybrid_tiles_off": "Vypnuto",
       "jpeg_ram": "Držet velké JPEG dekódované v paměti (rychlejší dlaždice)",
-      "jpeg_ram_hint": "Ve výchozím stavu vypnuto. Při zoomu dlaždicového JPEG se celá fotka jednou dekóduje na pozadí a drží v RAM (asi 3 bajty na pixel, např. 810 MB pro 270 MP; nejvýše 3 fotky). Další dlaždice se jen ořežou a zmenší, jako u PSD/TIFF. Než je hotovo, použije se běžné dekódování po dlaždicích.",
+      "jpeg_ram_hint": "Při zoomu dlaždicového JPEG se celá fotka jednou dekóduje na pozadí a drží v RAM (asi 3 bajty na pixel, např. 810 MB pro 270 MP; nejvýše 3 fotky). Další dlaždice se jen ořežou a zmenší, jako u PSD/TIFF. Než je hotovo, použije se běžné dekódování po dlaždicích.",
       "jpeg_ram_max_mp": "Největší JPEG držený v paměti",
       "jpeg_ram_max_mp_hint": "Fotky s větším počtem megapixelů se v paměti nedrží.",
       "jpeg_ram_budget": "Paměť pro držené JPEG",

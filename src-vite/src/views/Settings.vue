@@ -597,7 +597,7 @@
                   {{ $t('settings.image_view.jpeg_ram_hint') }}
                 </div>
               </div>
-              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.jpegRam === true" @change="config.settings.jpegRam = $event.target.checked" />
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.jpegRam !== false" @change="config.settings.jpegRam = $event.target.checked" />
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
@@ -606,7 +606,7 @@
                   {{ $t('settings.image_view.jpeg_ram_max_mp_hint') }}
                 </div>
               </div>
-              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.jpegRamMaxMp" :disabled="config.settings.jpegRam !== true">
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.jpegRamMaxMp" :disabled="config.settings.jpegRam === false">
                 <option :value="0">{{ $t('settings.image_view.jpeg_ram_no_limit') }}</option>
                 <option :value="100">100 MP</option>
                 <option :value="200">200 MP</option>
@@ -621,7 +621,7 @@
                   {{ $t('settings.image_view.jpeg_ram_budget_hint') }}
                 </div>
               </div>
-              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.jpegRamBudgetMb" :disabled="config.settings.jpegRam !== true">
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.jpegRamBudgetMb" :disabled="config.settings.jpegRam === false">
                 <option :value="0">{{ $t('settings.image_view.jpeg_ram_no_limit') }}</option>
                 <option :value="1024">1 GB</option>
                 <option :value="2048">2 GB</option>
