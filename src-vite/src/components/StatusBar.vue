@@ -58,7 +58,6 @@ import {
   formatFileSize,
   formatRawPairBadge,
   getMediaItemSize,
-  shortenFilename,
   formatDimensionText,
   formatTakenDate,
   formatTimestamp,
@@ -186,7 +185,7 @@ const visibleFields = computed(() => {
   if (!file) return [];
   const dimension = file.width && file.height ? formatDimensionText(file.width, file.height, true) : '';
   const fields = {
-    name: { icon: file.file_type === 1 || file.file_type === 3 ? IconPhoto : IconVideo, value: shortenFilename(file.name, 32) },
+    name: { icon: file.file_type === 1 || file.file_type === 3 ? IconPhoto : IconVideo, value: String(file.name || '') },
     dimension: { icon: IconAspectRatio, value: dimension && (normalizedRotate.value ? `${dimension} · ${normalizedRotate.value}°` : dimension) },
     folder: { icon: IconFolder, value: getFolderPath(file.file_path) },
     album_name: { icon: IconFolders, value: file.album_name },
