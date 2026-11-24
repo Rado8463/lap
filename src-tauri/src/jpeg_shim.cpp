@@ -11,6 +11,9 @@
 #include "jpeglib.h"
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 
@@ -123,7 +126,7 @@ static bool decode_strip(const unsigned char *d, const Layout &L, unsigned row0,
   size_t begin = i0 == 0 ? L.header_end : L.rst[i0 - 1] + 2;
   size_t end = i1 >= total ? L.eoi_pos : L.rst[i1 - 1];
   if (end < begin) return false;
-  unsigned strip_px = std::min((ctx1 - ctx0) * L.mcu_h, L.height - ctx0 * L.mcu_h);
+  unsigned strip_px = (std::min)((ctx1 - ctx0) * L.mcu_h, L.height - ctx0 * L.mcu_h);
   std::vector<unsigned char> buf;
   buf.reserve(L.header_end + (end - begin) + 2);
   buf.insert(buf.end(), d, d + L.header_end);
@@ -168,7 +171,7 @@ static bool decode_strip(const unsigned char *d, const Layout &L, unsigned row0,
   const size_t stride = static_cast<size_t>(L.width) * 3;
   row_buf.resize(stride);
   const unsigned skip_rows = (row0 - ctx0) * L.mcu_h;
-  const unsigned keep_end = std::min(row1 * L.mcu_h, L.height) - ctx0 * L.mcu_h;
+  const unsigned keep_end = (std::min)(row1 * L.mcu_h, L.height) - ctx0 * L.mcu_h;
   for (unsigned y = 0; y < keep_end; ++y) {
     unsigned char *rows[1];
     rows[0] = y < skip_rows ? row_buf.data() : out + static_cast<size_t>(y - skip_rows) * stride;
@@ -548,8 +551,8 @@ int lap_jpeg_decode_parallel_rgb8(const char *file_path, unsigned int width,
       out_cap < static_cast<size_t>(width) * height * 3)
     return 2;
   const unsigned mcu_rows = (L.height + L.mcu_h - 1) / L.mcu_h;
-  const unsigned nt = std::max(1u, nthreads);
-  unsigned strips = std::max(1u, std::min(nt * 2, mcu_rows / 8));
+  const unsigned nt = (std::max)(1u, nthreads);
+  unsigned strips = (std::max)(1u, (std::min)(nt * 2, mcu_rows / 8));
   const unsigned per = (mcu_rows + strips - 1) / strips;
   strips = (mcu_rows + per - 1) / per;
   std::atomic<unsigned> next(0);
@@ -561,8 +564,8 @@ int lap_jpeg_decode_parallel_rgb8(const char *file_path, unsigned int width,
     for (;;) {
       const unsigned s = next.fetch_add(1);
       if (s >= strips || failed.load()) return;
-      const unsigned r0 = s * per, r1 = std::min(mcu_rows, r0 + per);
-      const unsigned c0 = r0 > 0 ? r0 - 1 : 0, c1 = std::min(mcu_rows, r1 + 1);
+      const unsigned r0 = s * per, r1 = (std::min)(mcu_rows, r0 + per);
+      const unsigned c0 = r0 > 0 ? r0 - 1 : 0, c1 = (std::min)(mcu_rows, r1 + 1);
       char e[512];
       e[0] = 0;
       unsigned char *dst = out + static_cast<size_t>(r0) * L.mcu_h * width * 3;
@@ -574,7 +577,7 @@ int lap_jpeg_decode_parallel_rgb8(const char *file_path, unsigned int width,
     }
   };
   std::vector<std::thread> pool;
-  for (unsigned i = 1; i < std::min(nt, strips); ++i) pool.emplace_back(worker);
+  for (unsigned i = 1; i < (std::min)(nt, strips); ++i) pool.emplace_back(worker);
   worker();
   for (auto &t : pool) t.join();
   if (failed.load()) {
