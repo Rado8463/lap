@@ -235,6 +235,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { zoomLocked } from '@/common/zoomLock';
+import { standaloneViewer } from '@/common/standalone';
 import { followViewport } from '@/common/viewportFollow';
 import { parseLoadTimingFields, filterLoadTiming, parseInfoTipFields, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, type InfoTipField } from '@/common/infoTip';
 import { SIDEBAR, GESTURE_LOCK_THRESHOLD, HORIZONTAL_NAV_THRESHOLD, MOUSE_DRAG_NAV_THRESHOLD } from '@/common/constants';
@@ -2870,7 +2871,7 @@ const onImageReady = (nextIndex: number, preserveLoading: boolean = false) => {
   const applyZoom = () => {
     // A viewport saved for this file (zoom + position) wins over the current
     // zoom mode and over carrying the previous image's viewport across.
-    const savedViewport = getSavedViewport(imageFilePath.value[activeImage.value]);
+    const savedViewport = standaloneViewer.value ? null : getSavedViewport(imageFilePath.value[activeImage.value]);
     setHasSavedViewport(!!savedViewport);
     let leavingSavedViewport = false;
     if (savedViewport && restoreSavedViewport(savedViewport)) {
@@ -3008,6 +3009,7 @@ onBeforeUnmount(() => {
 });
 
 function toggleZoomLock(): boolean {
+  if (standaloneViewer.value) return false;
   zoomLocked.value = !zoomLocked.value;
   toast.info(t(zoomLocked.value ? 'image_viewer.zoom_lock_on' : 'image_viewer.zoom_lock_off'));
   return zoomLocked.value;
@@ -3677,6 +3679,7 @@ function isAtFitScale(): boolean {
 }
 
 function saveViewport(): boolean {
+  if (standaloneViewer.value) return false;
   const path = imageFilePath.value[activeImage.value];
   const imgSize = imageSize.value[activeImage.value];
   if (!path || path !== props.filePath || !(imgSize.width > 0)) return false;

@@ -235,6 +235,8 @@ import { isOriginalStorageUnavailable, isOriginalUnavailable, setAlbumAccessibil
 import { ref, watch, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit, listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { standaloneViewer } from '@/common/standalone';
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
 import { useUIStore } from '@/stores/uiStore';
@@ -355,6 +357,7 @@ const collectionFileIds = ref<number[]>([]);
 
 let unlistenImg: () => void;
 let unlistenGridView: () => void;
+let unlistenStandalone: (() => void) | null = null;
 let unlistenAlbumAccessChanged: (() => void) | null = null;
 let unlistenFilesDeleted: (() => void) | null = null;
 
@@ -395,6 +398,84 @@ function handleRootMouseMove(event: MouseEvent) {
 
 function handleRootMouseLeave() {
   splitToolbarVisible.value = false;
+}
+
+// ---- Standalone mode (file opened from Windows Explorer) -------------------------------------
+// There is no main window to answer navigation requests, so the folder listing and the
+// prev/next requests are served here. Files are registered in the throw-away DB on demand.
+let standaloneFiles: string[] = [];
+const standaloneIds = new Map<number, number>();   // index -> file id
+const standaloneInfo = new Map<number, any>();     // index -> file info (for preloading)
+let standaloneRequest = 0;
+
+async function standaloneEnsure(index: number): Promise<number> {
+  const cached = standaloneIds.get(index);
+  if (cached) return cached;
+  const id = Number(await invoke('standalone_register', { filePath: standaloneFiles[index] }));
+  standaloneIds.set(index, id);
+  return id;
+}
+
+function standaloneNeighbors(index: number) {
+  const out: any[] = [];
+  const add = (i: number) => {
+    const info = standaloneInfo.get(i);
+    if (info && info.file_type === 1) {
+      out.push({ path: info.file_path, id: info.id, version: info.modified_at || 0, width: info.width || 0, height: info.height || 0, album_id: info.album_id || 0 });
+    }
+  };
+  for (let i = 1; i <= 3; i++) { add(index + i); add(index - i); }
+  return out;
+}
+
+async function standaloneShow(index: number) {
+  if (index < 0 || index >= standaloneFiles.length) return;
+  const request = ++standaloneRequest;
+  let id: number;
+  try {
+    id = await standaloneEnsure(index);
+  } catch (error) {
+    console.error(error);
+    return;
+  }
+  if (request !== standaloneRequest) return;
+  fileCount.value = standaloneFiles.length;
+  fileIndex.value = index;
+  fileId.value = id;
+  nextFilePath.value = '';
+  neighborFilePaths.value = standaloneNeighbors(index);
+
+  // Register and read the nearest files in the background so the following navigation can
+  // preload them (the window must not wait for this).
+  void (async () => {
+    for (const i of [index + 1, index - 1, index + 2, index - 2]) {
+      if (i < 0 || i >= standaloneFiles.length || standaloneInfo.has(i)) continue;
+      try {
+        const nid = await standaloneEnsure(i);
+        const info = await getFileInfo(nid);
+        if (info) standaloneInfo.set(i, info);
+      } catch { /* preloading is optional */ }
+      if (request !== standaloneRequest) return;
+    }
+    neighborFilePaths.value = standaloneNeighbors(index);
+    const next = standaloneInfo.get(index + 1);
+    nextFilePath.value = next && next.file_type === 1 ? next.file_path : '';
+  })();
+}
+
+async function initStandalone() {
+  standaloneViewer.value = true;
+  fileIndex.value = -1;
+  fileId.value = 0;
+  unlistenStandalone = await listen('message-from-image-viewer', (event: any) => {
+    if (event.payload?.message === 'request-file-at-index') {
+      void standaloneShow(Number(event.payload.index));
+    }
+  });
+  const result: any = await invoke('standalone_list');
+  standaloneFiles = result.files || [];
+  fileCount.value = standaloneFiles.length;
+  await standaloneShow(Number(result.index) || 0);
 }
 
 onMounted(async() => {
@@ -506,6 +587,7 @@ onMounted(async() => {
     }
   });
   ensureFourPanesLoaded();
+  if (urlParams.get('standalone') === '1') await initStandalone();
 
 
   unlistenGridView = await listen('message-from-content', (event) => {
@@ -651,6 +733,7 @@ onUnmounted(() => {
   // unlisten
   unlistenImg();
   unlistenGridView();
+  unlistenStandalone?.();
   if (unlistenFilesDeleted) unlistenFilesDeleted();
   unlistenAlbumAccessChanged?.();
 });

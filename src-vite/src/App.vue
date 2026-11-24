@@ -22,13 +22,15 @@ import { useAppTheme } from '@/composables/useAppearance';
 import { matchesShortcut } from '@/common/shortcuts';
 import ToastContainer from '@/components/ToastContainer.vue';
 import { cleanupAllDiskAlbums } from '@/common/diskAlbums';
+import { standaloneViewer } from '@/common/standalone';
 
 const libConfig = useLibraryStore();
 const isReady = ref(false);
 const config = useConfigStore();
 useAppTheme();
 const uiStore = useUIStore();
-const isMainWindow = getCurrentWebviewWindow().label === 'main';
+// The viewer started from Explorer lives in the 'main' window but is not the app's main window.
+const isMainWindow = getCurrentWebviewWindow().label === 'main' && !standaloneViewer.value;
 let unlistenMainCloseRequested = null;
 let isHandlingMainClose = false;
 
@@ -43,7 +45,7 @@ watch(
   () => Number(config.settings.scale || 1),
   (newScale) => {
     const win = getCurrentWebviewWindow();
-    if (win.label === 'main') {
+    if (isMainWindow) {
       applyMainWindowScale(newScale);
     }
   }
@@ -61,7 +63,7 @@ watch(
 
 onMounted(async () => {
   const win = getCurrentWebviewWindow();
-  if (win.label === 'main') {
+  if (isMainWindow) {
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     applyMainWindowScale(Number(config.settings.scale || 1));
     if (import.meta.env.PROD) {
@@ -145,11 +147,11 @@ onMounted(async () => {
   } finally {
     isReady.value = true;
     // Leftovers of a crashed or killed session (the normal close already removes them).
-    if (win.label === 'main') {
+    if (isMainWindow) {
       const keep = config.main.diskTreeActive ? String(libConfig.album.folderPath || '') : '';
       void cleanupAllDiskAlbums(keep);
     }
-    if (win.label === 'main') {
+    if (isMainWindow) {
       performance.mark('startup-library-state-ready');
       void invoke('record_startup_stage', { stage: 'library-state-ready' }).catch(console.error);
     }
@@ -158,7 +160,7 @@ onMounted(async () => {
 
 onUnmounted(async () => {
   const win = getCurrentWebviewWindow();
-  if (win.label === 'main') {
+  if (isMainWindow) {
     window.removeEventListener('keydown', handleKeyDown, { capture: true });
     document.documentElement.style.fontSize = '';
     if (import.meta.env.PROD) {
@@ -218,7 +220,7 @@ function applyMainWindowScale(scale) {
 
 function handleMainWindowScaleShortcut(event) {
   const win = getCurrentWebviewWindow();
-  if (win.label !== 'main') return false;
+  if (!isMainWindow) return false;
 
   const isScaleUp = matchesShortcut('app.scale.increase', event);
   const isScaleDown = matchesShortcut('app.scale.decrease', event);

@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { message } from '@tauri-apps/plugin-dialog'
 import { initializeOriginalMedia } from '@/common/utils'
+import { standaloneViewer } from '@/common/standalone'
 import { setShortcutOverrides } from '@/common/shortcuts'
 import { getSystemRegionLocale } from '@/common/api'
 import 'cally'
@@ -28,7 +29,9 @@ pinia.use(piniaPersistedState)
 app.use(pinia) // Use Pinia
 const config = useConfigStore() // Use the config store
 const currentWindowLabel = getCurrentWebviewWindow().label
-const isMainWindow = currentWindowLabel === 'main'
+// Lap started with an image path (Explorer "Open with"): the 'main' window only hosts the viewer.
+standaloneViewer.value = currentWindowLabel === 'main' && !!(await invoke('get_standalone_launch').catch(() => null))
+const isMainWindow = currentWindowLabel === 'main' && !standaloneViewer.value
 const isSettingsWindow = currentWindowLabel === 'settings'
 let settingsSyncRequest = 0
 const originalMediaReady = initializeOriginalMedia().then(() => true, error => {

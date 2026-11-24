@@ -92,7 +92,7 @@
           @click="$emit('update:isZoomFit', !isZoomFit)"
         />
         <TButton
-          v-if="file?.file_type !== 2"
+          v-if="file?.file_type !== 2 && !standaloneViewer"
           :icon="IconBookmark"
           :disabled="fileIndex < 0 || isSlideShow || !canInteract"
           :selected="hasSavedViewport && !isSlideShow"
@@ -521,6 +521,7 @@ import {
 } from '@/common/icons';
 import ContextMenu from '@/components/ContextMenu.vue';
 import iconLogo from '@/assets/images/icon.png';
+import { standaloneViewer } from '@/common/standalone';
 import { useFileMenuItems } from '@/common/fileMenu';
 
 const Video = defineAsyncComponent(() => import('@/components/Video.vue'));

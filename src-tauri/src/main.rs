@@ -48,6 +48,7 @@ mod t_similar;
 mod t_sqlite;
 mod t_storage;
 mod t_cache_storage;
+mod t_standalone;
 mod t_startup;
 mod t_utils;
 mod t_video;
@@ -60,6 +61,9 @@ async fn main() {
     std::panic::set_hook(Box::new(|panic_info| {
         eprintln!("Unhandled panic: {}", panic_info);
     }));
+
+    // Lap started with an image path (Explorer "Open with"): run as an isolated viewer process.
+    t_standalone::init_from_args();
 
     let startup = t_startup::StartupState::default();
     let builder = tauri::Builder::default();
@@ -83,8 +87,11 @@ async fn main() {
         context.set_default_window_icon(Some(icon));
     }
 
-    let run_result = builder
-        .plugin(
+    // The standalone viewer must not read or overwrite the saved window geometry of the main app.
+    let builder = if t_standalone::is_active() {
+        builder
+    } else {
+        builder.plugin(
             tauri_plugin_window_state::Builder::default()
                 // Let the frontend show the window after its first themed render.
                 .with_state_flags(
@@ -93,6 +100,9 @@ async fn main() {
                 )
                 .build(),
         )
+    };
+
+    let run_result = builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())
@@ -223,6 +233,9 @@ async fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             t_startup::record_startup_stage,
+            t_standalone::get_standalone_launch,
+            t_standalone::standalone_list,
+            t_standalone::standalone_register,
             t_startup::finish_startup,
             t_startup::get_ai_initialization_status,
             t_drag::start_file_drag,
@@ -495,6 +508,7 @@ async fn main() {
                     }
                 }
                 tauri::RunEvent::Exit { .. } => {
+                    t_standalone::cleanup();
                     if aptabase_enabled {
                         let _ = app_handle.track_event("app_exited", None);
                         app_handle.flush_events_blocking();

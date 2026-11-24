@@ -1,5 +1,6 @@
 // src/router.js
 import { createRouter, createWebHistory } from 'vue-router';
+import { standaloneViewer } from '@/common/standalone';
 
 const routes = [
   {
@@ -37,6 +38,14 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+// Lap started with an image path (Explorer "Open with"): show the Image Viewer instead of Home.
+router.beforeEach((to) => {
+  if (to.name === 'Home' && standaloneViewer.value) {
+    return { path: '/image-viewer', query: { standalone: '1' }, replace: true };
+  }
+  return true;
 });
 
 export default router;

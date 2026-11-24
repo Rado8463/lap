@@ -18,6 +18,14 @@ use uuid::Uuid;
 use crate::t_storage;
 
 static APP_IDENTIFIER: OnceLock<String> = OnceLock::new();
+/// Set only by the standalone viewer process (a file opened from Explorer): all app data and
+/// caches then live in a throw-away folder, so the user's real library, config and caches are
+/// never read or written by that process.
+static DATA_DIR_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn set_data_dir_override(dir: PathBuf) {
+    let _ = DATA_DIR_OVERRIDE.set(dir);
+}
 static CONFIG_IO_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 static CURRENT_LIBRARY_ID: RwLock<Option<String>> = RwLock::new(None);
 
@@ -443,6 +451,9 @@ impl Default for AppConfig {
 
 /// Get the AppData directory for app
 pub fn get_app_data_dir() -> Result<PathBuf, String> {
+    if let Some(dir) = DATA_DIR_OVERRIDE.get() {
+        return Ok(dir.clone());
+    }
     let app_dir_name = get_app_data_folder_name();
     dirs::data_local_dir()
         .ok_or_else(|| "Failed to get the local AppData directory".to_string())
@@ -467,6 +478,9 @@ fn get_app_data_folder_name() -> String {
 /// windows: C:\Users\<username>\AppData\Local\com.julyx10.lap\cache
 /// linux: ~/.cache/com.julyx10.lap
 pub fn get_app_cache_dir() -> Result<PathBuf, String> {
+    if let Some(dir) = DATA_DIR_OVERRIDE.get() {
+        return Ok(dir.join("cache"));
+    }
     let app_dir_name = get_app_data_folder_name();
     dirs::cache_dir()
         .ok_or_else(|| "Failed to get the local cache directory".to_string())
