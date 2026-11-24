@@ -535,12 +535,22 @@ function pushFeatureFlags() {
 }
 watch([() => config.settings.aiSearchEnabled, () => config.settings.detectMotionPhotos], () => { void pushFeatureFlags(); });
 
+function pushJpegRam() {
+  return invoke('set_jpeg_ram', {
+    enabled: config.settings.jpegRam === true,
+    maxMp: Number(config.settings.jpegRamMaxMp) || 0,
+    budgetMb: Number(config.settings.jpegRamBudgetMb) || 0,
+  }).catch(console.error);
+}
+watch([() => config.settings.jpegRam, () => config.settings.jpegRamMaxMp, () => config.settings.jpegRamBudgetMb], () => { void pushJpegRam(); });
+
 async function finishStartup() {
   if (startupFinished) return;
   startupFinished = true;
   uiStore.startupReady = true;
   performance.mark('startup-first-content-ready');
   await pushFeatureFlags();
+  await pushJpegRam();
   void invoke('finish_startup', { model: config.settings.imageSearch.model || 0 }).catch(console.error);
   if (config.settings.autoCheckUpdates !== false) void checkForUpdates(false);
 }

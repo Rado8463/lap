@@ -313,6 +313,15 @@ if (isMainWindow) {
   listen('settings-hybridTileCenter-changed', (event) => {
     config.settings.hybridTileCenter = event.payload
   })
+  listen('settings-jpegRam-changed', (event) => {
+    config.settings.jpegRam = event.payload
+  })
+  listen('settings-jpegRamMaxMp-changed', (event) => {
+    config.settings.jpegRamMaxMp = event.payload
+  })
+  listen('settings-jpegRamBudgetMb-changed', (event) => {
+    config.settings.jpegRamBudgetMb = event.payload
+  })
   listen('settings-hybridTileProgressive-changed', (event) => {
     config.settings.hybridTileProgressive = event.payload
   })

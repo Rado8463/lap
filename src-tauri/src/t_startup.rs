@@ -24,6 +24,11 @@ pub fn set_feature_flags(ai_search: bool, motion_photo: bool) {
     MOTION_PHOTO_DETECTION_ENABLED.store(motion_photo, Ordering::Relaxed);
 }
 
+#[tauri::command]
+pub fn set_jpeg_ram(enabled: bool, max_mp: u32, budget_mb: u32) {
+    crate::t_image::jpeg_ram_configure(enabled, max_mp, budget_mb);
+}
+
 pub struct StartupState {
     started: Instant,
     stages: Mutex<HashSet<String>>,

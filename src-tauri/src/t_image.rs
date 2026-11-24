@@ -1870,6 +1870,119 @@ fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts:
     resize_region_encode(region, reg_w, out_w, out_h, opts)
 }
 
+// ---- Big JPEG kept decoded in RAM (optional, Settings > Viewer) -----------------------------
+// Tiles of a big JPEG are normally decoded from the file every time (the file is read and entropy
+// decoded up to the region). With this option the whole picture is decoded once, in the
+// background, and later tiles are cropped and resized from RAM like PSD / TIFF tiles.
+static JPEG_RAM_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static JPEG_RAM_MAX_MP: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0); // 0 = no limit
+static JPEG_RAM_BUDGET_MB: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0); // 0 = no limit
+const JPEG_RAM_MAX_ENTRIES: usize = 3;
+static JPEG_RAM_CACHE: Lazy<std::sync::Mutex<Vec<ViewerRgbEntry>>> =
+    Lazy::new(|| std::sync::Mutex::new(Vec::new()));
+static JPEG_RAM_INFLIGHT: Lazy<std::sync::Mutex<std::collections::HashSet<String>>> =
+    Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+fn jpeg_ram_budget_bytes() -> u64 {
+    JPEG_RAM_BUDGET_MB.load(std::sync::atomic::Ordering::Relaxed) as u64 * 1024 * 1024
+}
+
+fn jpeg_ram_trim(cache: &mut Vec<ViewerRgbEntry>) {
+    let budget = jpeg_ram_budget_bytes();
+    let bytes = |e: &ViewerRgbEntry| e.3.width() as u64 * e.3.height() as u64 * 3;
+    loop {
+        let total: u64 = cache.iter().map(bytes).sum();
+        if cache.len() > JPEG_RAM_MAX_ENTRIES || (budget > 0 && total > budget && cache.len() > 1) {
+            cache.remove(0);
+        } else {
+            break;
+        }
+    }
+}
+
+/// Called from the app when the settings change.
+pub fn jpeg_ram_configure(enabled: bool, max_mp: u32, budget_mb: u32) {
+    use std::sync::atomic::Ordering;
+    JPEG_RAM_ENABLED.store(enabled, Ordering::Relaxed);
+    JPEG_RAM_MAX_MP.store(max_mp, Ordering::Relaxed);
+    JPEG_RAM_BUDGET_MB.store(budget_mb, Ordering::Relaxed);
+    if let Ok(mut cache) = JPEG_RAM_CACHE.lock() {
+        if !enabled {
+            cache.clear();
+        } else {
+            jpeg_ram_trim(&mut cache);
+        }
+    }
+}
+
+fn jpeg_ram_lookup(file_path: &str) -> Option<std::sync::Arc<RgbImage>> {
+    if !JPEG_RAM_ENABLED.load(std::sync::atomic::Ordering::Relaxed) {
+        return None;
+    }
+    let (mtime, len) = psd_cache_key(file_path)?;
+    let mut guard = JPEG_RAM_CACHE.lock().ok()?;
+    let pos = guard.iter().position(|(p, m, l, _)| p == file_path && *m == mtime && *l == len)?;
+    let entry = guard.remove(pos);
+    let image = entry.3.clone();
+    guard.push(entry);
+    Some(image)
+}
+
+/// Starts decoding the whole JPEG in the background (once per file) when the option is on and the
+/// picture is within the limits. Does nothing otherwise.
+fn jpeg_ram_start(file_path: &str) {
+    use std::sync::atomic::Ordering;
+    if !JPEG_RAM_ENABLED.load(Ordering::Relaxed) {
+        return;
+    }
+    let Ok(size) = imagesize::size(file_path) else { return };
+    let (rw, rh) = (size.width as u32, size.height as u32);
+    let pixels = rw as u64 * rh as u64;
+    let max_mp = JPEG_RAM_MAX_MP.load(Ordering::Relaxed) as u64;
+    if max_mp > 0 && pixels > max_mp * 1_000_000 {
+        return;
+    }
+    let budget = jpeg_ram_budget_bytes();
+    if budget > 0 && pixels * 3 > budget {
+        return;
+    }
+    let Some((mtime, len)) = psd_cache_key(file_path) else { return };
+    if jpeg_ram_lookup(file_path).is_some() {
+        return;
+    }
+    {
+        let Ok(mut inflight) = JPEG_RAM_INFLIGHT.lock() else { return };
+        if !inflight.insert(file_path.to_string()) {
+            return;
+        }
+    }
+    let path = file_path.to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        let decoded = (|| -> Result<RgbImage, String> {
+            let (pixels, pw, ph) = crate::t_jpeg::decode_region_rgb8(&path, 0, 0, rw, rh, 1)?;
+            let rgb = RgbImage::from_raw(pw, ph, pixels).ok_or_else(|| "Bad JPEG buffer".to_string())?;
+            let orientation = get_image_orientation(&path);
+            if (2..=8).contains(&orientation) {
+                Ok(apply_orientation(DynamicImage::ImageRgb8(rgb), orientation).into_rgb8())
+            } else {
+                Ok(rgb)
+            }
+        })();
+        if let Ok(rgb) = decoded {
+            if JPEG_RAM_ENABLED.load(Ordering::Relaxed) {
+                if let Ok(mut cache) = JPEG_RAM_CACHE.lock() {
+                    cache.retain(|(p, _, _, _)| *p != path);
+                    cache.push((path.clone(), mtime, len, std::sync::Arc::new(rgb)));
+                    jpeg_ram_trim(&mut cache);
+                }
+            }
+        }
+        if let Ok(mut inflight) = JPEG_RAM_INFLIGHT.lock() {
+            inflight.remove(&path);
+        }
+    });
+}
+
 /// Viewer region preview (hybrid mode, tiled): a rectangle of a big JPEG in source pixels of the
 /// oriented image, `out_w` pixels wide. None means "not applicable" (not a plain sRGB JPEG, or a failure).
 pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opts: FitOpts) -> Option<Vec<u8>> {
@@ -1899,9 +2012,15 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
     let data = tauri::async_runtime::spawn_blocking(move || {
         match kind {
             0 => {
+                // Optional: the whole JPEG kept decoded in RAM, so a tile is only cropped and resized.
+                if let Some(rgb) = jpeg_ram_lookup(&path) {
+                    return rgb_region_jpeg(&rgb, rect, out_w, opts).ok();
+                }
                 if !jpeg_fit_eligible(&path) {
                     return None;
                 }
+                // Not ready yet: decode it in the background and serve this tile the usual way.
+                jpeg_ram_start(&path);
                 jpeg_region_jpeg(&path, rect, out_w, opts).ok()
             }
             1 => {

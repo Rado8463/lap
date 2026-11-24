@@ -592,6 +592,46 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.jpeg_ram') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.jpeg_ram_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.jpegRam === true" @change="config.settings.jpegRam = $event.target.checked" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.jpeg_ram_max_mp') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.jpeg_ram_max_mp_hint') }}
+                </div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.jpegRamMaxMp" :disabled="config.settings.jpegRam !== true">
+                <option :value="0">{{ $t('settings.image_view.jpeg_ram_no_limit') }}</option>
+                <option :value="100">100 MP</option>
+                <option :value="200">200 MP</option>
+                <option :value="400">400 MP</option>
+                <option :value="800">800 MP</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.jpeg_ram_budget') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.jpeg_ram_budget_hint') }}
+                </div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model.number="config.settings.jpegRamBudgetMb" :disabled="config.settings.jpegRam !== true">
+                <option :value="0">{{ $t('settings.image_view.jpeg_ram_no_limit') }}</option>
+                <option :value="1024">1 GB</option>
+                <option :value="2048">2 GB</option>
+                <option :value="4096">4 GB</option>
+                <option :value="8192">8 GB</option>
+                <option :value="16384">16 GB</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.hybrid_tile_center') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.hybrid_tile_center_hint') }}
@@ -2428,6 +2468,15 @@ watch(() => config.settings.hybridTileQuality, (newValue) => {
 });
 watch(() => config.settings.hybridTileCenter, (newValue) => {
   emit('settings-hybridTileCenter-changed', newValue === true);
+});
+watch(() => config.settings.jpegRam, (newValue) => {
+  emit('settings-jpegRam-changed', newValue);
+});
+watch(() => config.settings.jpegRamMaxMp, (newValue) => {
+  emit('settings-jpegRamMaxMp-changed', newValue);
+});
+watch(() => config.settings.jpegRamBudgetMb, (newValue) => {
+  emit('settings-jpegRamBudgetMb-changed', newValue);
 });
 watch(() => config.settings.hybridTileProgressive, (newValue) => {
   emit('settings-hybridTileProgressive-changed', newValue !== false);
