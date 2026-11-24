@@ -98,9 +98,11 @@
           @contextmenu.prevent.stop="$emit('context-menu', $event)"
         />
         <!-- Tiled mode (huge JPEG): the visible part decoded by the backend, over the preview. -->
-        <div v-if="tileOverlay && index === activeImage && tileOverlay.path === imageFilePath[index]"
+        <!-- The layer stays mounted while the photo is tiled: a layer inserted in the middle of the
+             0.3 s zoom transition would appear at its final transform while the preview is still moving. -->
+        <div v-if="index === activeImage && tileLayerMounted(index)"
           :style="{ ...getImageStyle(index), pointerEvents: 'none', backgroundColor: 'transparent' }" aria-hidden="true">
-          <img :src="tileOverlay.src" draggable="false" :style="tileOverlayImgStyle(index)" />
+          <img v-if="tileOverlay && tileOverlay.path === imageFilePath[index]" :src="tileOverlay.src" draggable="false" :style="tileOverlayImgStyle(index)" />
         </div>
         <!-- AF areas share the image buffer's layout and outer transition. -->
         <div v-if="showAfAreas && !loadError && index === activeImage && imageFilePath[index] === filePath"
@@ -956,6 +958,11 @@ function usesTiles(filePath: string, meta?: { width?: number; height?: number })
   if (!['jpg', 'jpeg', 'jpe', 'tif', 'tiff', 'psd', 'psb'].includes(ext)) return false;
   const { w, h } = hybridDims(filePath, meta);
   return w * h >= Math.max(mp, 12) * 1_000_000;
+}
+
+function tileLayerMounted(index: number): boolean {
+  const info = hybridSlot.value[index];
+  return !!info && imageFilePath.value[index] === info.path && usesTiles(info.path, info.meta);
 }
 
 function tileOverlayImgStyle(index: number) {
