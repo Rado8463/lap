@@ -349,11 +349,30 @@ async function cleanupDiskAlbums(keepPath: string) {
 // back to the folder itself.
 function followScanThenSelectFolder(albumId: number, node: DiskNode) {
   const isQueued = () => (libConfig.index.albumQueue as any[]).some((id) => Number(id) === albumId);
-  const stop = watch(isQueued, async (queued) => {
+  let done = false;
+  const finish = async () => {
+    if (done) return;
+    done = true;
+    // Only give up when the user moved to another album; the saved selection may already be the folder itself.
+    if (Number(selection.albumId.value) !== albumId) return;
+    if (!selection.selected.value && normalize(String(selection.folderPath.value || '')) !== normalize(node.path)) return;
+    await selection.selectFolder(albumId, { id: 0, name: node.name, path: node.path } as any);
+    // When the selection already was this folder nothing changes, so the list is reloaded explicitly.
+    void tauriEmit('refresh-content', {
+      libraryId: (libConfig as any)._libraryId,
+      albumId,
+      folderPath: node.path,
+      treeChanged: false,
+    });
+  };
+  if (!isQueued()) {
+    void finish();
+    return;
+  }
+  const stop = watch(isQueued, (queued) => {
     if (queued) return;
     stop();
-    if (Number(selection.albumId.value) !== albumId || !selection.selected.value) return; // user went elsewhere
-    await selection.selectFolder(albumId, { id: 0, name: node.name, path: node.path } as any);
+    void finish();
   });
 }
 
