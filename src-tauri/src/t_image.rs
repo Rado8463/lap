@@ -1833,11 +1833,20 @@ fn jpeg_region_jpeg(file_path: &str, rect: (u32, u32, u32, u32), out_w: u32, opt
 }
 
 /// Resizes a decoded region to `out_w` x `out_h` (sharpening only when really downscaled) and encodes it.
+/// Phase timings of the most recent region resize (debug tooltip); written by resize_region_encode.
+static TILE_PHASES: Lazy<std::sync::Mutex<String>> = Lazy::new(|| std::sync::Mutex::new(String::new()));
+
 fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, opts: FitOpts) -> Result<Vec<u8>, String> {
     let (cw, ch) = oriented.dimensions();
     if cw == out_w && ch == out_h {
-        return crate::t_jpeg::encode_rgb8_ex(&oriented, FIT_PREVIEW_JPEG_QUALITY, true);
+        let t = std::time::Instant::now();
+        let data = crate::t_jpeg::encode_rgb8_ex(&oriented, FIT_PREVIEW_JPEG_QUALITY, true)?;
+        if let Ok(mut p) = TILE_PHASES.lock() {
+            *p = format!("{}x{} 1:1, encode {} ms", cw, ch, t.elapsed().as_millis());
+        }
+        return Ok(data);
     }
+    let t_resize = std::time::Instant::now();
     let src_image = fir::images::Image::from_vec_u8(cw, ch, oriented.into_raw(), fir::PixelType::U8x3)
         .map_err(|e| format!("Failed to prepare region for resize: {}", e))?;
     let mut dst_image = fir::images::Image::new(out_w, out_h, fir::PixelType::U8x3);
@@ -1851,13 +1860,30 @@ fn resize_region_encode(oriented: RgbImage, reg_w: u32, out_w: u32, out_h: u32, 
     resizer
         .resize(&src_image, &mut dst_image, &options)
         .map_err(|e| format!("Failed to resize region: {}", e))?;
+    let resize_ms = t_resize.elapsed().as_millis();
     let mut buffer = dst_image.into_vec();
     // Sharpen only when the region really was downscaled.
+    let t_sharp = std::time::Instant::now();
     if (reg_w as f64) > out_w as f64 * 1.05 {
         unsharp_rgb8(&mut buffer, out_w as usize, out_h as usize, opts.sharp);
     }
+    let sharp_ms = t_sharp.elapsed().as_millis();
     let resized = RgbImage::from_raw(out_w, out_h, buffer).ok_or_else(|| "Failed to build region image".to_string())?;
-    crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)
+    let t_enc = std::time::Instant::now();
+    let data = crate::t_jpeg::encode_rgb8_ex(&resized, FIT_PREVIEW_JPEG_QUALITY, true)?;
+    if let Ok(mut p) = TILE_PHASES.lock() {
+        *p = format!(
+            "{}x{} -> {}x{}, resize {} ms, sharpen {} ms, encode {} ms",
+            cw,
+            ch,
+            out_w,
+            out_h,
+            resize_ms,
+            sharp_ms,
+            t_enc.elapsed().as_millis()
+        );
+    }
+    Ok(data)
 }
 
 /// Region of an already decoded (oriented) RGB image, for PSD/PSB/TIFF.
@@ -1871,6 +1897,7 @@ fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts:
     let (reg_w, reg_h) = (x1 - x0, y1 - y0);
     let out_w = out_w.clamp(1, reg_w);
     let out_h = ((reg_h as f64 * out_w as f64 / reg_w as f64).round() as u32).max(1);
+    let t_crop = std::time::Instant::now();
     let src = rgb.as_raw();
     let mut buf = Vec::with_capacity(reg_w as usize * reg_h as usize * 3);
     for y in y0..y1 {
@@ -1878,7 +1905,13 @@ fn rgb_region_jpeg(rgb: &RgbImage, rect: (u32, u32, u32, u32), out_w: u32, opts:
         buf.extend_from_slice(&src[start..start + reg_w as usize * 3]);
     }
     let region = RgbImage::from_raw(reg_w, reg_h, buf).ok_or_else(|| "Bad region buffer".to_string())?;
-    resize_region_encode(region, reg_w, out_w, out_h, opts)
+    let crop_ms = t_crop.elapsed().as_millis();
+    let data = resize_region_encode(region, reg_w, out_w, out_h, opts)?;
+    if let Ok(mut p) = TILE_PHASES.lock() {
+        let prev = p.clone();
+        *p = format!("crop {} ms, {}", crop_ms, prev);
+    }
+    Ok(data)
 }
 
 // ---- Big JPEG kept decoded in RAM (optional, Settings > Viewer) -----------------------------
@@ -1898,6 +1931,19 @@ static JPEG_RAM_STATUS: Lazy<std::sync::Mutex<HashMap<String, String>>> =
 /// Where the most recent tile of each JPEG came from (for the debug tooltip).
 static JPEG_TILE_SOURCE: Lazy<std::sync::Mutex<HashMap<String, &'static str>>> =
     Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+/// Phase timings of the most recent tile cropped from RAM, per file (debug tooltip).
+static JPEG_TILE_PHASES: Lazy<std::sync::Mutex<HashMap<String, String>>> =
+    Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+fn jpeg_tile_phases_set(file_path: &str, text: String) {
+    if let Ok(mut m) = JPEG_TILE_PHASES.lock() {
+        if m.len() > 64 && !m.contains_key(file_path) {
+            m.clear();
+        }
+        m.insert(file_path.to_string(), text);
+    }
+}
 
 fn jpeg_tile_source_set(file_path: &str, source: &'static str) {
     if let Ok(mut m) = JPEG_TILE_SOURCE.lock() {
@@ -1942,6 +1988,9 @@ pub fn jpeg_ram_status(file_path: &str) -> String {
     let mut out = ram;
     if let Some(src) = source {
         out.push_str(&format!(" | last tile: {}", src));
+    }
+    if let Some(text) = JPEG_TILE_PHASES.lock().ok().and_then(|m| m.get(file_path).cloned()) {
+        out.push_str(&format!(" | RAM tile: {}", text));
     }
     out.push_str(&format!(" | {}", file_path));
     out
@@ -2195,7 +2244,11 @@ pub async fn get_region_preview(file_path: &str, rect: (u32, u32, u32, u32), out
                 // Optional: the whole JPEG kept decoded in RAM, so a tile is only cropped and resized.
                 if let Some(rgb) = jpeg_ram_lookup(&path).or_else(|| jpeg_ram_wait(&path)) {
                     jpeg_tile_source_set(&path, "from RAM");
-                    return rgb_region_jpeg(&rgb, rect, out_w, opts).ok();
+                    let data = rgb_region_jpeg(&rgb, rect, out_w, opts).ok();
+                    if let Some(text) = TILE_PHASES.lock().ok().map(|p| p.clone()) {
+                        jpeg_tile_phases_set(&path, text);
+                    }
+                    return data;
                 }
                 if !jpeg_fit_eligible(&path) {
                     return None;
