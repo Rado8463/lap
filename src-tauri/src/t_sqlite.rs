@@ -5601,6 +5601,18 @@ impl AFile {
             conditions.push("(b.path = ? OR b.path LIKE ? ESCAPE '\\')".to_string());
             sql_params.push(Box::new(params.search_all_subfolders.clone()));
             sql_params.push(Box::new(subtree_like_pattern(&params.search_all_subfolders)));
+            // An album nested in an excluded subfolder is a separate album: its files do not belong
+            // to the parent's view. Only files of the album that holds the searched path are kept.
+            conditions.push(
+                "b.album_id = COALESCE((SELECT x.id FROM albums x
+                    WHERE replace(?, char(92), '/') = rtrim(replace(x.path, char(92), '/'), '/')
+                    OR substr(replace(?, char(92), '/'), 1, length(rtrim(replace(x.path, char(92), '/'), '/')) + 1)
+                        = rtrim(replace(x.path, char(92), '/'), '/') || '/'
+                    ORDER BY length(x.path) DESC LIMIT 1), b.album_id)"
+                    .to_string(),
+            );
+            sql_params.push(Box::new(params.search_all_subfolders.clone()));
+            sql_params.push(Box::new(params.search_all_subfolders.clone()));
         }
 
         if !params.search_folder.is_empty() {
