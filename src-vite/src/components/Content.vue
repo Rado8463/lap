@@ -12570,6 +12570,7 @@ async function openImageViewer(
   // create a new window if it doesn't exist
   let imageWindow = await WebviewWindow.getByLabel(webViewLabel);
   let windowLabel = webViewLabel;
+  if (!newViewer && config.settings.multipleImageViewers && imageWindow && await imageWindow.isMinimized()) return;
   if (newViewer && !isCompareRequest && config.settings.multipleImageViewers && imageWindow) {
     // Several viewers allowed: reuse one that is not minimized, otherwise open another.
     const viewers = (await getAllWebviewWindows()).filter((w) => w.label.startsWith('imageviewer'));
@@ -12687,6 +12688,8 @@ async function syncSelectionToImageViewer(index: number) {
   if (!isRealFileItem(fileList.value[index])) return;
   const imageWindow = await WebviewWindow.getByLabel('imageviewer');
   if (!imageWindow || selectedItemIndex.value !== index) return;
+  // With several viewers allowed, a minimized viewer keeps its photo.
+  if (config.settings.multipleImageViewers && await imageWindow.isMinimized()) return;
   const file = fileList.value[index];
   const next = fileList.value[index + 1];
   imageWindow.emit('update-img', {
