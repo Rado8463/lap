@@ -3092,7 +3092,7 @@ function startLoupeTimer(event: MouseEvent) {
 function beginLoupe() {
   if (!isDraggingImage.value || loupeSaved) return;
   // The loupe is only for a picture shown whole; an already zoomed picture is just panned.
-  if (!isAtFitScale()) return;
+  if (!isWholePictureVisible()) return;
   const index = activeImage.value;
   const target = getActualSizeScale();
   const current = scale.value[index];
@@ -3624,6 +3624,16 @@ function getFitScale(): number {
   const rotated = imageSizeRotated.value[activeImage.value];
   if (!(container.width > 0) || !(container.height > 0) || !(rotated.width > 0) || !(rotated.height > 0)) return 0;
   return capFitScale(Math.min(container.width / rotated.width, container.height / rotated.height));
+}
+
+// True while the whole picture is on screen (fit to screen, or slightly zoomed out / just
+// short of fit). Tolerant on purpose: a picture a few pixels past fit still counts as whole.
+function isWholePictureVisible(): boolean {
+  const container = containerSize.value;
+  const rotated = imageSizeRotated.value[activeImage.value];
+  if (!(container.width > 0) || !(container.height > 0) || !(rotated.width > 0) || !(rotated.height > 0)) return true;
+  const s = scale.value[activeImage.value];
+  return rotated.width * s <= container.width * 1.02 && rotated.height * s <= container.height * 1.02;
 }
 
 function isAtFitScale(): boolean {
