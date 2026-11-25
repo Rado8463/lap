@@ -1362,6 +1362,7 @@
     "failed": "Fotografii se nepodařilo načíst. Soubor chybí nebo je poškozený.",
     "viewport_saved": "Zobrazení uloženo ({zoom} %)",
     "viewport_cleared": "Uložené zobrazení smazáno",
+    "viewport_follow_stopped": "Ukladanie zobrazenia ukončené (na tejto fotke zostáva)",
     "viewport_none": "Tato fotka nemá uložené zobrazení",
     "viewport_fit_hint": "Nejprve přibližte, poté zobrazení uložte",
     "zoom_set": "Přiblížení {zoom} %",

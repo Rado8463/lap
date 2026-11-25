@@ -1097,10 +1097,14 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.zoomActual': () => getViewerRef(getActivePane())?.zoomActualSize?.(),
   'view.infoTip': () => toggleInfoTip(),
   'view.loadTiming': () => toggleLoadTiming(),
-  // Same key saves and, while a viewport is being followed or saved, ends it again.
+  // Same key saves, and ends the following of the viewport when it is on.
   'view.saveViewport': () => {
     const viewer = getViewerRef(getActivePane());
-    if (followViewport.value) viewer?.clearSavedViewport?.();
+    if (followViewport.value) {
+      // Stop carrying the viewport to the next images; the current image keeps its saved one.
+      followViewport.value = null;
+      toast.success(t('image_viewer.viewport_follow_stopped'));
+    }
     else viewer?.toggleSavedViewport?.();
   },
   'view.clearViewport': () => getViewerRef(getActivePane())?.clearSavedViewport?.(),

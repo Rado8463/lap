@@ -1363,6 +1363,7 @@
     "failed": "Failed to load photo. The file is missing or corrupted.",
     "viewport_saved": "Viewport saved ({zoom}%)",
     "viewport_cleared": "Saved viewport cleared",
+    "viewport_follow_stopped": "Viewport saving stopped (kept on this image)",
     "viewport_none": "No saved viewport for this photo",
     "viewport_fit_hint": "Zoom in first, then save the viewport",
     "zoom_set": "Zoom {zoom} %",
