@@ -718,7 +718,8 @@ const menuItems = useFileMenuItems(
 const getGridLabelText = (file: any, option: number) => {
   switch (option) {
     case 0: return '';
-    case 1: return shortenFilename(file.name) || ' ';
+    // several lines available: show the whole name and let CSS clamp it; one line keeps the short form
+    case 1: return (labelLines.value > 1 ? file.name : shortenFilename(file.name)) || ' ';
     case 2: return formatFileSize(getMediaItemSize(file)) || ' ';
     case 3: return formatDimensionText(file.width, file.height) || ' ';
     case 4: return formatTimestamp(file.taken_date, 'date_time') || ' ';
