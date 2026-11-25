@@ -1586,11 +1586,11 @@ function buildInfoTipLine(fields: InfoTipField[]): string {
         if (scale.value[index] > 0) segments.push(`${Math.round(scale.value[index] * (window.devicePixelRatio || 1) * 100)}%`);
         break;
       case 'flags':
-        if (zoomLocked.value) segments.push('LOCK');
-        if (hasSavedViewport.value) segments.push('VIEWPORT');
         // Hybrid mode: the screen-sized preview is shown (full resolution not swapped in yet).
         if (tileOverlay.value && tileOverlay.value.path === imageFilePath.value[index]) segments.push('TILES');
         else if (imageNaturalSize.value[index].width > 0 && imageNaturalSize.value[index].width < imageSize.value[index].width * 0.98) segments.push('PREVIEW');
+        if (hasSavedViewport.value) segments.push('VIEWPORT');
+        if (zoomLocked.value) segments.push('LOCK');
         break;
     }
   }
