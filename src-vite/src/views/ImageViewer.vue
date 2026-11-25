@@ -237,6 +237,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { standaloneViewer } from '@/common/standalone';
+import { cyclePanMode, PAN_MODE_LABEL_KEYS } from '@/common/panBeyondEdges';
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
 import { useUIStore } from '@/stores/uiStore';
@@ -1085,6 +1086,7 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.pageUp': () => clickPrev(getActivePane()),
   'view.pageDown': () => clickNext(getActivePane()),
   'view.zoomLock': () => getViewerRef(getActivePane())?.toggleZoomLock?.(),
+  'view.cyclePanBeyondEdges': () => toast.info(t(`image_viewer.${PAN_MODE_LABEL_KEYS[cyclePanMode(config)]}`)),
   'view.first': () => clickHome(getActivePane()),
   'view.last': () => clickEnd(getActivePane()),
   'view.zoomIn': () => clickZoomIn(getActivePane()),
@@ -1118,6 +1120,7 @@ const viewActionOrder: ShortcutActionId[] = [
   'view.pageUp',
   'view.pageDown',
   'view.zoomLock',
+  'view.cyclePanBeyondEdges',
   'view.first',
   'view.last',
   'view.zoomIn',

@@ -74,6 +74,7 @@ export type ShortcutActionId =
   | 'view.saveViewport'
   | 'view.clearViewport'
   | 'view.zoomLock'
+  | 'view.cyclePanBeyondEdges'
   | 'view.cycleRawPreview'
   | 'view.toggleAfAreas'
   | 'view.toggleFullscreen'
@@ -359,7 +360,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   {
     id: 'meta.culling.reject',
     contexts: ['content', 'media-viewer', 'image-viewer'],
-    defaultBindings: [{ code: 'KeyX', allowShift: true, label: 'X' }],
+    defaultBindings: [], // X now cycles the pan-beyond-edges mode
   },
   {
     id: 'meta.culling.unreviewed',
@@ -516,6 +517,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.clearViewport',
     contexts: ['content', 'media-viewer', 'image-viewer'],
     defaultBindings: [{ code: 'KeyV', modifiers: ['shift'], label: { mac: '⇧V', windows: 'Shift+V', linux: 'Shift+V' } }],
+  },
+  {
+    id: 'view.cyclePanBeyondEdges',
+    contexts: ['content', 'media-viewer', 'image-viewer'],
+    defaultBindings: [{ code: 'KeyX', label: 'X' }],
   },
   {
     id: 'view.zoomLock',

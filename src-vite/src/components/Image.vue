@@ -236,6 +236,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { zoomLocked } from '@/common/zoomLock';
 import { standaloneViewer } from '@/common/standalone';
+import { normalizePanMode, PAN_FREE, PAN_VERTICAL } from '@/common/panBeyondEdges';
 import { followViewport } from '@/common/viewportFollow';
 import { parseLoadTimingFields, filterLoadTiming, parseInfoTipFields, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, type InfoTipField } from '@/common/infoTip';
 import { SIDEBAR, GESTURE_LOCK_THRESHOLD, HORIZONTAL_NAV_THRESHOLD, MOUSE_DRAG_NAV_THRESHOLD } from '@/common/constants';
@@ -3267,8 +3268,9 @@ const updateDragPosition = () => {
     return;
   }
 
-  const deltaX = scaledWidth <= container.width ? 0 : event.clientX - lastPos.x;
-  const deltaY = scaledHeight <= container.height ? 0 : event.clientY - lastPos.y;
+  const freePan = normalizePanMode(config.settings.panBeyondEdges) === PAN_FREE;
+  const deltaX = scaledWidth <= container.width && !freePan ? 0 : event.clientX - lastPos.x;
+  const deltaY = scaledHeight <= container.height && !freePan ? 0 : event.clientY - lastPos.y;
 
   position.value[imgIndex].x += deltaX;
   position.value[imgIndex].y += deltaY;
@@ -3782,20 +3784,33 @@ function clampPosition(force: boolean = false) {
 
   isGrabbing.value = false;
   // Optional: let the photo be dragged past the screen edges, keeping a strip of it visible.
+  //  vertical: only up/down (when the photo is taller than the screen);
+  //  free: every direction, also on an axis where the photo is smaller than the screen.
   const minVisible = 100;
-  const overX = config.settings.panBeyondEdges ? Math.max(0, container.width - minVisible) : 0;
-  const overY = config.settings.panBeyondEdges ? Math.max(0, container.height - minVisible) : 0;
-  if (Math.floor(imgRotatedSize.width * scaleVal) > container.width) {
-    pos.x = Math.min(Math.max(pos.x, maxX - overX), paddingX + overX);
+  const panMode = normalizePanMode(config.settings.panBeyondEdges);
+  const overflowX = Math.floor(imgRotatedSize.width * scaleVal) > container.width;
+  const overflowY = Math.floor(imgRotatedSize.height * scaleVal) > container.height;
+  if (panMode === PAN_FREE && (overflowX || overflowY)) {
+    const fullW = imgRotatedSize.width * scaleVal;
+    const fullH = imgRotatedSize.height * scaleVal;
+    // Left/top edge of the photo may range from (minVisible - size) to (container - minVisible).
+    pos.x = Math.min(Math.max(pos.x, minVisible - fullW + paddingX), container.width - minVisible + paddingX);
+    pos.y = Math.min(Math.max(pos.y, minVisible - fullH + paddingY), container.height - minVisible + paddingY);
     isGrabbing.value = true;
   } else {
-    pos.x = (container.width - imgSize.width) / 2;
-  }
-  if (Math.floor(imgRotatedSize.height * scaleVal) > container.height) {
-    pos.y = Math.min(Math.max(pos.y, maxY - overY), paddingY + overY);
-    isGrabbing.value = true;
-  } else {
-    pos.y = (container.height - imgSize.height) / 2;
+    const overY = panMode === PAN_VERTICAL ? Math.max(0, container.height - minVisible) : 0;
+    if (overflowX) {
+      pos.x = Math.min(Math.max(pos.x, maxX), paddingX);
+      isGrabbing.value = true;
+    } else {
+      pos.x = (container.width - imgSize.width) / 2;
+    }
+    if (overflowY) {
+      pos.y = Math.min(Math.max(pos.y, maxY - overY), paddingY + overY);
+      isGrabbing.value = true;
+    } else {
+      pos.y = (container.height - imgSize.height) / 2;
+    }
   }
   triggerRef(position);
 

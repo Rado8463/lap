@@ -378,7 +378,11 @@
                   {{ $t('settings.image_view.pan_beyond_edges_hint') }}
                 </div>
               </div>
-              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.panBeyondEdges" />
+              <select class="select select-bordered select-sm min-w-40" v-model.number="panBeyondEdgesMode">
+                <option :value="0">{{ $t('image_viewer.pan_mode_off') }}</option>
+                <option :value="1">{{ $t('image_viewer.pan_mode_vertical') }}</option>
+                <option :value="2">{{ $t('image_viewer.pan_mode_free') }}</option>
+              </select>
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
@@ -1368,6 +1372,7 @@
 
 <script setup lang="ts">
 
+import { normalizePanMode } from '@/common/panBeyondEdges';
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -1930,6 +1935,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'view.saveViewport', labelKey: 'save_viewport' },
       { actionId: 'view.clearViewport', labelKey: 'clear_viewport' },
       { actionId: 'view.zoomLock', labelKey: 'zoom_lock' },
+      { actionId: 'view.cyclePanBeyondEdges', labelKey: 'cycle_pan_beyond_edges' },
       { actionId: 'meta.rotate', labelKey: 'rotate' },
       { actionId: 'meta.rotateCounterclockwise', labelKey: 'rotate_counterclockwise' },
       { actionId: 'view.toggleAfAreas', labelKey: 'toggle_af_areas' },
@@ -2577,6 +2583,10 @@ watch(() => config.settings.pngBackendPreview, (newValue) => {
   emit('settings-pngBackendPreview-changed', newValue !== false);
 });
 
+const panBeyondEdgesMode = computed({
+  get: () => normalizePanMode(config.settings.panBeyondEdges),
+  set: (value: number) => { config.settings.panBeyondEdges = value; },
+});
 watch(() => config.settings.panBeyondEdges, (newValue) => {
   emit('settings-panBeyondEdges-changed', newValue);
 });

@@ -842,6 +842,7 @@
 </template>
 
 <script setup lang="ts">
+import { cyclePanMode, PAN_MODE_LABEL_KEYS } from '@/common/panBeyondEdges';
 import { getVisibleEditableMetadataFields } from '@/common/fileInfoFields';
 import EditMetadataDialog from "@/components/EditMetadataDialog.vue";
 import { externalDragKind, updateExternalDrag, resetExternalDrag, finishExternalDrag } from '@/common/externalDrag';
@@ -5861,6 +5862,13 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
     event.preventDefault();
     if (!event.repeat) getActivePreviewMediaRef()?.clearSavedViewport?.();
+    return;
+  }
+
+  if (getActivePreviewMode() !== 'none' && matchesShortcut('view.cyclePanBeyondEdges', event, shortcutPlatform)) {
+    if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    if (!event.repeat) toast.info(t(`image_viewer.${PAN_MODE_LABEL_KEYS[cyclePanMode(config)]}`));
     return;
   }
 

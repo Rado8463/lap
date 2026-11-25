@@ -241,7 +241,7 @@ export const useConfigStore = defineStore('configStore', {
       hybridTileMegapixels: 36, // JPEGs above this many megapixels are shown tiled (0 = off)
       hybridPreview: true,      // big JPEG/PNG shown as a screen-sized preview, full resolution only when zoomed in
       pngBackendPreview: true,  // big lossless PNGs shown via backend JPEG (fast), instead of WebView decoding
-      panBeyondEdges: false,    // allow dragging a zoomed photo past the screen edges (like ZPS)
+      panBeyondEdges: 0,        // dragging a zoomed photo past the screen edges: 0 off, 1 vertical only, 2 free
       stageBeforeShow: true,    // keep the old photo until the new big photo is decoded and rendered
       loadingBackgroundColor: '#000000', // colour of a photo's area before its pixels are loaded
       albumCoverIcons: true,        // album list shows a photo thumbnail as the album icon (off: plain folder icon)
