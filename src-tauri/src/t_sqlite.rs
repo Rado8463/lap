@@ -4126,6 +4126,7 @@ impl AFile {
         match action {
             CloudScanAction::Read => {}
             CloudScanAction::ReadPending => {
+                crate::t_synclog::count(&crate::t_synclog::PENDING_READS);
                 let file_id = existing_id.ok_or("Existing DB record is missing file id")?;
                 let file = Self::update_file_info(file_id, file_path, last_scan_time)?
                     .ok_or("File not found")?;
@@ -4211,6 +4212,7 @@ impl AFile {
             }
 
             if modified || needs_tiff_dimension_refresh {
+                crate::t_synclog::count(&crate::t_synclog::CHANGED_FILES);
                 if let Some(file_id) = file.id {
                     if let Some(mut updated_file) =
                         Self::update_file_info(file_id, file_path, last_scan_time)?
@@ -4227,6 +4229,7 @@ impl AFile {
             } else {
                 // The original is unchanged, but we still update last_scan_time
                 // for the mark-and-sweep deletion logic.
+                crate::t_synclog::count(&crate::t_synclog::UNCHANGED_RESCANS);
                 if let Some(file_id) = file.id {
                     let _ = Self::update_column(file_id, "last_scan_time", &last_scan_time);
                     if file.comments.is_none()

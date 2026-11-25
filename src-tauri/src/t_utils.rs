@@ -2478,8 +2478,15 @@ pub fn start_folder_mtime_sync(app_handle: tauri::AppHandle) {
         .wrapping_add(1);
 
     tauri::async_runtime::spawn_blocking(move || {
+        let sync_started = std::time::Instant::now();
+        crate::t_synclog::log("startup folder sync: begin");
         match sync_dirty_folders_by_mtime(generation) {
             Ok((result, tasks)) => {
+                crate::t_synclog::log(&format!(
+                    "startup folder sync: done in {} ms; dirty folders={}, new folders={}, new files={}, updated files={}, deleted files={}, renames={}, processing tasks={}",
+                    sync_started.elapsed().as_millis(), result.dirty_folder_count, result.new_folder_count,
+                    result.new_file_count, result.updated_file_count, result.deleted_file_count, result.rename_count, tasks.len()
+                ));
                 if !sync_generation_valid(generation) {
                     return;
                 }
@@ -2561,6 +2568,10 @@ fn sync_dirty_folders_by_mtime(
             .map(|id| pending_live_photo_folders.contains(&id))
             .unwrap_or(true);
         if info.modified != folder.modified_at || needs_live_photo_reindex {
+            crate::t_synclog::log(&format!(
+                "dirty folder: {} (album {}) disk mtime={:?} stored mtime={:?} live-photo reindex={}",
+                folder.path, folder.album_id, info.modified, folder.modified_at, needs_live_photo_reindex
+            ));
             queue.push((folder, info.modified, needs_live_photo_reindex));
         }
     }
@@ -2598,6 +2609,7 @@ fn sync_dirty_folders_by_mtime(
             queue.push((child, None, true));
         }
 
+        let folder_started = std::time::Instant::now();
         let outcome = sync_folder_direct_files(
             folder_id,
             folder.album_id,
@@ -2605,6 +2617,14 @@ fn sync_dirty_folders_by_mtime(
             generation,
             needs_live_photo_reindex,
         )?;
+        crate::t_synclog::log(&format!(
+            "synced folder {} in {} ms: new={}, updated={}, deleted={}, renamed={}, tasks={}; per-file: pending metadata reads={}, changed files={}, unchanged rescans={}",
+            folder.path, folder_started.elapsed().as_millis(), outcome.new_file_count, outcome.updated_file_count,
+            outcome.deleted_file_count, outcome.rename_count, outcome.tasks.len(),
+            crate::t_synclog::take(&crate::t_synclog::PENDING_READS),
+            crate::t_synclog::take(&crate::t_synclog::CHANGED_FILES),
+            crate::t_synclog::take(&crate::t_synclog::UNCHANGED_RESCANS),
+        ));
         new_file_count += outcome.new_file_count;
         updated_file_count += outcome.updated_file_count;
         deleted_file_count += outcome.deleted_file_count;
@@ -2866,7 +2886,12 @@ fn sync_folder_direct_files(
                 if is_cancelled() {
                     return Ok(FolderSyncOutcome::default());
                 }
-                match AFile::add_to_db(folder_id, file_path_str, ftype, scan_time) {
+                let file_started = std::time::Instant::now();
+                let added = AFile::add_to_db(folder_id, file_path_str, ftype, scan_time);
+                if crate::t_synclog::enabled() && file_started.elapsed().as_millis() > 500 {
+                    crate::t_synclog::log(&format!("slow file ({} ms): {}", file_started.elapsed().as_millis(), file_path_str));
+                }
+                match added {
                     Ok((file, status)) => {
                         if status == 1 {
                             new_count += 1;

@@ -155,6 +155,7 @@ export const useConfigStore = defineStore('configStore', {
       showToolTip: true,          // show button tooltip
       statusBarFields: null,
       showStatusBar: true,        // show status bar
+      syncLog: true,              // write the startup folder-sync diagnostic log (logs/startup-sync.log)
       autoHideBars: false,        // hide top bar + status bar; reveal at top edge of window or with key S
       activateMainOnViewerClose: false, // after closing the Image Viewer, bring the main window to front
       multipleImageViewers: false, // main window may open several Image Viewer windows

@@ -168,6 +168,9 @@ if (isMainWindow) {
   listen('settings-showToolTip-changed', (event) => {
     config.setShowToolTip(event.payload)
   })
+  listen('settings-syncLog-changed', (event) => {
+    config.settings.syncLog = event.payload
+  })
   listen('settings-autoHideBars-changed', (event) => {
     config.settings.autoHideBars = event.payload
   })

@@ -167,6 +167,13 @@
               </div>
               <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="config.settings.multipleImageViewers" />
             </div>
+            <div class="flex items-center justify-between p-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.general.sync_log') }}</div>
+                <div v-if="syncLogPath" class="text-xs text-base-content/50 break-all select-text">{{ syncLogPath }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="config.settings.syncLog" />
+            </div>
           </div>
 
         </div>
@@ -1420,6 +1427,7 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { LOAD_TIMING_FIELDS, parseLoadTimingFields, INFO_TIP_FIELDS, INFO_TIP_DEFAULT_LINE1, INFO_TIP_DEFAULT_LINE2, parseInfoTipFields } from '@/common/infoTip';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
@@ -2418,6 +2426,11 @@ watch(() => config.settings.fileDeleteBehavior, (behavior) => {
 });
 watch(() => config.settings.showToolTip, (newValue) => {
   emit('settings-showToolTip-changed', newValue);
+});
+const syncLogPath = ref('');
+invoke('get_sync_log_path').then((path) => { syncLogPath.value = path || ''; }).catch(() => {});
+watch(() => config.settings.syncLog, (newValue) => {
+  emit('settings-syncLog-changed', newValue);
 });
 watch(() => config.settings.autoHideBars, (newValue) => {
   emit('settings-autoHideBars-changed', newValue);

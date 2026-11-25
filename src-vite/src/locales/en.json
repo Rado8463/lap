@@ -1499,6 +1499,7 @@
       "show_status_bar": "Show status bar",
       "auto_hide_bars": "Auto-hide top bar and status bar (show at top edge or with S)",
       "activate_main_on_viewer_close": "Activate the main window after closing the Image Viewer",
+      "sync_log": "Log startup folder sync (diagnostics)",
       "multiple_image_viewers": "Allow multiple Image Viewer windows",
       "auto_check_updates": "Auto-check for updates"
     },

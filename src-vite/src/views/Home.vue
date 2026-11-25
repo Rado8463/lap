@@ -535,6 +535,11 @@ function pushFeatureFlags() {
 }
 watch([() => config.settings.aiSearchEnabled, () => config.settings.detectMotionPhotos], () => { void pushFeatureFlags(); });
 
+function pushSyncLogging() {
+  return invoke('set_sync_logging', { enabled: config.settings.syncLog !== false }).catch(console.error);
+}
+watch(() => config.settings.syncLog, () => { void pushSyncLogging(); });
+
 function pushJpegRam() {
   return invoke('set_jpeg_ram', {
     enabled: config.settings.jpegRam !== false,
@@ -573,6 +578,7 @@ async function finishStartup() {
   uiStore.startupReady = true;
   performance.mark('startup-first-content-ready');
   await pushFeatureFlags();
+  await pushSyncLogging();
   await pushJpegRam();
   await pushTestFlags();
   void invoke('finish_startup', { model: config.settings.imageSearch.model || 0 }).catch(console.error);

@@ -50,6 +50,7 @@ mod t_storage;
 mod t_cache_storage;
 mod t_standalone;
 mod t_startup;
+mod t_synclog;
 mod t_utils;
 mod t_video;
 #[cfg(target_os = "windows")]
@@ -393,6 +394,8 @@ async fn main() {
             t_cmds::refresh_selected_file_info,
             t_cmds::change_video_thumbnail,
             t_startup::set_feature_flags,
+            t_synclog::set_sync_logging,
+            t_synclog::get_sync_log_path,
             t_startup::set_test_flags,
             t_startup::set_jpeg_ram,
             t_startup::get_jpeg_ram_status,

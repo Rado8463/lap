@@ -1498,6 +1498,7 @@
       "show_status_bar": "Zobrazovat stavový řádek",
       "auto_hide_bars": "Automaticky skrýt horní lištu a stavový řádek (zobrazí se u horního okraje nebo klávesou S)",
       "activate_main_on_viewer_close": "Po zavření prohlížeče obrázků aktivovat hlavní okno",
+      "sync_log": "Zapisovat log startovní synchronizace složek (diagnostika)",
       "multiple_image_viewers": "Povolit více oken prohlížeče obrázků",
       "auto_check_updates": "Automaticky kontrolovat aktualizace"
     },
