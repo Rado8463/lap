@@ -3058,7 +3058,7 @@ function trackImageDragOut(event: MouseEvent) {
 // ---- Press-and-hold "loupe": hold the left button to zoom to 100 % under the
 // cursor (drag to pan); release to return to the previous zoom and position.
 const LOUPE_HOLD_MS = 280;
-const LOUPE_MOVE_TOLERANCE = 6;
+const LOUPE_MOVE_TOLERANCE = 2; // px: slower or finer drags than this still count as holding still
 let loupeTimer: ReturnType<typeof setTimeout> | null = null;
 let loupeStart = { x: 0, y: 0 };
 let loupeSaved: { index: number; scale: number; x: number; y: number } | null = null;
