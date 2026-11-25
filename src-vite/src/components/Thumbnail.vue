@@ -3,7 +3,7 @@
     ref="rootRef"
     :class="[
       'border-2 flex flex-col items-center cursor-pointer group relative',
-      thumbnailCornerClass,
+      cardOuterCornerClass,
       isTransitionDisabled ? 'transition-none' : 'transition-[background-color,color] ease-in-out duration-150 ',
       config.settings.grid.style === 0 ? 'p-1 w-fit h-fit' : 'w-full h-full',
       isActive
@@ -27,7 +27,7 @@
     <div
       ref="containerRef"
       data-thumbnail-container
-      :class="[thumbnailCornerClass, 'relative flex items-center justify-center overflow-hidden bg-base-200/70']"
+      :class="[imageCornerClass, 'relative flex items-center justify-center overflow-hidden bg-base-200/70']"
       :style="layoutStyle"
       @pointerenter="startMediaPreview"
       @pointerleave="stopMediaPreview"
@@ -396,6 +396,13 @@ const shouldScaleThumbnail = computed(() => !fitRawPairPreview.value
 const thumbnailCornerClass = computed(() => (
   config.settings.grid.thumbnailCorners === 1 ? 'rounded-none' : 'rounded-box'
 ));
+// Card style: the picture is always square-cornered; only the highlighted (selected / current) card frame is rounded.
+const cardOuterCornerClass = computed(() => (
+  config.settings.grid.style === 0
+    ? (props.isSelected || props.isActive ? 'rounded-box' : 'rounded-none')
+    : thumbnailCornerClass.value
+));
+const imageCornerClass = computed(() => (config.settings.grid.style === 0 ? 'rounded-none' : thumbnailCornerClass.value));
 const thumbnailSrc = ref(props.file.thumbnail || '');
 const isThumbnailLoaded = ref(false);
 let thumbnailRetryCount = 0;
