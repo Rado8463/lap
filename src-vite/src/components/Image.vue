@@ -1616,7 +1616,8 @@ function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: Load
   const r = (n: number) => Math.round(n);
   const p = loaded.perf;
   const parts = [
-    `cloud-check ${r(tCloud - t0)} ms`,
+    // The cloud check only runs when enabled; otherwise this span is just the preceding setup.
+    config.settings.detectCloudFiles === true ? `cloud-check ${r(tCloud - t0)} ms` : '',
     p && !fromCache ? `fetch+header ${r(p.loaded - p.start)} ms` : 'preloaded (cache)',
     p && !fromCache ? `decode ${r(p.decoded - p.loaded)} ms` : '',
     stageMs > 0 ? `stage ${r(stageMs)} ms` : '',
