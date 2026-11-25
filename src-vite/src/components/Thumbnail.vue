@@ -718,8 +718,8 @@ const menuItems = useFileMenuItems(
 const getGridLabelText = (file: any, option: number) => {
   switch (option) {
     case 0: return '';
-    // several lines available: show the whole name and let CSS clamp it; one line keeps the short form
-    case 1: return (labelLines.value > 1 ? file.name : shortenFilename(file.name)) || ' ';
+    // whole name; CSS clamps it to the available lines with an ellipsis at the end (the extension is in the badge)
+    case 1: return file.name || ' ';
     case 2: return formatFileSize(getMediaItemSize(file)) || ' ';
     case 3: return formatDimensionText(file.width, file.height) || ' ';
     case 4: return formatTimestamp(file.taken_date, 'date_time') || ' ';
