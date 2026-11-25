@@ -3058,7 +3058,7 @@ function trackImageDragOut(event: MouseEvent) {
 // ---- Press-and-hold "loupe": hold the left button to zoom to 100 % under the
 // cursor (drag to pan); release to return to the previous zoom and position.
 const LOUPE_HOLD_MS = 280;
-const LOUPE_MOVE_TOLERANCE = 2; // px: slower or finer drags than this still count as holding still
+const LOUPE_MOVE_TOLERANCE = 6;
 let loupeTimer: ReturnType<typeof setTimeout> | null = null;
 let loupeStart = { x: 0, y: 0 };
 let loupeSaved: { index: number; scale: number; x: number; y: number } | null = null;
@@ -3091,6 +3091,8 @@ function startLoupeTimer(event: MouseEvent) {
 
 function beginLoupe() {
   if (!isDraggingImage.value || loupeSaved) return;
+  // The loupe is only for a picture shown whole; an already zoomed picture is just panned.
+  if (!isAtFitScale()) return;
   const index = activeImage.value;
   const target = getActualSizeScale();
   const current = scale.value[index];
