@@ -75,6 +75,7 @@ export type ShortcutActionId =
   | 'view.clearViewport'
   | 'view.zoomLock'
   | 'view.cyclePanBeyondEdges'
+  | 'view.toggleBars'
   | 'view.cycleRawPreview'
   | 'view.toggleAfAreas'
   | 'view.toggleFullscreen'
@@ -297,7 +298,12 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   {
     id: 'file.searchSimilar',
     contexts: ['content'],
-    defaultBindings: [{ code: 'KeyS', allowShift: true, label: 'S' }],
+    defaultBindings: [],
+  },
+  {
+    id: 'view.toggleBars',
+    contexts: ['content'],
+    defaultBindings: [{ code: 'KeyS', label: 'S' }],
   },
   {
     id: 'meta.favorite',

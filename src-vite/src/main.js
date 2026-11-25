@@ -165,6 +165,15 @@ if (isMainWindow) {
   listen('settings-showToolTip-changed', (event) => {
     config.setShowToolTip(event.payload)
   })
+  listen('settings-autoHideBars-changed', (event) => {
+    config.settings.autoHideBars = event.payload
+  })
+  listen('settings-activateMainOnViewerClose-changed', (event) => {
+    config.settings.activateMainOnViewerClose = event.payload
+  })
+  listen('settings-multipleImageViewers-changed', (event) => {
+    config.settings.multipleImageViewers = event.payload
+  })
   listen('settings-showStatusBar-changed', (event) => {
     config.setShowStatusBar(event.payload)
   })

@@ -149,6 +149,24 @@
                 />
               </div>
             </div>
+            <div class="flex items-center justify-between p-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.general.auto_hide_bars') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="config.settings.autoHideBars" />
+            </div>
+            <div class="flex items-center justify-between p-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.general.activate_main_on_viewer_close') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="config.settings.activateMainOnViewerClose" />
+            </div>
+            <div class="flex items-center justify-between p-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.general.multiple_image_viewers') }}</div>
+              </div>
+              <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="config.settings.multipleImageViewers" />
+            </div>
           </div>
 
         </div>
@@ -1917,7 +1935,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'nav.nextFolder', labelKey: 'next_folder' },
       { actionId: 'file.openExternalApp', labelKey: 'open_external_app' },
       { actionId: 'file.editImage', labelKey: 'edit_image' },
-      { actionId: 'file.searchSimilar', labelKey: 'search_similar' },
+      { actionId: 'view.toggleBars', labelKey: 'toggle_bars' },
       { actionId: 'meta.info', labelKey: 'show_info' },
     ],
   },
@@ -2366,6 +2384,18 @@ watch(() => config.settings.fileDeleteBehavior, (behavior) => {
 watch(() => config.settings.showToolTip, (newValue) => {
   emit('settings-showToolTip-changed', newValue);
 });
+watch(() => config.settings.autoHideBars, (newValue) => {
+  emit('settings-autoHideBars-changed', newValue);
+});
+
+watch(() => config.settings.activateMainOnViewerClose, (newValue) => {
+  emit('settings-activateMainOnViewerClose-changed', newValue);
+});
+
+watch(() => config.settings.multipleImageViewers, (newValue) => {
+  emit('settings-multipleImageViewers-changed', newValue);
+});
+
 watch(() => config.settings.showStatusBar, (newValue) => {
   emit('settings-showStatusBar-changed', newValue);
 });

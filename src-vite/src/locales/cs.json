@@ -1496,6 +1496,9 @@
       "hide_title_bar_hint": "Odstraní záhlaví hlavního okna; tlačítka minimalizovat, maximalizovat a zavřít se přesunou do panelu nástrojů. Okno přesouvejte za prázdnou část panelu nástrojů.",
       "show_tool_tip": "Zobrazovat tipy u tlačítek",
       "show_status_bar": "Zobrazovat stavový řádek",
+      "auto_hide_bars": "Automaticky skrýt horní lištu a stavový řádek (zobrazí se u horního okraje nebo klávesou S)",
+      "activate_main_on_viewer_close": "Po zavření prohlížeče obrázků aktivovat hlavní okno",
+      "multiple_image_viewers": "Povolit více oken prohlížeče obrázků",
       "auto_check_updates": "Automaticky kontrolovat aktualizace"
     },
     "raw": {
@@ -1843,6 +1846,7 @@
         "load_timing": "Tooltip s časy načítání (debug)",
         "save_viewport": "Uložit zobrazení (přiblížení a poloha)",
         "zoom_lock": "Zamknout přiblížení (zachovat při změně obrázku)",
+        "toggle_bars": "Zobrazit/skrýt horní lištu a stavový řádek",
         "cycle_pan_beyond_edges": "Přepnout posun fotky přes okraje obrazovky (vypnuto / svisle / volný)",
         "clear_viewport": "Smazat uložené zobrazení",
         "cycle_raw_preview": "Přepnout režim náhledu RAW",

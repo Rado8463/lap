@@ -155,6 +155,9 @@ export const useConfigStore = defineStore('configStore', {
       showToolTip: true,          // show button tooltip
       statusBarFields: null,
       showStatusBar: true,        // show status bar
+      autoHideBars: false,        // hide top bar + status bar; reveal at top edge of window or with key S
+      activateMainOnViewerClose: false, // after closing the Image Viewer, bring the main window to front
+      multipleImageViewers: false, // main window may open several Image Viewer windows
       autoCheckUpdates: false,     // automatically check for updates (off in this build)
       aiSearchEnabled: false,      // AI image search: load the models and build embeddings while indexing
       detectMotionPhotos: false,   // look for an embedded MP4 in every JPEG while indexing
@@ -185,7 +188,8 @@ export const useConfigStore = defineStore('configStore', {
       mapMarkerSize: 64,          // map photo marker size in px
       mapTheme: 0,                // full Map view theme (0: standard, 1: satellite); independent of infoPanel.mapTheme
       grid: {
-        sizePosition: 0,         // grid size slider position (0-1)
+        sizePosition: 0,         // grid size slider position (0-1); fallback for styles without their own value
+        sizePositions: [],       // grid size slider position per style (index = style), unset = sizePosition
         style: 0,                // 0: card view, 1: tile view, 2: justified view, 3: masonry view
         viewMode: 'grid',        // grid | filmstrip | map
         scaling: 1,              // 0: Fit Entire Image, 1: Crop to Fill, 2: Stretch to Fill

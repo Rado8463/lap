@@ -24,7 +24,8 @@
     <!-- title bar -->
     <div
       v-if="!showWelcomeContent"
-      class="absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden"
+      class="absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden transition-transform duration-150"
+      :class="barsHiddenNow ? '-translate-y-full pointer-events-none' : ''"
       data-tauri-drag-region
     >
       <!-- title -->
@@ -237,8 +238,8 @@
         <PhotoMapView
           v-if="mapViewMounted"
           v-show="isMapContentVisible"
-          class="mt-12 flex-1 min-w-0"
-          :class="config.settings.showStatusBar ? 'mb-8' : 'mb-1'"
+          class="flex-1 min-w-0"
+          :class="[topOffsetClass, layoutStatusBar ? 'mb-8' : 'mb-1']"
           :active="isMapContentVisible"
           :query-params="mapQueryParams"
           :query-source="currentQuerySource"
@@ -255,7 +256,7 @@
           :class="[
             'flex-1 flex',
             gridViewLayoutClass,
-            showFilmstripLayout ? (config.settings.showStatusBar ? 'mt-12 mb-8' : 'mt-12 mb-1') : ''
+            showFilmstripLayout ? [topOffsetClass, layoutStatusBar ? 'mb-8' : 'mb-1'] : ''
           ]"
         >
           <Transition name="selection-bar" appear>
@@ -396,8 +397,8 @@
 
         <!-- custom scrollbar -->
         <div v-if="!isMapVisible && !showWelcomeContent && !showFilmstripLayout && fileList.length > 0"
-          class="mt-12 shrink-0" 
-          :class="[ config.settings.showStatusBar ? 'mb-8' : 'mb-1' ]"
+          class="shrink-0" 
+          :class="[ topOffsetClass, layoutStatusBar ? 'mb-8' : 'mb-1' ]"
         >
           <ScrollBar
             :total="scrollbarTotal"
@@ -413,7 +414,7 @@
         <!-- Quick View Overlay -->
         <div v-if="showQuickView && fileList[selectedItemIndex]"
           class="absolute inset-0 z-60 flex items-center justify-center bg-base-200/95 backdrop-blur-lg overflow-hidden"
-          :class="[ config.settings.showStatusBar ? 'mt-12 mb-8': 'mt-12' ]"
+          :class="[ topOffsetClass, layoutStatusBar ? 'mb-8' : '' ]"
         >
           <div
             class="relative w-full h-full flex items-center justify-center"
@@ -489,10 +490,11 @@
 
       <!-- info panel splitter -->
       <div v-if="rightPanelLayoutVisible"
-        class="w-1 shrink-0 mt-12 cursor-col-resize splitter-indicator splitter-vertical"
+        class="w-1 shrink-0 cursor-col-resize splitter-indicator splitter-vertical"
         :class="{
-          'mb-8': config.settings.showStatusBar,
-          'mb-1': !config.settings.showStatusBar,
+          [topOffsetClass]: true,
+          'mb-8': layoutStatusBar,
+          'mb-1': !layoutStatusBar,
           'splitter-dragging': isDraggingInfoPanel,
         }" 
         @mousedown="startDraggingInfoPanelSplitter"
@@ -509,7 +511,7 @@
             'absolute right-0 z-40 pr-1 transition-transform duration-200 ease-in-out',
             rightPanelVisualVisible ? 'translate-x-0' : 'translate-x-full pointer-events-none',
           ]"
-          :style="{ width: activeRightPanelWidth + 'px', top: '3rem', bottom: config.settings.showStatusBar ? '2rem' : '0.25rem' }"
+          :style="{ width: activeRightPanelWidth + 'px', top: config.settings.autoHideBars ? '0' : '3rem', bottom: layoutStatusBar ? '2rem' : '0.25rem' }"
         >
           <DedupPane
             v-if="renderedRightPanelContent === 'dedup'"
@@ -598,6 +600,7 @@
 
     <StatusBar
       v-if="config.settings.showStatusBar"
+      :class="[ 'transition-transform duration-150', barsHiddenNow ? 'translate-y-full pointer-events-none' : '' ]"
       :file-list="fileList"
       :selected-item-index="selectedItemIndex"
       :selection-count="selectMode ? selectedCount : 0"
@@ -854,7 +857,7 @@ import { emit as tauriEmit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { isWatchedFolder, samePath } from '@/common/autoRescan';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
-import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { WebviewWindow, getCurrentWebviewWindow, getAllWebviewWindows } from '@tauri-apps/api/webviewWindow';
 import { PREVIEW_WINDOW_FOCUS_RESTORED } from '@/common/previewWindow';
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
@@ -1346,6 +1349,32 @@ const imageViewerSession = ref<ImageViewerSession>({ mode: 'normal' });
 // True while the separate image viewer window exists, so selection changes can
 // push updates without an async window lookup when no viewer is open.
 const isImageViewerWindowOpen = ref(false);
+
+// Auto-hide of the top bar + status bar (Settings). The bars float over the content
+// when revealed, so showing/hiding never relayouts the grid.
+const barsRevealed = ref(false);
+const topOffsetClass = computed(() => (config.settings.autoHideBars ? 'mt-0' : 'mt-12'));
+const layoutStatusBar = computed(() => !!config.settings.showStatusBar && !config.settings.autoHideBars);
+const barsHiddenNow = computed(() => !!config.settings.autoHideBars && !barsRevealed.value);
+const BAR_REVEAL_EDGE_PX = 3;
+function onBarsMouseMove(event: MouseEvent) {
+  if (!config.settings.autoHideBars) return;
+  const scale = Number(config.settings.scale || 1);
+  if (!barsRevealed.value) {
+    if (event.clientY <= BAR_REVEAL_EDGE_PX) barsRevealed.value = true;
+  } else if (!barsPinned && event.clientY > 56 * scale && event.clientY < window.innerHeight - 40 * scale) {
+    barsRevealed.value = false;
+  }
+}
+let barsPinned = false; // revealed with the keyboard: stays until S is pressed again
+function toggleBarsByKey() {
+  if (!config.settings.autoHideBars) return;
+  barsPinned = !barsRevealed.value;
+  barsRevealed.value = barsPinned;
+}
+watch(() => config.settings.autoHideBars, () => { barsRevealed.value = false; barsPinned = false; });
+onMounted(() => window.addEventListener('mousemove', onBarsMouseMove));
+onBeforeUnmount(() => window.removeEventListener('mousemove', onBarsMouseMove));
 
 function removeDeletedFilesFromImageViewerSession(fileIds: number[]) {
   const session = imageViewerSession.value;
@@ -3126,20 +3155,33 @@ function scheduleLayoutRefresh() {
 }
 const gap = 8;                    // Gap between items (must match GridView)
 const gridSizeProfile = computed(() => thumbnailProfile(config.settings.thumbnailSize));
+// The thumbnail size is remembered separately for every grid style (card / tile / justified / masonry).
+const activeSizePosition = computed({
+  get: () => {
+    const own = config.settings.grid.sizePositions?.[config.settings.grid.style];
+    return typeof own === 'number' ? own : config.settings.grid.sizePosition;
+  },
+  set: (value: number) => {
+    const list = Array.isArray(config.settings.grid.sizePositions) ? [...config.settings.grid.sizePositions] : [];
+    for (let i = 0; i < 4; i++) if (typeof list[i] !== 'number') list[i] = config.settings.grid.sizePosition;
+    list[config.settings.grid.style] = value;
+    config.settings.grid.sizePositions = list;
+  },
+});
 const gridSize = computed(() =>
-  gridSizeFromPosition(config.settings.grid.sizePosition, config.settings.thumbnailSize),
+  gridSizeFromPosition(activeSizePosition.value, config.settings.thumbnailSize),
 );
 const gridSizePosition = computed({
-  get: () => Math.round(normalizeGridSizePosition(config.settings.grid.sizePosition) * 100),
+  get: () => Math.round(normalizeGridSizePosition(activeSizePosition.value) * 100),
   set: (value) => {
-    config.settings.grid.sizePosition = normalizeGridSizePosition(Number(value) / 100);
+    activeSizePosition.value = normalizeGridSizePosition(Number(value) / 100);
   },
 });
 
 function setGridSize(value: unknown) {
   const profile = gridSizeProfile.value;
   const size = Math.min(profile.maxGridSize, Math.max(profile.minGridSize, Number(value) || profile.minGridSize));
-  config.settings.grid.sizePosition = gridSizePositionFromGridSize(size, config.settings.thumbnailSize);
+  activeSizePosition.value = gridSizePositionFromGridSize(size, config.settings.thumbnailSize);
 }
 
 const itemWidth = computed(() => {
@@ -4765,6 +4807,7 @@ const backupState = ref<any>(null);
 let unlistenAlbumAccessChanged: (() => void) | undefined;
 let unlistenKeydown: () => void;
 let unlistenImageViewer: () => void;
+let unlistenViewerClosed: (() => void) | undefined;
 let unlistenInfoReady: (() => void) | null = null;
 let unlistenWatchChanged: (() => void) | null = null;
 let unlistenImageEditor: (() => void) | null = null;
@@ -5514,8 +5557,8 @@ function updateScrollPosition(currentScrollTop: number, currentScrollHeight: num
     if (!isFilmstripView.value) {
       // Calculate max scroll top
       const totalRows = Math.ceil(scrollbarTotal.value / columnCount.value);
-      const topPadding = 48;
-      const bottomPadding = config.settings.showStatusBar ? 32 : 4;
+      const topPadding = config.settings.autoHideBars ? 0 : 48;
+      const bottomPadding = layoutStatusBar.value ? 32 : 4;
       
       // Determine effective scroll height
       // If provided (from event), use it. Otherwise calculate based on layout.
@@ -5590,8 +5633,8 @@ function handleScrollUpdate(newIndex: number) {
     
     // Calculate max scroll top
     const totalRows = Math.ceil(scrollbarTotal.value / columnCount.value);
-    const topPadding = 48;
-    const bottomPadding = config.settings.showStatusBar ? 32 : 4;
+    const topPadding = config.settings.autoHideBars ? 0 : 48;
+    const bottomPadding = layoutStatusBar.value ? 32 : 4;
     
     // Use reported layout height when available; date headers also affect normal grid height.
     const contentHeight = layoutContentHeight.value > 0
@@ -5797,6 +5840,13 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     } else {
       if (!event.repeat) void setSelectedFileCullingFlag(cullingShortcut, event.shiftKey && config.settings.shiftAdvanceMetadata === true);
     }
+    return;
+  }
+
+  if (matchesShortcut('view.toggleBars', event, shortcutPlatform)) {
+    if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    if (!event.repeat) toggleBarsByKey();
     return;
   }
 
@@ -7004,6 +7054,15 @@ onMounted( async() => {
     refreshLibraryTotalCount();
   });
   unlistenInfoReady = await listen('info-window-ready', () => { void pushInfoWindowFile(); });
+  unlistenViewerClosed = await listen('image-viewer-closed', async () => {
+    if (!config.settings.activateMainOnViewerClose) return;
+    const mainWin = getCurrentWebviewWindow();
+    try {
+      if (await mainWin.isMinimized()) await mainWin.unminimize();
+      await mainWin.show();
+      await mainWin.setFocus();
+    } catch (e) { console.warn('activate main window failed', e); }
+  });
   unlistenImageViewer = await listen('message-from-image-viewer', async (event) => {
     const { message } = event.payload as any;
     switch (message) {
@@ -7032,9 +7091,11 @@ onMounted( async() => {
         const viewerFiles = session.mode === 'compare' ? session.files : fileList.value;
         const file = viewerFiles[requestIndex];
         if (isRealFileItem(file)) {
-           const imageWindow = await WebviewWindow.getByLabel('imageviewer');
+           const replyLabel = String((event.payload as any).windowLabel || 'imageviewer');
+           const imageWindow = await WebviewWindow.getByLabel(replyLabel.startsWith('imageviewer') ? replyLabel : 'imageviewer');
            if (imageWindow) {
              imageWindow.emit('update-img', {
+               targetLabel: imageWindow.label,
                fileId: file.id,
                fileIndex: requestIndex,
                fileCount: viewerFiles.length,
@@ -7443,6 +7504,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keyup', handleLocalKeyUp);
   // unlisten
   unlistenImageViewer();
+  unlistenViewerClosed?.();
   if (unlistenImageEditor) unlistenImageEditor();
   if (unlistenMontage) unlistenMontage();
   if (unlistenKeydown) unlistenKeydown();
@@ -12507,11 +12569,26 @@ async function openImageViewer(
   
   // create a new window if it doesn't exist
   let imageWindow = await WebviewWindow.getByLabel(webViewLabel);
+  let windowLabel = webViewLabel;
+  if (newViewer && !isCompareRequest && config.settings.multipleImageViewers && imageWindow) {
+    // Several viewers allowed: reuse one that is not minimized, otherwise open another.
+    const viewers = (await getAllWebviewWindows()).filter((w) => w.label.startsWith('imageviewer'));
+    let usable: WebviewWindow | null = null;
+    for (const w of viewers) {
+      if (!(await w.isMinimized())) { usable = w; break; }
+    }
+    if (usable) {
+      imageWindow = usable;
+    } else {
+      imageWindow = null;
+      windowLabel = `imageviewer-${Date.now()}`;
+    }
+  }
   if (!imageWindow) {
     if (newViewer) {
       const forceSplitParam = compareSplitCount || 0;
       const compareModeParam = compareMode ? 1 : 0;
-      imageWindow = new WebviewWindow(webViewLabel, {
+      imageWindow = new WebviewWindow(windowLabel, {
         url: `/image-viewer?fileId=${leftFileId}&fileIndex=${leftIndex}&fileCount=${fileCount}&rightFileId=${rightFileId}&rightFileIndex=${rightIndex}&forceSplitCount=${forceSplitParam}&compareFileCount=${compareMode ? fileCount : 0}&compareMode=${compareModeParam}&nextFilePath=${encodeURIComponent(leftNextFilePath)}&neighborFilePaths=${encodeURIComponent(JSON.stringify(getNeighborImagePaths(leftIndex, viewerFiles)))}&rightNextFilePath=${encodeURIComponent(rightNextFilePath)}`,
         title: 'Lap Image Viewer',
         width: 1200,
@@ -12537,7 +12614,7 @@ async function openImageViewer(
       });
 
       imageWindow.once('tauri://close-requested', () => {
-        isImageViewerWindowOpen.value = false;
+        if (windowLabel === 'imageviewer') isImageViewerWindowOpen.value = false;
         imageWindow?.close();
       });
 
@@ -12548,6 +12625,7 @@ async function openImageViewer(
   } else {    // update the existing window
     isImageViewerWindowOpen.value = true;
     await imageWindow.emit('update-img', { 
+      targetLabel: imageWindow.label,
       fileId: leftFileId, 
       fileIndex: leftIndex,   // selected file index
       fileCount: fileCount, // total files length
@@ -12564,6 +12642,7 @@ async function openImageViewer(
 
     if (syncFromFileListChange || rightIndex >= 0) {
       await imageWindow.emit('update-img', {
+        targetLabel: imageWindow.label,
         fileId: rightFileId,
         fileIndex: rightIndex,
         fileCount: fileCount,
@@ -12576,6 +12655,7 @@ async function openImageViewer(
       const emitComparisonPane = async (pane: 'bottomLeft' | 'bottomRight', paneIndex: number) => {
         const paneFile = getRealFileAt(paneIndex);
         await imageWindow.emit('update-img', {
+          targetLabel: imageWindow.label,
           fileId: paneFile?.id || 0,
           fileIndex: paneFile ? paneIndex : -1,
           fileCount,
@@ -12610,6 +12690,7 @@ async function syncSelectionToImageViewer(index: number) {
   const file = fileList.value[index];
   const next = fileList.value[index + 1];
   imageWindow.emit('update-img', {
+    targetLabel: imageWindow.label,
     fileId: file.id,
     fileIndex: index,
     fileCount: fileList.value.length,

@@ -486,6 +486,12 @@ async function initStandalone() {
 }
 
 onMounted(async() => {
+  // Optionally bring the main window to front after this viewer closes (not for the standalone viewer).
+  if (!standaloneViewer.value) {
+    void appWindow.onCloseRequested(() => {
+      if (config.settings.activateMainOnViewerClose) void emit('image-viewer-closed');
+    });
+  }
   appWindow.setFocus();
   applyViewerScale(Number(config.settings.scale || 1));
   window.addEventListener('keydown', handleKeyDown);
@@ -543,6 +549,9 @@ onMounted(async() => {
 
   // Listen 
   unlistenImg = await listen('update-img', async (event: any) => {
+    // With several viewer windows, updates addressed to another window are ignored.
+    const addressedTo = event.payload?.targetLabel;
+    if (addressedTo && addressedTo !== appWindow.label) return;
     if(uiStore.inputStack.length > 0) {
       return;
     }
@@ -1487,7 +1496,7 @@ watch(() => [fileIndex.value, fileCount.value], () => {
 });
 
 function requestFileAtIndex(index: number, pane: Pane = 'left') {
-  emit('message-from-image-viewer', { message: 'request-file-at-index', index, pane });
+  emit('message-from-image-viewer', { message: 'request-file-at-index', index, pane, windowLabel: appWindow.label });
 }
 
 function getFileInfoByPane(pane: Pane = 'left') {

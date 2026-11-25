@@ -13,9 +13,10 @@
       ref="scroller"
       class="w-full h-full no-scrollbar"
       :class="{
-        'pt-12': !isFilmstripView,
-        'pb-8': !isFilmstripView && config.settings.showStatusBar,
-        'pb-1': !isFilmstripView && !config.settings.showStatusBar,
+        'pt-12': !isFilmstripView && !config.settings.autoHideBars,
+        'pt-0': !isFilmstripView && config.settings.autoHideBars,
+        'pb-8': !isFilmstripView && barStatusShown,
+        'pb-1': !isFilmstripView && !barStatusShown,
       }"
       :items="renderItems"
       :direction="isFilmstripView && config.settings.grid.previewPosition < 2 ? 'horizontal' : 'vertical'"
@@ -119,6 +120,9 @@
 <script setup lang="ts">
 
 import { watch, ref, onMounted, onBeforeUnmount, computed, nextTick, toRaw } from 'vue';
+
+// Status bar only takes layout space when it is not auto-hidden.
+const barStatusShown = computed(() => config.settings.showStatusBar && !config.settings.autoHideBars);
 import { useI18n } from 'vue-i18n';
 import { useUIStore } from '@/stores/uiStore';
 import { config } from '@/common/config';
@@ -787,8 +791,8 @@ function scrollToItem(index: number, center = false) {
     const clientHeight = el.clientHeight;
     
     // Account for top and bottom padding
-    const topPadding = 48 * Number(config.settings.scale || 1);
-    const bottomPadding = config.settings.showStatusBar ? 32 : 4; // pb-8 = 32px, pb-1 = 4px
+    const topPadding = (config.settings.autoHideBars ? 0 : 48) * Number(config.settings.scale || 1);
+    const bottomPadding = barStatusShown.value ? 32 : 4; // pb-8 = 32px, pb-1 = 4px
 
     if (center) {
       el.scrollTop = Math.min(
@@ -890,7 +894,7 @@ function centerItem(index: number) {
 
 function getNextItemIndex(currentIndex: number, direction: 'up' | 'down', page = false): number {
   const pageHeight = Math.max(1, (scroller.value?.$el.clientHeight ?? 0)
-    - 48 * Number(config.settings.scale || 1) - (config.settings.showStatusBar ? 32 : 4));
+    - (config.settings.autoHideBars ? 0 : 48) * Number(config.settings.scale || 1) - (barStatusShown.value ? 32 : 4));
   const style = config.settings.grid.style;
   const supportsGeometryNavigation = hasGroupRows.value
     || style === 2
