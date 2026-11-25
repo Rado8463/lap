@@ -216,7 +216,6 @@ export const useConfigStore = defineStore('configStore', {
       hybridSharpness: 40,      // sharpening (0-100) of the Lanczos-downscaled hybrid preview
       hybridTileHoverMs: 1000,    // cursor rests this long on the preview -> region under it is prepared (0 = off)
       hybridTileHoverRadius: 20,  // px the cursor may move during that wait
-      detectCloudFiles: false,  // check for online-only (OneDrive/iCloud) placeholders before opening an image
       focusGridAfterAlbumClick: true,  // after choosing an album/folder, move keyboard focus to the thumbnails (like ZPS)
       autoRescanOnOpen: true,  // scan an album when it (or one of its folders) is opened, to pick up new files
       accentColor: '',      // custom accent (primary) colour as #rrggbb; empty = the theme's own
@@ -254,7 +253,7 @@ export const useConfigStore = defineStore('configStore', {
       thumbEnlargePct: 100,         // selected thumbnail drawn larger than the others (100 = off)
       thumbHighlightEnabled: false, // use a custom colour for the current thumbnail's border
       thumbHighlightColor: '#f59e0b', // border colour of the current thumbnail (when enabled)
-      loadTimingFields: 'cloud,fetch,decode,stage,show,total,size,full,tile,ramMode,ramInfo,lastTile,phases,path',  // parts of the load-timing tooltip
+      loadTimingFields: 'fetch,decode,stage,show,total,size,full,tile,ramMode,ramInfo,lastTile,phases,path',  // parts of the load-timing tooltip
       showLoadTiming: false,    // diagnostics: overlay with image load timings in the viewer
       shiftAdvanceMetadata: false, // Shift+rating/flag/favorite also advances to the next photo
       thumbnailBackgroundLoad: true, // preload thumbnails of the rest of the album in the background after opening it

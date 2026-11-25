@@ -1898,8 +1898,6 @@
       "ai_search_enabled_hint": "Loads the AI models at startup and builds a search embedding for every photo while indexing, which uses extra memory and CPU. Off hides the Search panel. Photos indexed while it is off have no embedding until you turn it on and rescan.",
       "detect_motion_photos": "Detect Motion Photos",
       "detect_motion_photos_hint": "While indexing, look inside every JPEG for an embedded MP4 (Android Motion Photo). Off skips that extra check; already detected ones keep working.",
-      "detect_cloud_files": "Detect online-only cloud files",
-      "detect_cloud_files_hint": "Before opening an image, ask the backend whether it is an online-only OneDrive/iCloud placeholder. Leave off if you do not use cloud storage: it skips an extra round trip per image.",
       "focus_grid_after_click": "Focus thumbnails after choosing a folder",
       "focus_grid_after_click_hint": "After clicking an album or folder, keyboard focus moves to the thumbnail list, so Home/End/PgUp/PgDn and arrows work on photos right away. Turn off to keep arrow-key navigation in the album list.",
       "file_delete_behavior": "When deleting files",

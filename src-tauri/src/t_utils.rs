@@ -548,31 +548,8 @@ fn has_hidden_attribute(_metadata: &std::fs::Metadata) -> bool {
     false
 }
 
-/// True on Windows for a cloud-only placeholder (OneDrive Files On-Demand):
-/// reading its content downloads it, reading this attribute does not.
-#[cfg(target_os = "windows")]
-pub fn is_cloud_only(metadata: &std::fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    windows_content_is_offline(metadata.file_attributes())
-}
-
-#[cfg(any(target_os = "windows", test))]
-fn windows_content_is_offline(attributes: u32) -> bool {
-    const OFFLINE: u32 = 0x1000;
-    const RECALL_ON_OPEN: u32 = 0x4_0000;
-    const RECALL_ON_DATA_ACCESS: u32 = 0x40_0000;
-    attributes & (OFFLINE | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS) != 0
-}
-
-#[cfg(target_os = "macos")]
-pub fn is_cloud_only(metadata: &std::fs::Metadata) -> bool {
-    use std::os::macos::fs::MetadataExt;
-    const SF_DATALESS: u32 = 0x4000_0000;
-    (metadata.st_flags() & SF_DATALESS) != 0
-}
-
-// Other platforms have no supported placeholder detection yet.
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+/// Cloud storage placeholders (OneDrive/iCloud online-only files) are not supported: every file
+/// is treated as local. Kept as one switch point for the callers that still ask.
 pub fn is_cloud_only(_metadata: &std::fs::Metadata) -> bool {
     false
 }
@@ -5010,14 +4987,6 @@ mod album_scan_filter_tests {
 
 #[cfg(test)]
 mod cloud_only_tests {
-    #[test]
-    fn windows_cloud_only_attributes_cover_offline_and_recall() {
-        for attributes in [0x1000, 0x4_0000, 0x40_0000] {
-            assert!(super::windows_content_is_offline(attributes | 0x400));
-        }
-        assert!(!super::windows_content_is_offline(0x10_0000 | 0x400));
-    }
-
     use super::*;
 
     #[test]

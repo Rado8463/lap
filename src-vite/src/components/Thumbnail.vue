@@ -98,9 +98,6 @@
       <div v-if="originalUnavailable" class="pointer-events-none absolute right-0.5 bottom-0.5 z-20 thumb-badge" :aria-label="t('offline.original_unavailable')">
         <IconExclamation class="h-3.5 w-3.5 shrink-0 text-warning/70" />
       </div>
-      <div v-else-if="file.cloud_only" class="absolute right-0.5 bottom-0.5 z-20 thumb-badge" :title="cloudOnlyLabel" :aria-label="cloudOnlyLabel">
-        <IconCloud class="h-3.5 w-3.5 shrink-0" />
-      </div>
 
       <!-- status badges -->
       <div
@@ -254,13 +251,11 @@ import { isWebViewVideoPlaybackDisabled, getGStreamerAvailability } from '@/comm
 import { claimHoverPreview, releaseHoverPreview } from '@/common/hoverPreview';
 import ContextMenu from '@/components/ContextMenu.vue';
 import { isOriginalUnavailable } from '@/common/availability';
-import { isCloudOnlyFile } from '@/common/api';
 import { useFileMenuItems } from '@/common/fileMenu';
 
 import { 
   IconMore,
   IconExclamation,
-  IconCloud,
   IconPhoto,
   IconVideo,
   IconHeartFilled,
@@ -502,7 +497,7 @@ function startVideoPreview() {
     if (request !== videoPreviewRequest || !available) return;
     if (!canPreviewVideo.value || !previewVideoPath.value) return;
     // The catalog flag can be stale; playing an online-only video would download it.
-    if (await isCloudOnlyFile(previewVideoPath.value) || request !== videoPreviewRequest) return;
+    if (request !== videoPreviewRequest) return;
 
     isVideoPreviewReady.value = false;
     showVideoPreview.value = true;
@@ -684,7 +679,6 @@ const isContentActive = computed(() =>
   uiStore.activePane === 'content' && uiStore.inputStack.length === 0
 );
 const { locale, messages, t } = useI18n();
-const cloudOnlyLabel = computed(() => t(props.file?.metadata_pending ? 'offline.cloud_only_pending' : 'offline.cloud_only'));
 const localeMsg = computed(() => messages.value[locale.value] as any);
 
 const menuItems = useFileMenuItems(

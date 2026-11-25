@@ -392,7 +392,6 @@ async fn main() {
             t_cmds::end_file_refresh_batch,
             t_cmds::refresh_selected_file_info,
             t_cmds::change_video_thumbnail,
-            t_cmds::is_cloud_only_file,
             t_startup::set_feature_flags,
             t_startup::set_test_flags,
             t_startup::set_jpeg_ram,

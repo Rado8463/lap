@@ -297,16 +297,7 @@
                 >
                   <span class="min-w-0 break-all">{{ generalFileInfo?.name }}</span>
                   <span
-                    v-if="generalFileInfo?.cloud_only"
-                    class="shrink-0 text-base-content/50"
-                    :title="t('offline.cloud_only')"
-                    :aria-label="t('offline.cloud_only')"
-                    role="img"
-                  >
-                    <IconCloud class="size-3.5" aria-hidden="true" />
-                  </span>
-                  <span
-                    v-else-if="generalFileUnavailable"
+                    v-if="generalFileUnavailable"
                     class="shrink-0 text-warning/70"
                     :title="t('offline.original_unavailable')"
                     :aria-label="t('offline.original_unavailable')"
@@ -539,7 +530,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { config, libConfig } from '@/common/config';
 import { isWebViewVideoPlaybackDisabled, getGStreamerAvailability } from '@/common/video';
 import { isOriginalUnavailable } from '@/common/availability';
-import { getTagsForFile, renameFile, editImage, getAlbum, getFileCollections, getFileInfo, getMotionPhotoVideoPath, revealPath, getFacesForFile, getPersonThumbnail, isCloudOnlyFile } from '@/common/api';
+import { getTagsForFile, renameFile, editImage, getAlbum, getFileCollections, getFileInfo, getMotionPhotoVideoPath, revealPath, getFacesForFile, getPersonThumbnail } from '@/common/api';
 import { 
   copyFilePaths,
   extractFileName, 
@@ -563,7 +554,6 @@ import {
 import {
   IconCopy,
   IconClose,
-  IconCloud,
   IconRefresh,
   IconEdit,
   IconAdjustments,
@@ -1116,7 +1106,7 @@ async function playPreviewVideo() {
   if (request !== videoPreviewRequest || !available) return;
   if (!canPreviewVideo.value || !previewVideoPath.value || showVideoPreview.value) return;
   // Playing an online-only video would download it.
-  if (await isCloudOnlyFile(previewVideoPath.value) || request !== videoPreviewRequest) return;
+  if (request !== videoPreviewRequest) return;
   isVideoPreviewReady.value = false;
   showVideoPreview.value = true;
   await nextTick();
@@ -1160,7 +1150,7 @@ watch(
     motionPhotoVideoPath.value = null;
     if (!fileId || mediaSubtype !== 'motion_photo') return;
     // Extracting the embedded video reads the file; an online-only one would download.
-    if (await isCloudOnlyFile(props.fileInfo?.file_path || '') || requestSeq !== motionPhotoVideoRequestSeq) return;
+    if (requestSeq !== motionPhotoVideoRequestSeq) return;
     try {
       const path = await getMotionPhotoVideoPath(Number(fileId));
       if (requestSeq === motionPhotoVideoRequestSeq) {

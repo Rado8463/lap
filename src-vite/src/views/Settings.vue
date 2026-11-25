@@ -938,15 +938,6 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.advanced.detect_cloud_files') }}</div>
-                <div class="text-xs text-base-content/30">
-                  {{ $t('settings.advanced.detect_cloud_files_hint') }}
-                </div>
-              </div>
-              <input type="checkbox" class="toggle toggle-sm" :checked="config.settings.detectCloudFiles === true" @change="config.settings.detectCloudFiles = $event.target.checked" />
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.advanced.focus_grid_after_click') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.advanced.focus_grid_after_click_hint') }}
@@ -2521,9 +2512,6 @@ watch(() => config.settings.aiSearchEnabled, (newValue) => {
 });
 watch(() => config.settings.detectMotionPhotos, (newValue) => {
   emit('settings-detectMotionPhotos-changed', newValue === true);
-});
-watch(() => config.settings.detectCloudFiles, (newValue) => {
-  emit('settings-detectCloudFiles-changed', newValue === true);
 });
 watch(() => config.settings.focusGridAfterAlbumClick, (newValue) => {
   emit('settings-focusGridAfterAlbumClick-changed', newValue !== false);

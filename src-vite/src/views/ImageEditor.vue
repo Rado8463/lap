@@ -553,7 +553,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useI18n } from 'vue-i18n';
 import { config } from '@/common/config';
 import { isWin, isLinux, SCALE_VALUES, getFolderPath, getFileExtension, shortenFilename, getFullPath, combineFileName, getSelectOptions, getAssetSrc, getPreviewUrl, getThumbUrl, shouldUseBackendPreview } from '@/common/utils';
-import { editImage, checkFileExists, getFileInfo, isCloudOnlyFile } from '@/common/api';
+import { editImage, checkFileExists, getFileInfo } from '@/common/api';
 import { getMaxInscribedRect, clampCenterInRotatedRect, maxResizeT } from '@/common/geometry';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit as tauriEmit, listen } from '@tauri-apps/api/event';
@@ -1438,15 +1438,6 @@ const initEditImage = async () => {
   const loadingId = initEditImageLoadingId.value;
   const filePath = fileInfo.value.file_path;
   originalUnavailable.value = false;
-  const cloudOnly = await isCloudOnlyFile(filePath);
-  if (loadingId !== initEditImageLoadingId.value) return;
-  if (cloudOnly) {
-    originalUnavailable.value = true;
-    imageSrc.value = '';
-    imageReady.value = false;
-    isProcessing.value = false;
-    return;
-  }
 
   if (usesBackendPreview.value) {
     if (initialImageSrc.value) {

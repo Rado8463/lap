@@ -38,7 +38,7 @@ export function toggleInfoTip() {
 
 // Parts of the debug tooltip with the load timings; the user picks which are shown (default: all).
 export const LOAD_TIMING_FIELDS = [
-  'cloud', 'fetch', 'decode', 'stage', 'show', 'total', 'size', 'full', 'tile', 'ramMode', 'ramInfo', 'lastTile', 'phases', 'path',
+  'fetch', 'decode', 'stage', 'show', 'total', 'size', 'full', 'tile', 'ramMode', 'ramInfo', 'lastTile', 'phases', 'path',
 ] as const;
 export type LoadTimingField = (typeof LOAD_TIMING_FIELDS)[number];
 
@@ -50,7 +50,6 @@ export function parseLoadTimingFields(value: unknown): LoadTimingField[] {
 }
 
 function loadTimingFieldOf(part: string): LoadTimingField | null {
-  if (/^cloud-check/.test(part)) return 'cloud';
   if (/^(fetch\+header|preloaded)/.test(part)) return 'fetch';
   if (/^decode /.test(part)) return 'decode';
   if (/^stage /.test(part)) return 'stage';

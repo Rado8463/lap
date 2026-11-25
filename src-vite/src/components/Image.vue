@@ -69,8 +69,8 @@
     <transition name="fade">
       <div v-if="loadError" class="absolute inset-0 bg-base-100/50 flex items-center justify-center z-50 rounded-box">
         <div class="h-full flex flex-col items-center justify-center text-base-content/30">
-          <component :is="cloudLoadError ? IconCloud : IconError" class="w-8 h-8 mb-2" />
-          <span>{{ $t(cloudLoadError ? 'offline.download_to_open' : offlinePreview ? 'tooltip.not_found.files' : 'image_viewer.failed') }}</span>
+          <IconError class="w-8 h-8 mb-2" />
+          <span>{{ $t(offlinePreview ? 'tooltip.not_found.files' : 'image_viewer.failed') }}</span>
         </div>
       </div>
     </transition>
@@ -259,9 +259,9 @@ import { useToast } from '@/common/toast';
 import { createDragPreview, isWindowDragEdge, startNativeFileDrag } from '@/common/nativeDrag';
 import { getSavedViewport, setSavedViewport, removeSavedViewport, type SavedViewport } from '@/common/savedViewports';
 
-import { checkFileAccessibility, isCloudOnlyFile, setPngAlphaBackground } from '@/common/api';
+import { checkFileAccessibility, setPngAlphaBackground } from '@/common/api';
 import { setFileAccessibility } from '@/common/availability';
-import { IconCloud, IconError, IconBrightness, IconEmbedded, IconRender } from '@/common/icons';
+import { IconError, IconBrightness, IconEmbedded, IconRender } from '@/common/icons';
 import ImageNavigator from '@/components/ImageNavigator.vue';
 
 const { t } = useI18n();
@@ -595,7 +595,6 @@ const getImageStyle = (index: number) => {
 // loading and error overlays
 const isLoading = ref(false);
 const loadError = ref(false);
-const cloudLoadError = ref(false);
 const offlinePreview = ref(false);
 let loadingTimeout: NodeJS.Timeout | null = null;
 
@@ -1611,13 +1610,11 @@ const infoTipLines = computed<string[]>(() => {
 const loadTimingText = ref('');
 const loadTimingShown = computed(() => filterLoadTiming(loadTimingText.value, parseLoadTimingFields(config.settings.loadTimingFields)));
 watch(() => config.settings.showLoadTiming, (on) => { if (!on) loadTimingText.value = ''; });
-function reportLoadTiming(path: string, t0: number, tCloud: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean, stageMs = 0) {
+function reportLoadTiming(path: string, t0: number, loaded: LoadedImage, tSlot: number, tPaint: number, fromCache: boolean, stageMs = 0) {
   if (!config.settings.showLoadTiming) { loadTimingText.value = ''; return; }
   const r = (n: number) => Math.round(n);
   const p = loaded.perf;
   const parts = [
-    // The cloud check only runs when enabled; otherwise this span is just the preceding setup.
-    config.settings.detectCloudFiles === true ? `cloud-check ${r(tCloud - t0)} ms` : '',
     p && !fromCache ? `fetch+header ${r(p.loaded - p.start)} ms` : 'preloaded (cache)',
     p && !fromCache ? `decode ${r(p.decoded - p.loaded)} ms` : '',
     stageMs > 0 ? `stage ${r(stageMs)} ms` : '',
@@ -1903,29 +1900,6 @@ function disposeRasterWarm() {
   rasterWarmHost = null;
 }
 
-// Cloud-only checks are a backend round trip that can queue behind other work
-// (it was seen taking 1+ s). A "local" answer is remembered briefly and shared,
-// so preloaded neighbours do not pay for it again when they are opened.
-const cloudCheckCache = new Map<string, { at: number; promise: Promise<boolean> }>();
-const CLOUD_CHECK_TTL_MS = 60_000;
-function checkCloudOnlyCached(path: string): Promise<boolean> {
-  // Off by default: no backend round trip at all for people who do not use OneDrive-style placeholders.
-  if (config.settings.detectCloudFiles !== true) return Promise.resolve(false);
-  const now = Date.now();
-  const hit = cloudCheckCache.get(path);
-  if (hit && now - hit.at < CLOUD_CHECK_TTL_MS) return hit.promise;
-  const promise = isCloudOnlyFile(path).then(
-    (cloud) => { if (cloud) cloudCheckCache.delete(path); return cloud; },
-    (err) => { cloudCheckCache.delete(path); throw err; },
-  );
-  cloudCheckCache.set(path, { at: now, promise });
-  if (cloudCheckCache.size > 64) {
-    const oldest = cloudCheckCache.keys().next().value;
-    if (oldest !== undefined) cloudCheckCache.delete(oldest);
-  }
-  return promise;
-}
-
 function warmNeighbors() {
   cancelWarmImageScheduling();
   const request = warmImageRequest;
@@ -1944,8 +1918,6 @@ function warmNeighbors() {
       // the nearest few are prepared, and only when their file id is known.
       if (usesBackendPreviewFor(path, 1, meta) && (!meta?.id || paths.indexOf(path) >= PRELOAD_BACKEND_COUNT)) continue;
       try {
-        // Reading a cloud-only original would trigger a download.
-        if (await checkCloudOnlyCached(path)) continue;
         if (isStale()) return;
         const loaded = await loadImageResource(path, meta);
         pixels += (loaded.naturalWidth || 0) * (loaded.naturalHeight || 0);
@@ -2388,7 +2360,6 @@ watch([
   }
 
   loadError.value = false; // Reset error state
-  cloudLoadError.value = false;
   offlinePreview.value = false;
   maxScale.value = 10;
 
@@ -2410,7 +2381,6 @@ watch([
 
   const perfT0 = performance.now();
   const wasPreloaded = preloadCache.has(String(newFilePath));
-  let perfCloud = perfT0;
   const usesBackendPreview = usesBackendPreviewFor(String(newFilePath), Number(props.fileType || 0));
   const ffmpegExtensionsPromise = getFfmpegBackedPreviewExtensions();
   const isRawPreview = Number(props.fileType || 0) === 3;
@@ -2422,18 +2392,6 @@ watch([
   try {
     const usesRealtimePreview = (await ffmpegExtensionsPromise).has(getFileExtension(newFilePath).toLowerCase());
     if (loadingId !== currentLoadingId.value) return;
-    const cloudOnly = await checkCloudOnlyCached(newFilePath);
-    perfCloud = performance.now();
-    if (loadingId !== currentLoadingId.value) return;
-    if (cloudOnly) {
-      clearTimeout(loadingTimeout);
-      loadingTimeout = null;
-      isLoading.value = false;
-      rawRequestPending.value = false;
-      cloudLoadError.value = true;
-      loadError.value = true;
-      return;
-    }
     const imageResultPromise = loadImageResource(newFilePath)
       .then((loaded) => ({ kind: 'image' as const, loaded }));
     const keepCurrentRaw = isRawPreview && newFilePath === oldFilePath && !!rawSource.value;
@@ -2571,7 +2529,7 @@ watch([
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (loadingId === currentLoadingId.value) {
           scheduleZoomWarm(String(newFilePath), loaded);
-          reportLoadTiming(String(newFilePath), perfT0, perfCloud, loaded, perfSlot, performance.now(), wasPreloaded, perfStage);
+          reportLoadTiming(String(newFilePath), perfT0, loaded, perfSlot, performance.now(), wasPreloaded, perfStage);
         }
       }));
       for (const url of rawObjectUrls) {
@@ -2588,13 +2546,6 @@ watch([
     }
     isLoading.value = false;
     rawRequestPending.value = false;
-    const cloudOnly = await isCloudOnlyFile(newFilePath);
-    if (loadingId !== currentLoadingId.value) return;
-    if (cloudOnly) {
-      cloudLoadError.value = true;
-      loadError.value = true;
-      return;
-    }
     try {
       if (!await checkFileAccessibility(String(newFilePath))) {
         if (loadingId !== currentLoadingId.value) return;

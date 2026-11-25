@@ -88,7 +88,7 @@ import { IconVideoSlash, IconVideoPlay, IconVideoReplay, IconVideoPause } from '
 import videojs from 'video.js/core';
 import 'video.js/dist/video-js.min.css';
 import { getThumbUrl, getAssetSrc, isLinux, isMac, isWin } from '@/common/utils';
-import { isCloudOnlyFile, openFileWithApp } from '@/common/api';
+import { openFileWithApp } from '@/common/api';
 import zhCN from 'video.js/dist/lang/zh-CN.json';
 import {
   prepareVideo,
@@ -525,15 +525,6 @@ const loadVideo = async (filePath: string) => {
   if (props.originalUnavailable) {
     getActivePlayer()?.pause();
     resetLoadingUi();
-    return;
-  }
-  const cloudOnly = await isCloudOnlyFile(filePath);
-  if (currentLoadId !== currentLoadingId) return;
-  if (cloudOnly) {
-    getActivePlayer()?.pause();
-    resetLoadingUi();
-    hasError.value = true;
-    errorMessage.value = $t('offline.requires_original');
     return;
   }
 
