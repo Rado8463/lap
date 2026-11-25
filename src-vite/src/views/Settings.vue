@@ -289,6 +289,15 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.card_bg') }}</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <input type="color" class="w-8 h-6 p-0 border-0 bg-transparent cursor-pointer" v-model="config.settings.grid.cardBgColor" :disabled="config.settings.grid.style !== 0 || !config.settings.grid.cardBgEnabled" />
+                <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.grid.cardBgEnabled" :disabled="config.settings.grid.style !== 0" />
+              </div>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.grid.card_aspect') }}</div>
               </div>
               <select class="select select-bordered select-sm min-w-32" v-model="config.settings.grid.cardAspect" :disabled="config.settings.grid.style !== 0">
@@ -2459,6 +2468,12 @@ watch(() => config.settings.mapProvider, (newValue) => {
 });
 watch(() => config.settings.tiandituToken, (newValue) => {
   emit('settings-tiandituToken-changed', newValue);
+});
+watch(() => config.settings.grid.cardBgEnabled, (newValue) => {
+  emit('settings-gridCardBgEnabled-changed', newValue);
+});
+watch(() => config.settings.grid.cardBgColor, (newValue) => {
+  emit('settings-gridCardBgColor-changed', newValue);
 });
 watch(() => config.settings.grid.cardAspect, (newValue) => {
   emit('settings-gridCardAspect-changed', newValue);

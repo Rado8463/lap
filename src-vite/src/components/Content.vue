@@ -5,6 +5,7 @@
     tabindex="-1"
     class="relative flex-1 flex flex-col select-none outline-none"
     :class="{ 'opacity-50 pointer-events-none': uiStore.isInputActive('ManageLibraries') }"
+    :style="cardBgStyle"
     @focus="activateContentPane"
     @mousedown.capture="activateContentPane"
     @mouseenter="isContentHovered = true"
@@ -26,6 +27,7 @@
       v-if="!showWelcomeContent"
       class="absolute top-0 left-0 right-0 px-2 h-[2.375rem] flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden transition-transform duration-150"
       :class="barsHiddenNow ? '-translate-y-full pointer-events-none' : ''"
+      :style="cardBgStyle"
       data-tauri-drag-region
     >
       <!-- title -->
@@ -601,6 +603,7 @@
     <StatusBar
       v-if="config.settings.showStatusBar"
       :class="[ 'transition-transform duration-150', barsHiddenNow ? 'translate-y-full pointer-events-none' : '' ]"
+      :style="cardBgStyle"
       :file-list="fileList"
       :selected-item-index="selectedItemIndex"
       :selection-count="selectMode ? selectedCount : 0"
@@ -1352,6 +1355,12 @@ const isImageViewerWindowOpen = ref(false);
 
 // Auto-hide of the top bar + status bar (Settings). The bars float over the content
 // when revealed, so showing/hiding never relayouts the grid.
+// Custom background of the content area, top bar and status bar (Card style only).
+const cardBgStyle = computed(() => (
+  config.settings.grid.style === 0 && config.settings.grid.cardBgEnabled && config.settings.grid.cardBgColor
+    ? { backgroundColor: config.settings.grid.cardBgColor }
+    : undefined
+));
 const barsRevealed = ref(false);
 const topOffsetClass = computed(() => (config.settings.autoHideBars ? 'mt-0' : 'mt-[2.375rem]'));
 const layoutStatusBar = computed(() => !!config.settings.showStatusBar && !config.settings.autoHideBars);

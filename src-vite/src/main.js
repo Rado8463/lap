@@ -225,6 +225,12 @@ if (isMainWindow) {
   listen('settings-gridThumbnailCorners-changed', (event) => {
     config.setGridThumbnailCorners(event.payload)
   })
+  listen('settings-gridCardBgEnabled-changed', (event) => {
+    config.settings.grid.cardBgEnabled = event.payload
+  })
+  listen('settings-gridCardBgColor-changed', (event) => {
+    config.settings.grid.cardBgColor = event.payload
+  })
   listen('settings-gridCardAspect-changed', (event) => {
     config.settings.grid.cardAspect = event.payload
   })
