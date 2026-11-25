@@ -24,7 +24,7 @@
     <!-- title bar -->
     <div
       v-if="!showWelcomeContent"
-      class="absolute top-0 left-0 right-0 px-2 h-10 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden transition-transform duration-150"
+      class="absolute top-0 left-0 right-0 px-2 h-[2.375rem] flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden transition-transform duration-150"
       :class="barsHiddenNow ? '-translate-y-full pointer-events-none' : ''"
       data-tauri-drag-region
     >
@@ -511,7 +511,7 @@
             'absolute right-0 z-40 pr-1 transition-transform duration-200 ease-in-out',
             rightPanelVisualVisible ? 'translate-x-0' : 'translate-x-full pointer-events-none',
           ]"
-          :style="{ width: activeRightPanelWidth + 'px', top: config.settings.autoHideBars ? '0' : '2.5rem', bottom: layoutStatusBar ? '2rem' : '0.25rem' }"
+          :style="{ width: activeRightPanelWidth + 'px', top: config.settings.autoHideBars ? '0' : '2.375rem', bottom: layoutStatusBar ? '2rem' : '0.25rem' }"
         >
           <DedupPane
             v-if="renderedRightPanelContent === 'dedup'"
@@ -1353,7 +1353,7 @@ const isImageViewerWindowOpen = ref(false);
 // Auto-hide of the top bar + status bar (Settings). The bars float over the content
 // when revealed, so showing/hiding never relayouts the grid.
 const barsRevealed = ref(false);
-const topOffsetClass = computed(() => (config.settings.autoHideBars ? 'mt-0' : 'mt-10'));
+const topOffsetClass = computed(() => (config.settings.autoHideBars ? 'mt-0' : 'mt-[2.375rem]'));
 const layoutStatusBar = computed(() => !!config.settings.showStatusBar && !config.settings.autoHideBars);
 const barsHiddenNow = computed(() => !!config.settings.autoHideBars && !barsRevealed.value);
 const BAR_REVEAL_EDGE_PX = 3;
@@ -5558,7 +5558,7 @@ function updateScrollPosition(currentScrollTop: number, currentScrollHeight: num
     if (!isFilmstripView.value) {
       // Calculate max scroll top
       const totalRows = Math.ceil(scrollbarTotal.value / columnCount.value);
-      const topPadding = config.settings.autoHideBars ? 0 : 40;
+      const topPadding = config.settings.autoHideBars ? 0 : 38;
       const bottomPadding = layoutStatusBar.value ? 32 : 4;
       
       // Determine effective scroll height
@@ -5634,7 +5634,7 @@ function handleScrollUpdate(newIndex: number) {
     
     // Calculate max scroll top
     const totalRows = Math.ceil(scrollbarTotal.value / columnCount.value);
-    const topPadding = config.settings.autoHideBars ? 0 : 40;
+    const topPadding = config.settings.autoHideBars ? 0 : 38;
     const bottomPadding = layoutStatusBar.value ? 32 : 4;
     
     // Use reported layout height when available; date headers also affect normal grid height.

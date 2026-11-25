@@ -13,7 +13,7 @@
       ref="scroller"
       class="w-full h-full no-scrollbar"
       :class="{
-        'pt-10': !isFilmstripView && !config.settings.autoHideBars,
+        'pt-[2.375rem]': !isFilmstripView && !config.settings.autoHideBars,
         'pt-0': !isFilmstripView && config.settings.autoHideBars,
         'pb-8': !isFilmstripView && barStatusShown,
         'pb-1': !isFilmstripView && !barStatusShown,
@@ -792,7 +792,7 @@ function scrollToItem(index: number, center = false) {
     const clientHeight = el.clientHeight;
     
     // Account for top and bottom padding
-    const topPadding = (config.settings.autoHideBars ? 0 : 40) * Number(config.settings.scale || 1);
+    const topPadding = (config.settings.autoHideBars ? 0 : 38) * Number(config.settings.scale || 1);
     const bottomPadding = barStatusShown.value ? 32 : 4; // pb-8 = 32px, pb-1 = 4px
 
     if (center) {
@@ -895,7 +895,7 @@ function centerItem(index: number) {
 
 function getNextItemIndex(currentIndex: number, direction: 'up' | 'down', page = false): number {
   const pageHeight = Math.max(1, (scroller.value?.$el.clientHeight ?? 0)
-    - (config.settings.autoHideBars ? 0 : 40) * Number(config.settings.scale || 1) - (barStatusShown.value ? 32 : 4));
+    - (config.settings.autoHideBars ? 0 : 38) * Number(config.settings.scale || 1) - (barStatusShown.value ? 32 : 4));
   const style = config.settings.grid.style;
   const supportsGeometryNavigation = hasGroupRows.value
     || style === 2
