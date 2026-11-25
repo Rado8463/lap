@@ -287,6 +287,22 @@
                   <option v-for="(option, index) in gridLabelOptions" :key="index" :value="option.value">{{ option.label }}</option>
               </select>
             </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.card_aspect') }}</div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model="config.settings.grid.cardAspect" :disabled="config.settings.grid.style !== 0">
+                <option v-for="option in cardAspectOptions" :key="option.label" :value="option.value">{{ option.label }}</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.grid.label_lines') }}</div>
+              </div>
+              <select class="select select-bordered select-sm min-w-32" v-model="config.settings.grid.labelLines" :disabled="config.settings.grid.style !== 0">
+                <option v-for="n in [1, 2, 3]" :key="n" :value="n">{{ n }}</option>
+              </select>
+            </div>
           </div>
 
           <!-- filmstrip -->
@@ -1728,8 +1744,9 @@ const gridScalingOptions = computed(() => {
   const options = localeMsg.value.settings.grid.scaling_options;
   const result = [];
 
-  for (let i = 0; i < options.length; i++) {
-    result.push({ label: options[i], value: i });
+  // Only Card (0) and Justified (2) remain.
+  for (const value of [0, 2]) {
+    result.push({ label: options[value], value });
   }
 
   return result;
@@ -1751,6 +1768,15 @@ const gridStyleOptions = computed(() => {
 
   return result;
 });
+
+const cardAspectOptions = [
+  { label: '1:1', value: 1 },
+  { label: '4:3', value: 4 / 3 },
+  { label: '3:2', value: 3 / 2 },
+  { label: '16:9', value: 16 / 9 },
+  { label: '3:4', value: 3 / 4 },
+  { label: '2:3', value: 2 / 3 },
+];
 
 const mapMarkerSizeOptions = computed(() => {
   const labels = localeMsg.value.settings.grid.map_marker_size_options;
@@ -2433,6 +2459,12 @@ watch(() => config.settings.mapProvider, (newValue) => {
 });
 watch(() => config.settings.tiandituToken, (newValue) => {
   emit('settings-tiandituToken-changed', newValue);
+});
+watch(() => config.settings.grid.cardAspect, (newValue) => {
+  emit('settings-gridCardAspect-changed', newValue);
+});
+watch(() => config.settings.grid.labelLines, (newValue) => {
+  emit('settings-gridLabelLines-changed', newValue);
 });
 watch(() => config.settings.grid.style, (newValue) => {
   emit('settings-gridStyle-changed', newValue);

@@ -502,14 +502,15 @@ const itemHeight = computed(() => {
   const size = props.gridSize;
   
   if (style === 0) {
+    const cardAspectRatio = Math.max(0.3, Number(config.settings.grid.cardAspect) || 1);
     let labelHeight = 0;
-    if (config.settings.grid.labelPrimary > 0) labelHeight += 18;   // text-sm
+    if (config.settings.grid.labelPrimary > 0) labelHeight += 18 * Math.min(3, Math.max(1, Number(config.settings.grid.labelLines) || 1));   // text-sm, wrapped lines
     if (config.settings.grid.labelSecondary > 0) labelHeight += 16; // text-xs
     
     if (isVerticalFilmstrip.value && containerWidth.value > 0) {
-      return containerWidth.value + 12 + labelHeight; // Narrower padding in filmstrip
+      return containerWidth.value / cardAspectRatio + 12 + labelHeight; // Narrower padding in filmstrip
     }
-    return size + 20 + labelHeight; // size + padding/border/gap(20) + labels
+    return size / cardAspectRatio + 20 + labelHeight; // size + padding/border/gap(20) + labels
   }
   if (style === 1) return itemWidth.value + gap * 0.5;
   

@@ -196,6 +196,8 @@ export const useConfigStore = defineStore('configStore', {
         thumbnailCorners: 0,     // 0: Follow theme, 1: Square
         labelPrimary: 1,         // card view: primary label (1: Name)
         labelSecondary: 3,       // card view: secondary label (3: Dimension)
+        cardAspect: 1,           // card view: width / height of the thumbnail box (1 = square)
+        labelLines: 2,           // card view: lines available for the primary label (file name)
         thumbnailBadge: 0,       // thumbnail badge (0: empty, 1: file format, 2: ISO, 3: shutter, 4: aperture, 5: focal length, 6: exposure)
         previewPosition: 1,      // filmstrip view: preview position (0: top, 1: bottom, 2: left, 3: right)
       },

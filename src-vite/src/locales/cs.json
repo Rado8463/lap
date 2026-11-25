@@ -1586,6 +1586,8 @@
         "Čtvercové"
       ],
       "label_primary": "Hlavní popisek karty",
+      "card_aspect": "Poměr stran miniatury v kartě",
+      "label_lines": "Počet řádků názvu souboru v kartě",
       "label_secondary": "Vedlejší popisek karty",
       "label_options": [
         "(Prázdné)",

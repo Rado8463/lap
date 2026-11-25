@@ -1587,6 +1587,8 @@
         "Square"
       ],
       "label_primary": "Card view primary label",
+      "card_aspect": "Card view thumbnail aspect ratio",
+      "label_lines": "Card view file name lines",
       "label_secondary": "Card view secondary label",
       "label_options": [
         "(Empty)",

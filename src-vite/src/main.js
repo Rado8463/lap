@@ -74,6 +74,9 @@ listen('af-area-display-changed', (event) => {
   }
 })
 
+// Tile and Masonry styles were removed: fall back to Justified.
+if (config.settings.grid.style === 1 || config.settings.grid.style === 3) config.settings.grid.style = 2
+
 // Resolve Regional Format before components first render dates.
 await getSystemRegionLocale().then((loc) => config.setSystemLocale(loc)).catch(() => {})
 
@@ -221,6 +224,12 @@ if (isMainWindow) {
   })
   listen('settings-gridThumbnailCorners-changed', (event) => {
     config.setGridThumbnailCorners(event.payload)
+  })
+  listen('settings-gridCardAspect-changed', (event) => {
+    config.settings.grid.cardAspect = event.payload
+  })
+  listen('settings-gridLabelLines-changed', (event) => {
+    config.settings.grid.labelLines = event.payload
   })
   listen('settings-gridLabelPrimary-changed', (event) => {
     config.setGridLabelPrimary(event.payload)

@@ -224,7 +224,8 @@
       :style="{ width: layoutStyle.width }"
     >
       <span 
-        class="w-full text-sm text-center whitespace-pre text-nowrap text-ellipsis overflow-hidden"
+        class="w-full text-sm text-center overflow-hidden break-all"
+        :style="{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: labelLines }"
         :title="getGridLabelTooltip(file, config.settings.grid.labelPrimary)"
       >
         {{ getGridLabelText(file, config.settings.grid.labelPrimary) }}
@@ -596,10 +597,13 @@ function handleContextMenu(event: MouseEvent) {
 }
 
 
+const cardAspect = computed(() => Math.max(0.3, Number(config.settings.grid.cardAspect) || 1));
+const labelLines = computed(() => Math.min(3, Math.max(1, Number(config.settings.grid.labelLines) || 1)));
+
 const layoutStyle = computed(() => {
   const { style } = config.settings.grid;
   const size = props.gridSize;
-  if (style === 0) return { width: `${size}px`, height: `${size}px` };
+  if (style === 0) return { width: `${size}px`, height: `${size / cardAspect.value}px` };
   if (style === 1) return { width: '100%', height: `${size}px` };
   return { width: '100%', height: '100%' };
 });
@@ -639,7 +643,7 @@ const imgStyle = computed((): CSSProperties => {
     // Optimization: For fixed-size grid (style 0), we know dimensions immediately
     if ((w === 0 || h === 0) && style === 0) {
       w = size;
-      h = size;
+      h = size / cardAspect.value;
     }
 
     if (w > 0 && h > 0) {
