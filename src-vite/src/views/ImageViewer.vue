@@ -1097,7 +1097,12 @@ const viewActions: Partial<Record<ShortcutActionId, () => void>> = {
   'view.zoomActual': () => getViewerRef(getActivePane())?.zoomActualSize?.(),
   'view.infoTip': () => toggleInfoTip(),
   'view.loadTiming': () => toggleLoadTiming(),
-  'view.saveViewport': () => getViewerRef(getActivePane())?.saveViewport?.(),
+  // Same key saves and, while a viewport is being followed or saved, ends it again.
+  'view.saveViewport': () => {
+    const viewer = getViewerRef(getActivePane());
+    if (followViewport.value) viewer?.clearSavedViewport?.();
+    else viewer?.toggleSavedViewport?.();
+  },
   'view.clearViewport': () => getViewerRef(getActivePane())?.clearSavedViewport?.(),
   'view.close': () => closeWindow(),
   'view.closeEnter': () => closeWindow(),
