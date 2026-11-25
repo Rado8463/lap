@@ -183,8 +183,11 @@ export const useLibraryStore = defineStore('libraryStore', {
 
 
         // Always pause on restart — never auto-resume scanning
-        if (this.index.status === 1) {
+        // A leftover queue with status "idle" would otherwise be started by the queue watcher.
+        const queued = Array.isArray(this.index.albumQueue) ? this.index.albumQueue.map(Number).filter(id => id > 0) : [];
+        if (this.index.status === 1 || (queued.length > 0 && this.index.status !== 2)) {
           this.index.status = 2;
+          this.index.pausedAlbumIds = Array.from(new Set([...this.index.pausedAlbumIds, ...queued]));
           await this.save();
         }
       } catch (error) {
