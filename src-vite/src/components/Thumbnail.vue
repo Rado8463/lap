@@ -95,6 +95,8 @@
         @error="stopMediaPreview"
       />
 
+      <!-- badges follow the displayed picture, not the (letterboxed) card box -->
+      <div class="pointer-events-none absolute z-10" :style="badgeBoxStyle">
       <div v-if="originalUnavailable" class="pointer-events-none absolute right-0.5 bottom-0.5 z-20 thumb-badge" :aria-label="t('offline.original_unavailable')">
         <IconExclamation class="h-3.5 w-3.5 shrink-0 text-warning/70" />
       </div>
@@ -184,6 +186,7 @@
         >
           {{ dedupStatus === 'keep' ? 'KEEP' : 'DUP' }}
         </div>
+      </div>
       </div>
 
       <!-- select checkbox -->
@@ -599,6 +602,25 @@ function handleContextMenu(event: MouseEvent) {
 
 const cardAspect = computed(() => Math.max(0.3, Number(config.settings.grid.cardAspect) || 1));
 const labelLines = computed(() => Math.min(3, Math.max(1, Number(config.settings.grid.labelLines) || 1)));
+
+// Rectangle the picture really occupies inside the card when it is shown whole (scaling "Fit"):
+// badges are placed on it so the letterbox bands stay empty.
+const badgeBoxStyle = computed((): CSSProperties => {
+  const full: CSSProperties = { left: '0', top: '0', right: '0', bottom: '0' };
+  const { style, scaling } = config.settings.grid;
+  if (style !== 0 || scaling !== 0) return full;
+  const size = props.gridSize;
+  const boxW = size;
+  const boxH = size / cardAspect.value;
+  let w = Number(props.file.width || 0);
+  let h = Number(props.file.height || 0);
+  if (!(w > 0 && h > 0)) return full;
+  if (normalizedRotate.value % 180 !== 0) [w, h] = [h, w];
+  const scale = Math.min(boxW / w, boxH / h);
+  const rw = w * scale;
+  const rh = h * scale;
+  return { left: `${(boxW - rw) / 2}px`, top: `${(boxH - rh) / 2}px`, width: `${rw}px`, height: `${rh}px` };
+});
 
 const layoutStyle = computed(() => {
   const { style } = config.settings.grid;
