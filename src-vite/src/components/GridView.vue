@@ -493,7 +493,7 @@ const itemWidth = computed(() => {
   if (isVerticalFilmstrip.value && containerWidth.value > 0) {
     return containerWidth.value;
   }
-  if (style === 0) return size + 20; // size + padding(4*2) + border(2*2) + gap(8)
+  if (style === 0) return size + 8; // size + padding(2*2) + border(2*2), no gap
   return size;
 });
 
@@ -508,9 +508,9 @@ const itemHeight = computed(() => {
     if (config.settings.grid.labelSecondary > 0) labelHeight += 16; // text-xs
     
     if (isVerticalFilmstrip.value && containerWidth.value > 0) {
-      return containerWidth.value / cardAspectRatio + 12 + labelHeight; // Narrower padding in filmstrip
+      return containerWidth.value / cardAspectRatio + 8 + labelHeight; // Narrower padding in filmstrip
     }
-    return size / cardAspectRatio + 20 + labelHeight; // size + padding/border/gap(20) + labels
+    return size / cardAspectRatio + 8 + labelHeight; // size + padding/border(8) + labels
   }
   if (style === 1) return itemWidth.value + gap * 0.5;
   

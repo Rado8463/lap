@@ -3186,7 +3186,7 @@ function setGridSize(value: unknown) {
 
 const itemWidth = computed(() => {
   if (config.settings.grid.style === 0) {
-    return gridSize.value + 20; // size + padding/border/gap(20)
+    return gridSize.value + 8; // size + padding/border(8), no gap
   } else if (config.settings.grid.style === 1) {
     return gridSize.value;
   } else if (isGeometryGridStyle.value) {
@@ -3201,7 +3201,7 @@ const itemSize = computed(() => {
     if (config.settings.grid.labelPrimary > 0 ) labelHeight += 18 * Math.min(3, Math.max(1, Number(config.settings.grid.labelLines) || 1));      // text-sm, wrapped lines
     if (config.settings.grid.labelSecondary > 0 ) labelHeight += 16;    // height of text-xs
     const aspect = Math.max(0.3, Number(config.settings.grid.cardAspect) || 1);
-    return gridSize.value / aspect + 20 + labelHeight; // size + padding/border/gap(20) + labels
+    return gridSize.value / aspect + 8 + labelHeight; // size + padding/border/gap(20) + labels
   } else if (config.settings.grid.style === 1) {
     return itemWidth.value + gap / 2;
   } else if (isGeometryGridStyle.value) {

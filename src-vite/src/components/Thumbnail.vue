@@ -5,7 +5,7 @@
       'border-2 flex flex-col items-center cursor-pointer group relative',
       cardOuterCornerClass,
       isTransitionDisabled ? 'transition-none' : 'transition-[background-color,color] ease-in-out duration-150 ',
-      config.settings.grid.style === 0 ? 'p-1 w-fit h-fit' : 'w-full h-full',
+      config.settings.grid.style === 0 ? 'p-0.5 w-fit h-fit' : 'w-full h-full',
       isActive
         ? (isContentActive ? 'border-primary' : 'border-primary/50')
         : 'border-transparent',
@@ -392,7 +392,7 @@ const fitRawPairPreview = computed(() => isGeometryGridStyle.value && isRawJpegP
   && !!props.file?.live_photo_video_path);
 const shouldScaleThumbnail = computed(() => !fitRawPairPreview.value
   && config.settings.thumbInnerZoom !== false
-  && (config.settings.grid.style === 1 || isGeometryGridStyle.value));
+  && (config.settings.grid.style === 0 || config.settings.grid.style === 1 || isGeometryGridStyle.value));
 const thumbnailCornerClass = computed(() => (
   config.settings.grid.thumbnailCorners === 1 ? 'rounded-none' : 'rounded-box'
 ));
