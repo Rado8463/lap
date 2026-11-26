@@ -6294,11 +6294,11 @@ impl AFile {
                 format!("((({id_hash} | {seed}) - ({id_hash} & {seed}))), a.id")
             }
             8 => format!("a.id {}", dir), // added order
-            // Manual order of one Library list; files without a stored position follow in added order.
+            // Manual order of one Library list; files without a stored position follow by name (the starting order).
             10 if list_id != 0 => format!(
                 "(SELECT position FROM library_custom_order lo WHERE lo.list_id = {list_id} AND lo.file_id = a.id) IS NULL, \
                  (SELECT position FROM library_custom_order lo WHERE lo.list_id = {list_id} AND lo.file_id = a.id), \
-                 a.id ASC"
+                 a.name_pinyin ASC, a.id ASC"
             ),
             // Manual order inside each folder; files without a stored position follow by name.
             10 => "b.path ASC, \
