@@ -6969,7 +6969,7 @@ impl AFile {
         }
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, 0)
         ));
         query.push_str(" LIMIT ? OFFSET ?");
 
@@ -7052,7 +7052,7 @@ impl AFile {
         query.push_str(" GROUP BY a.id");
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, 0)
         ));
         query.push_str(" LIMIT ? OFFSET ?");
 
@@ -7110,7 +7110,7 @@ impl AFile {
         query.push_str(" GROUP BY a.id");
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, 0)
         ));
 
         let final_params: Vec<&dyn ToSql> = sql_params.iter().map(|p| p.as_ref()).collect();
@@ -7141,7 +7141,7 @@ impl AFile {
         }
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, 0)
         ));
 
         let final_params: Vec<&dyn ToSql> = sql_params.iter().map(|p| p.as_ref()).collect();
@@ -7179,7 +7179,7 @@ impl AFile {
                 {}
             )
             SELECT position FROM ranked_files WHERE id = ?",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id),
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, 0),
             joins,
             where_clause,
             if needs_group { " GROUP BY a.id" } else { "" }
