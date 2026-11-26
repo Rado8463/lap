@@ -113,7 +113,7 @@
           @select="handleSortTypeSelect"
         >
           <template #menu-after>
-            <template v-if="isCustomSort && customOrderFolderId > 0">
+            <template v-if="isCustomSort && (customOrderFolderId > 0 || libraryOrderListId > 0)">
               <div class="mx-2 my-1 border-t border-base-content/10"></div>
               <button class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
                 @click="resetFolderCustomOrder">
@@ -870,7 +870,7 @@ import { getAlbum, getAllAlbums, recountAlbum, getQueryCountAndSum, getQueryTime
          copyImages, renameFile, moveFile, moveFileOutsideLibrary, copyFile, withFileTransferBatch, batchDeleteFiles, getFileThumb, getFileThumbById, getFileThumbs, getFileInfo,
          setFileRotate, setFileFavorite, setFileRating, setFileCullingFlag, batchUpdateFileMetadata, getTagsForFile, searchSimilarImages, generateEmbedding,
          revealPath, getTagName, indexAlbum, listenIndexProgress, listenIndexFinished, setAlbumCover, setDesktopWallpaper,
-         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
+         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, moveLibraryCustomOrder, resetLibraryCustomOrder, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
          openFilesWithApp, getAppConfig, getIndexRecoveryInfo, clearIndexRecoveryInfo, setLastSelectedItemIndex, setLastScrollTop,
          dedupDelete, getQueryFilePosition, getFolderSearchExcluded,
          listCollections, createCollection, addFilesToCollection, removeFilesFromCollection, getFileCollections, getCollectionCountAndSum, getCollectionFiles, getCollectionGroupedQueryRows, getCollectionGroupFileIds, getCollectionQueryFileIds, fetchFolder, isDirectoryAccessible, checkAlbumAccessibility, addTagToFile, saveXmpMetadata } from '@/common/api';
@@ -3797,9 +3797,16 @@ function updateContentDragPosition(event: PointerEvent) {
 
 // ---- Custom order: reorder files in a folder by dragging them inside the grid ---------------
 const reorderIndicator = ref<{ x: number; y: number; height: number } | null>(null);
-let reorderTarget: { folderId: number; beforeFileId: number | null } | null = null;
+let reorderTarget: { folderId: number; beforeFileId: number | null; listId?: number } | null = null;
 let reorderPointer = { x: 0, y: 0 };
 let reorderScrollFrame = 0;
+
+// Library > Ratings keeps one manual order per rating item (list id 1000 + item, "Rated" = 998).
+const libraryOrderListId = computed(() => {
+  if (config.main.sidebarIndex !== SIDEBAR.LIBRARY || libConfig.library.item !== LIB_ITEM.RATINGS) return 0;
+  const item = Number(libConfig.rating.item);
+  return item === RATE.ALL || item === RATE.UNRATED || item > 0 ? 1000 + item : 0;
+});
 
 const customOrderFolderId = computed(() => {
   if (!isCustomSort.value || config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.album.selected) return 0;
@@ -3808,7 +3815,7 @@ const customOrderFolderId = computed(() => {
 
 const canReorderByDrag = computed(() =>
   isCustomSort.value
-  && config.main.sidebarIndex === SIDEBAR.ALBUM
+  && (config.main.sidebarIndex === SIDEBAR.ALBUM || libraryOrderListId.value > 0)
   && tempViewMode.value === 'none'
   && !isCollectionPane.value
   && currentQuerySource.value === 'query'
@@ -3842,7 +3849,7 @@ function updateReorderTarget(x: number, y: number) {
     const next = fileList.value[index + 1];
     if (!next) {
       markX = rect.right;                       // after the last file
-    } else if (isRealFileItem(next) && Number(next.folder_id) === Number(hovered.folder_id)) {
+    } else if (isRealFileItem(next) && (libraryOrderListId.value > 0 || Number(next.folder_id) === Number(hovered.folder_id))) {
       beforeFile = next;
       markX = rect.right;
     } else if (!isRealFileItem(next)) {
@@ -3853,7 +3860,11 @@ function updateReorderTarget(x: number, y: number) {
   } else {
     beforeFile = hovered;
   }
-  reorderTarget = { folderId: Number(hovered.folder_id), beforeFileId: beforeFile ? Number(beforeFile.id) : null };
+  reorderTarget = {
+    folderId: Number(hovered.folder_id),
+    beforeFileId: beforeFile ? Number(beforeFile.id) : null,
+    listId: libraryOrderListId.value,
+  };
   reorderIndicator.value = { x: markX, y: rect.top + 2, height: Math.max(8, rect.height - 4) };
 }
 
@@ -3878,19 +3889,23 @@ function reorderAutoScrollTick() {
 }
 
 async function applyCustomReorder(
-  target: { folderId: number; beforeFileId: number | null },
+  target: { folderId: number; beforeFileId: number | null; listId?: number },
   files: Array<{ id: number; folder_id: number }>,
 ) {
+  const listId = target.listId || 0;
   const ids = files
-    .filter((file) => Number(file.folder_id) === target.folderId)
+    .filter((file) => listId > 0 || Number(file.folder_id) === target.folderId)
     .map((file) => Number(file.id))
     .filter((id) => id > 0);
   if (ids.length === 0 || (target.beforeFileId !== null && ids.includes(target.beforeFileId))) return;
-  if (!await moveFilesCustomOrder(target.folderId, ids, target.beforeFileId)) {
+  const moved = listId > 0
+    ? await moveLibraryCustomOrder(listId, currentQueryParams.value, ids, target.beforeFileId)
+    : await moveFilesCustomOrder(target.folderId, ids, target.beforeFileId);
+  if (!moved) {
     toast.error(t('toolbar.filter.custom_order_failed'));
     return;
   }
-  if (reorderLoadedFiles(ids, target.folderId, target.beforeFileId)) return;
+  if (reorderLoadedFiles(ids, listId > 0 ? 0 : target.folderId, target.beforeFileId)) return;
   rememberFocusedFileForPresentationRefresh();
   pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
   await updateContent(true);
@@ -3917,7 +3932,7 @@ function reorderLoadedFiles(ids: number[], folderId: number, beforeFileId: numbe
     if (target < 0) return false;
   } else {
     let last = -1;
-    list.forEach((item, i) => { if (isRealFileItem(item) && Number(item.folder_id) === folderId) last = i; });
+    list.forEach((item, i) => { if (isRealFileItem(item) && (folderId === 0 || Number(item.folder_id) === folderId)) last = i; });
     if (last < 0) return false;
     target = last + 1;
     const after = list[target];
@@ -3952,6 +3967,7 @@ async function reorderLoadedListInPlace(syncSortParams = false): Promise<boolean
       ...currentQueryParams.value,
       sortType: Number(config.search.sortType),
       sortOrder: Number(config.search.sortOrder),
+      listId: libraryOrderListId.value,
     };
   }
   const requestId = currentContentRequestId;
@@ -3994,8 +4010,12 @@ async function reorderLoadedListInPlace(syncSortParams = false): Promise<boolean
 
 async function resetFolderCustomOrder() {
   const folderId = customOrderFolderId.value;
-  if (folderId <= 0) return;
-  if (!await resetCustomOrder(folderId)) {
+  const listId = libraryOrderListId.value;
+  if (folderId <= 0 && listId <= 0) return;
+  const done = listId > 0 && folderId <= 0
+    ? await resetLibraryCustomOrder(listId)
+    : await resetCustomOrder(folderId);
+  if (!done) {
     toast.error(t('toolbar.filter.custom_order_failed'));
     return;
   }
@@ -8775,6 +8795,7 @@ async function getFileList(
     gpsMaxLat,
     gpsMinLon,
     gpsMaxLon,
+    listId: sourceContext ? 0 : libraryOrderListId.value,
   };
 
   if (sourceContext?.source === 'smart') {
@@ -12045,7 +12066,8 @@ const fileTypeOptions = computed(() => {
 const customOrderAvailable = computed(() =>
   !isSmartAlbumView.value
   && (Number(config.search.sortType) === CUSTOM_SORT
-    || (config.main.sidebarIndex === SIDEBAR.ALBUM && !config.main.diskTreeActive))
+    || (config.main.sidebarIndex === SIDEBAR.ALBUM && !config.main.diskTreeActive)
+    || libraryOrderListId.value > 0)
 );
 
 const sortOptions = computed(() => {

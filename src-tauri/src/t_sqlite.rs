@@ -2188,6 +2188,10 @@ pub struct QueryParams {
     pub gps_max_lon: Option<f64>,
     #[serde(default)]
     pub group_by: i64,
+    /// Library lists with their own manual order (sort type 10): non-zero selects
+    /// `library_custom_order` rows of that list instead of the per-folder order.
+    #[serde(default)]
+    pub list_id: i64,
 }
 
 fn default_culling_flag() -> i64 {
@@ -4779,7 +4783,7 @@ impl AFile {
         before_file_id: Option<i64>,
     ) -> Result<(), String> {
         let conn = open_conn()?;
-        let order = Self::build_order_clause_values(10, 0, 0);
+        let order = Self::build_order_clause_values(10, 0, 0, 0);
         let sql = format!(
             "SELECT a.id FROM afiles a JOIN afolders b ON a.folder_id = b.id WHERE a.folder_id = ?1 ORDER BY {}",
             order
@@ -4823,6 +4827,55 @@ impl AFile {
             params![folder_id],
         )
         .map_err(|e| e.to_string())
+    }
+
+    /// Moves files inside the manual order of one Library list (rating filter): the given files go
+    /// (in their current order) in front of `before_file_id`, or to the end. `params` describes the list.
+    pub fn move_in_library_order(
+        list_id: i64,
+        params: &QueryParams,
+        file_ids: &[i64],
+        before_file_id: Option<i64>,
+    ) -> Result<(), String> {
+        if list_id == 0 {
+            return Err("missing list id".to_string());
+        }
+        let mut list_params = params.clone();
+        list_params.sort_type = 10;
+        list_params.sort_order = 0;
+        list_params.list_id = list_id;
+        let current = Self::get_query_file_ids(&list_params)?;
+
+        let moving: Vec<i64> = current.iter().copied().filter(|id| file_ids.contains(id)).collect();
+        if moving.is_empty() {
+            return Ok(());
+        }
+        let mut result: Vec<i64> = current.iter().copied().filter(|id| !file_ids.contains(id)).collect();
+        let at = before_file_id
+            .and_then(|target| result.iter().position(|id| *id == target))
+            .unwrap_or(result.len());
+        result.splice(at..at, moving);
+
+        let conn = open_conn()?;
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        {
+            tx.execute("DELETE FROM library_custom_order WHERE list_id = ?1", params![list_id])
+                .map_err(|e| e.to_string())?;
+            let mut insert = tx
+                .prepare("INSERT OR REPLACE INTO library_custom_order (list_id, file_id, position) VALUES (?1, ?2, ?3)")
+                .map_err(|e| e.to_string())?;
+            for (position, id) in result.iter().enumerate() {
+                insert.execute(params![list_id, id, position as i64]).map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())
+    }
+
+    /// Forgets the manual order of one Library list.
+    pub fn reset_library_order(list_id: i64) -> Result<usize, String> {
+        let conn = open_conn()?;
+        conn.execute("DELETE FROM library_custom_order WHERE list_id = ?1", params![list_id])
+            .map_err(|e| e.to_string())
     }
 
     pub fn batch_rename_names(updates: &[(i64, String, String, String)]) -> Result<(), String> {
@@ -6220,7 +6273,7 @@ impl AFile {
         Ok(ids)
     }
 
-    fn build_order_clause_values(sort_type: i64, sort_order: i64, random_seed: i64) -> String {
+    fn build_order_clause_values(sort_type: i64, sort_order: i64, random_seed: i64, list_id: i64) -> String {
         let dir = if sort_order == 1 { "DESC" } else { "ASC" };
         match sort_type {
             0 => format!("a.taken_date {}, a.id {}", dir, dir),
@@ -6241,6 +6294,12 @@ impl AFile {
                 format!("((({id_hash} | {seed}) - ({id_hash} & {seed}))), a.id")
             }
             8 => format!("a.id {}", dir), // added order
+            // Manual order of one Library list; files without a stored position follow in added order.
+            10 if list_id != 0 => format!(
+                "(SELECT position FROM library_custom_order lo WHERE lo.list_id = {list_id} AND lo.file_id = a.id) IS NULL, \
+                 (SELECT position FROM library_custom_order lo WHERE lo.list_id = {list_id} AND lo.file_id = a.id), \
+                 a.id ASC"
+            ),
             // Manual order inside each folder; files without a stored position follow by name.
             10 => "b.path ASC, \
                    (SELECT position FROM afile_custom_order co WHERE co.file_id = a.id) IS NULL, \
@@ -6253,7 +6312,7 @@ impl AFile {
     }
 
     fn build_order_clause(params: &QueryParams) -> String {
-        Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed)
+        Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
     }
 
     fn smart_rule_string(value: &JsonValue) -> Option<String> {
@@ -6910,7 +6969,7 @@ impl AFile {
         }
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
         ));
         query.push_str(" LIMIT ? OFFSET ?");
 
@@ -6993,7 +7052,7 @@ impl AFile {
         query.push_str(" GROUP BY a.id");
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
         ));
         query.push_str(" LIMIT ? OFFSET ?");
 
@@ -7051,7 +7110,7 @@ impl AFile {
         query.push_str(" GROUP BY a.id");
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
         ));
 
         let final_params: Vec<&dyn ToSql> = sql_params.iter().map(|p| p.as_ref()).collect();
@@ -7082,7 +7141,7 @@ impl AFile {
         }
         query.push_str(&format!(
             " ORDER BY {}",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed)
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id)
         ));
 
         let final_params: Vec<&dyn ToSql> = sql_params.iter().map(|p| p.as_ref()).collect();
@@ -7120,7 +7179,7 @@ impl AFile {
                 {}
             )
             SELECT position FROM ranked_files WHERE id = ?",
-            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed),
+            Self::build_order_clause_values(params.sort_type, params.sort_order, params.random_seed, params.list_id),
             joins,
             where_clause,
             if needs_group { " GROUP BY a.id" } else { "" }
@@ -11159,7 +11218,7 @@ mod tag_tree_query_tests {
             INSERT INTO afiles(taken_date, last_scan_time) VALUES(300, 1), (100, 1), (200, 1);
             UPDATE afiles SET last_scan_time=2 WHERE id=1;").unwrap();
         for (direction, expected) in [(0, vec![1_i64, 2, 3]), (1, vec![3_i64, 2, 1])] {
-            let order = AFile::build_order_clause_values(8, direction, 0);
+            let order = AFile::build_order_clause_values(8, direction, 0, 0);
             let mut ids = Vec::new();
             for offset in [0, 2] {
                 let mut stmt = conn.prepare(&format!(
@@ -11170,7 +11229,7 @@ mod tag_tree_query_tests {
             }
             assert_eq!(ids, expected);
         }
-        assert_eq!(AFile::build_order_clause_values(9, 1, 0), "a.id ASC");
+        assert_eq!(AFile::build_order_clause_values(9, 1, 0, 0), "a.id ASC");
     }
 
     #[test]

@@ -1623,6 +1623,27 @@ export async function moveFilesCustomOrder(folderId, fileIds, beforeFileId = nul
   }
 }
 
+// Manual order of one Library list (listId identifies the rating filter); params describe the list's query.
+export async function moveLibraryCustomOrder(listId, params, fileIds, beforeFileId = null) {
+  try {
+    await invoke('move_library_custom_order', { listId, params, fileIds, beforeFileId });
+    return true;
+  } catch (error) {
+    console.error('Failed to change the library custom order:', error);
+    return false;
+  }
+}
+
+export async function resetLibraryCustomOrder(listId) {
+  try {
+    await invoke('reset_library_custom_order', { listId });
+    return true;
+  } catch (error) {
+    console.error('Failed to reset the library custom order:', error);
+    return false;
+  }
+}
+
 export async function resetCustomOrder(folderId) {
   try {
     await invoke('reset_custom_order', { folderId });

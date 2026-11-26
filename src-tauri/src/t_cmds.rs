@@ -4463,6 +4463,23 @@ pub fn move_files_custom_order(
     AFile::move_in_custom_order(folder_id, &file_ids, before_file_id)
 }
 
+/// Move files within the manual order of a Library list (before `before_file_id`, or to the end).
+#[tauri::command]
+pub fn move_library_custom_order(
+    list_id: i64,
+    params: QueryParams,
+    file_ids: Vec<i64>,
+    before_file_id: Option<i64>,
+) -> Result<(), String> {
+    AFile::move_in_library_order(list_id, &params, &file_ids, before_file_id)
+}
+
+/// Remove the manual order of a Library list.
+#[tauri::command]
+pub fn reset_library_custom_order(list_id: i64) -> Result<usize, String> {
+    AFile::reset_library_order(list_id)
+}
+
 /// Remove the manual order of a folder.
 #[tauri::command]
 pub fn reset_custom_order(folder_id: i64) -> Result<usize, String> {
