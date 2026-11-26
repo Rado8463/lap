@@ -1188,13 +1188,21 @@ function rowBelongsToCurrentView(file: any): boolean {
   const norm = (v: string) => v.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
   return norm(String(file.file_path || '')).startsWith(norm(folder) + '/');
 }
-// Per-album remembered selection + scroll (localStorage; survives restarts).
+// Per-album and per-Library-item remembered selection + scroll (localStorage; survives restarts).
 const ALBUM_STATE_KEY = 'lap.albumViewState.v1';
 const ALBUM_STATE_MAX = 400;
 let albumStateSaveKey: string | null = null;
 let albumStateTimer: any = null;
 let pendingAlbumRestore: { key: string; scrollTop: number; offset?: number } | null = null;
 function currentAlbumStateKey(): string | null {
+  // Library items (All files, Favorites, each rating, ...) remember their position too.
+  if (config.main.sidebarIndex === SIDEBAR.LIBRARY && libConfig.activePane !== 'collection') {
+    const item = (libConfig.library as any).item;
+    if (!item || item === LIB_ITEM.SUBJECTS) return null;
+    const sub = item === LIB_ITEM.RATINGS ? libConfig.rating.item
+      : item === LIB_ITEM.CULLING ? libConfig.culling.item : '';
+    return [libConfig._libraryId, 'library', item, sub ?? ''].join('|');
+  }
   if (config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.activePane === 'collection') return null;
   if (!libConfig.album.id || libConfig.album.id <= 0) return null;
   // folderId is not known yet right after a restart, so the key uses only stable values.
