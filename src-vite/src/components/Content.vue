@@ -3308,7 +3308,8 @@ const groupTimelineData = computed(() => {
 const scrollbarTotal = computed(() => groupedModeActive.value ? totalRowCount.value : totalFileCount.value);
 const scrollbarPageSize = computed(() => Math.max(1, Math.min(visibleItemCount.value, scrollbarTotal.value || visibleItemCount.value)));
 const scrollbarMarkers = computed(() => {
-  if (groupedModeActive.value) return groupTimelineData.value;
+  // Grouped views show no marker strip beside the scrollbar, so the thumbnails reach the scrollbar.
+  if (groupedModeActive.value) return [];
   if (isSearchLikeView.value) return [];
   return timelineData.value;
 });
