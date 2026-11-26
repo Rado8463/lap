@@ -71,8 +71,12 @@ export const useConfigStore = defineStore('configStore', {
       sortType: 0,              // sort type (default to time)
       sortOrder: 0,             // sort order(0: ascending, 1: descending)
       formats: [],              // file format filter (upper case labels such as JPG, PNG, PSD); empty: all formats
+      sizeMin: 0,               // file size filter in MB (0: no limit); min inclusive, max exclusive
+      sizeMax: 0,
+      mpMin: 0,                 // resolution filter in megapixels (0: no limit)
+      mpMax: 0,
       groupBy: 0,               // result grouping: 0=none, 1=folder, 2=day, 3=month, 4=rating, 5=location, 6=camera, 7=lens, 8=year, 9=file type, 10=culling
-      perTab: {},               // filter/sort/group of the sidebar tabs that are not active: { [sidebarIndex]: { fileType, formats, favoritesOnly, sortType, sortOrder, groupBy } }
+      perTab: {},               // filter/sort/group of the sidebar tabs that are not active: { [sidebarIndex]: { fileType, formats, sizeMin, sizeMax, mpMin, mpMax, favoritesOnly, sortType, sortOrder, groupBy } }
     },
 
     calendar: {

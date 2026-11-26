@@ -2195,6 +2195,16 @@ pub struct QueryParams {
     /// Only files of these formats (upper case labels such as JPG, PNG, PSD); empty means all formats.
     #[serde(default)]
     pub formats: Vec<String>,
+    /// File size range in bytes: `size_min` inclusive, `size_max` exclusive; 0 means no limit.
+    #[serde(default)]
+    pub size_min: i64,
+    #[serde(default)]
+    pub size_max: i64,
+    /// Resolution range in pixels (width * height), same bounds as the size range.
+    #[serde(default)]
+    pub pixels_min: i64,
+    #[serde(default)]
+    pub pixels_max: i64,
 }
 
 fn default_culling_flag() -> i64 {
@@ -4850,6 +4860,10 @@ impl AFile {
         list_params.list_id = list_id;
         // The stored order covers the whole list, not just what the toolbar filters leave visible.
         list_params.formats.clear();
+        list_params.size_min = 0;
+        list_params.size_max = 0;
+        list_params.pixels_min = 0;
+        list_params.pixels_max = 0;
         list_params.is_favorite = false;
         list_params.search_file_type = 0;
         let current = Self::get_query_file_ids(&list_params)?;
@@ -5664,6 +5678,23 @@ impl AFile {
             for format in &params.formats {
                 sql_params.push(Box::new(format.trim().to_uppercase()));
             }
+        }
+
+        if params.size_min > 0 {
+            conditions.push("a.size >= ?".to_string());
+            sql_params.push(Box::new(params.size_min));
+        }
+        if params.size_max > 0 {
+            conditions.push("a.size < ?".to_string());
+            sql_params.push(Box::new(params.size_max));
+        }
+        if params.pixels_min > 0 {
+            conditions.push("(COALESCE(a.width, 0) * COALESCE(a.height, 0)) >= ?".to_string());
+            sql_params.push(Box::new(params.pixels_min));
+        }
+        if params.pixels_max > 0 {
+            conditions.push("(COALESCE(a.width, 0) * COALESCE(a.height, 0)) < ?".to_string());
+            sql_params.push(Box::new(params.pixels_max));
         }
 
         Self::append_album_filter(&mut conditions);

@@ -468,6 +468,11 @@
       "placeholder": "Search file name"
     },
     "filter": {
+      "file_size": "File size",
+      "resolution": "Resolution",
+      "range_from": "From",
+      "range_to": "To",
+      "range_clear": "Clear",
       "formats": "File formats",
       "all_formats": "All formats",
       "favorites_only": "Favorites only",

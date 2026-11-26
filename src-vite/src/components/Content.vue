@@ -66,13 +66,15 @@
           :disabled="isFavoritesFilterDisabled"
           :keepTextWhenDisabled="true"
           :optionsDisabled="tempViewMode === 'person' || tempViewMode === 'similar'"
-          :selected="activeFileTypeMask !== 0 || activeFavoritesOnly || activeRatedOnly || activeFormats.length > 0"
+          :selected="activeFileTypeMask !== 0 || activeFavoritesOnly || activeRatedOnly || hasExtraToolbarFilters"
           :title="activeFavoritesOnly ? $t('toolbar.filter.favorites_only') : (activeRatedOnly ? $t('toolbar.filter.rated_only') : '')"
           @select="handleFileTypeSelect"
         >
           <template #trigger-suffix>
             <IconHeartFilled v-if="activeFavoritesOnly" class="w-4 h-4 shrink-0" />
             <span v-if="activeFormats.length > 0" class="text-xs font-semibold">{{ activeFormats.length === 1 ? activeFormats[0] : activeFormats.length }}</span>
+            <span v-if="activeSizeRange[0] > 0 || activeSizeRange[1] > 0" class="text-xs font-semibold">MB</span>
+            <span v-if="activeMpRange[0] > 0 || activeMpRange[1] > 0" class="text-xs font-semibold">MP</span>
             <template v-if="activeRatedOnly">
               <IconStarFilled class="w-4 h-4 shrink-0" />
               <span v-if="activeRatingFilter > 0" class="-ml-0.5">{{ activeRatingFilter }}</span>
@@ -103,6 +105,24 @@
               :model-value="activeFormats"
               :params="currentQueryParams"
               @update:model-value="setFormatFilter"
+            />
+            <RangeFilterItems
+              v-if="formatFilterAvailable"
+              :title="$t('toolbar.filter.file_size')"
+              unit="MB"
+              :min="activeSizeRange[0]"
+              :max="activeSizeRange[1]"
+              :presets="sizePresets"
+              @update="setSizeFilter"
+            />
+            <RangeFilterItems
+              v-if="formatFilterAvailable"
+              :title="$t('toolbar.filter.resolution')"
+              unit="MP"
+              :min="activeMpRange[0]"
+              :max="activeMpRange[1]"
+              :presets="mpPresets"
+              @update="setMpFilter"
             />
           </template>
         </DropDownSelect>
@@ -930,6 +950,7 @@ import FileInfo from '@/components/FileInfo.vue';
 import Breadcrumb from '@/components/Breadcrumb.vue';
 import DedupPane from '@/components/DedupPane.vue';
 import FormatFilterItems from '@/components/FormatFilterItems.vue';
+import RangeFilterItems from '@/components/RangeFilterItems.vue';
 import { getAspectRatio } from '@/common/layout';
 import SelectionPanel from '@/components/SelectionPanel.vue';
 import FileConflictDialog from '@/components/FileConflictDialog.vue';
@@ -4440,6 +4461,10 @@ const dedupSourceVersion = ref(0);
 const currentQueryParams = ref({
   searchFileType: 0,
   formats: [] as string[],
+  sizeMin: 0,
+  sizeMax: 0,
+  pixelsMin: 0,
+  pixelsMax: 0,
   sortType: 0,
   sortOrder: 0,
   randomSeed: 0,
@@ -4595,7 +4620,7 @@ watch(
     if (countedFolderRequestId.value !== currentContentRequestId || currentQuerySource.value !== 'query' || !path
       || !contentReady.value || isLoading.value || contentQueryRefreshPending
       || !contentCountIsAuthoritative.value || tempViewMode.value !== 'none'
-      || config.search.favoritesOnly || activeRatedOnly.value || activeFormats.value.length > 0 || Number(currentQueryParams.value.searchFileType || 0) !== 0
+      || config.search.favoritesOnly || activeRatedOnly.value || hasExtraToolbarFilters.value || Number(currentQueryParams.value.searchFileType || 0) !== 0
       || !matchesRequestedSidebarCount({ source: 'album-folder', path })) return;
     setFolderFileCount(path, Math.max(0, Number(totalFileCount.value || 0)));
   },
@@ -4638,7 +4663,7 @@ function matchesRequestedSidebarCount(request: any) {
 
 function commitRequestedSidebarCount(count: number, request = uiStore.countUpdateRequest) {
   if (!request || uiStore.countUpdateRequest !== request) return;
-  if (config.search.favoritesOnly || activeRatedOnly.value || activeFormats.value.length > 0) {
+  if (config.search.favoritesOnly || activeRatedOnly.value || hasExtraToolbarFilters.value) {
     uiStore.clearCountUpdateRequest();
     return;
   }
@@ -7719,7 +7744,7 @@ let contentRefreshToken = 0;
 // Filter, sort and grouping are remembered separately for each sidebar tab (Library, Albums, ...).
 // config.search always holds the values of the active tab; the other tabs wait in config.search.perTab.
 // A sync watcher swaps them before any content refresh reads the new tab's settings.
-const SEARCH_TAB_DEFAULTS = { fileType: 0, formats: [] as string[], favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
+const SEARCH_TAB_DEFAULTS = { fileType: 0, formats: [] as string[], sizeMin: 0, sizeMax: 0, mpMin: 0, mpMax: 0, favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
 watch(
   () => config.main.sidebarIndex,
   (next, previous) => {
@@ -7729,6 +7754,7 @@ watch(
     perTab[String(previous)] = {
       fileType: search.fileType,
       formats: [...(search.formats || [])],
+      sizeMin: search.sizeMin, sizeMax: search.sizeMax, mpMin: search.mpMin, mpMax: search.mpMax,
       favoritesOnly: search.favoritesOnly,
       sortType: search.sortType,
       sortOrder: search.sortOrder,
@@ -7739,6 +7765,10 @@ watch(
     search.perTab = perTab;
     search.fileType = saved.fileType ?? SEARCH_TAB_DEFAULTS.fileType;
     search.formats = [...(saved.formats || [])];
+    search.sizeMin = saved.sizeMin ?? 0;
+    search.sizeMax = saved.sizeMax ?? 0;
+    search.mpMin = saved.mpMin ?? 0;
+    search.mpMax = saved.mpMax ?? 0;
     search.favoritesOnly = saved.favoritesOnly ?? SEARCH_TAB_DEFAULTS.favoritesOnly;
     search.sortType = saved.sortType ?? SEARCH_TAB_DEFAULTS.sortType;
     search.sortOrder = saved.sortOrder ?? SEARCH_TAB_DEFAULTS.sortOrder;
@@ -7774,7 +7804,8 @@ watch(
     libConfig.location.cc, libConfig.location.admin1, libConfig.location.name,                               // location
     libConfig.camera.make, libConfig.camera.model,                                    // camera 
     config.camera.isCamera, (libConfig.camera as any).lensMake, (libConfig.camera as any).lensModel, // lens
-    (config.search.formats || []).join(','), // file format filter (keep last: the indexes above are referenced)
+    // format, size and resolution filters (keep last: the indexes above are referenced)
+    `${(config.search.formats || []).join(',')}|${config.search.sizeMin}-${config.search.sizeMax}|${config.search.mpMin}-${config.search.mpMax}`,
   ], 
   (values, previousValues) => {
     // Replacing smartAlbums creates a new outer array even if these values match.
@@ -8814,6 +8845,10 @@ async function getFileList(
     gpsMinLon = null,
     gpsMaxLon = null,
     formats = Array.isArray(config.search.formats) ? [...config.search.formats] : [],
+    sizeMin = Number(config.search.sizeMin) || 0,
+    sizeMax = Number(config.search.sizeMax) || 0,
+    mpMin = Number(config.search.mpMin) || 0,
+    mpMax = Number(config.search.mpMax) || 0,
   } = {},
   requestId: number,
   sourceContext: { source: 'collection' | 'smart'; collectionId?: number | null; smartParams?: any } | null = null,
@@ -8859,6 +8894,10 @@ async function getFileList(
     gpsMaxLon,
     listId: sourceContext ? 0 : libraryOrderListId.value,
     formats: sourceContext ? [] : formats,
+    sizeMin: sourceContext ? 0 : Math.round(sizeMin * 1024 * 1024),
+    sizeMax: sourceContext ? 0 : Math.round(sizeMax * 1024 * 1024),
+    pixelsMin: sourceContext ? 0 : Math.round(mpMin * 1_000_000),
+    pixelsMax: sourceContext ? 0 : Math.round(mpMax * 1_000_000),
   };
 
   if (sourceContext?.source === 'smart') {
@@ -11908,6 +11947,46 @@ const formatFilterAvailable = computed(() =>
 const activeFormats = computed<string[]>(() =>
   formatFilterAvailable.value && Array.isArray(config.search.formats) ? config.search.formats : []
 );
+
+const sizePresets = [
+  { label: '< 1 MB', min: 0, max: 1 },
+  { label: '1 – 10 MB', min: 1, max: 10 },
+  { label: '10 – 50 MB', min: 10, max: 50 },
+  { label: '50 – 200 MB', min: 50, max: 200 },
+  { label: '> 200 MB', min: 200, max: 0 },
+];
+const mpPresets = [
+  { label: '< 2 MP', min: 0, max: 2 },
+  { label: '2 – 8 MP', min: 2, max: 8 },
+  { label: '8 – 24 MP', min: 8, max: 24 },
+  { label: '> 24 MP', min: 24, max: 0 },
+];
+const activeSizeRange = computed<[number, number]>(() =>
+  formatFilterAvailable.value ? [Number(config.search.sizeMin) || 0, Number(config.search.sizeMax) || 0] : [0, 0]
+);
+const activeMpRange = computed<[number, number]>(() =>
+  formatFilterAvailable.value ? [Number(config.search.mpMin) || 0, Number(config.search.mpMax) || 0] : [0, 0]
+);
+// Any of the extra toolbar filters (format, size, resolution) narrows the view.
+const hasExtraToolbarFilters = computed(() =>
+  activeFormats.value.length > 0
+  || activeSizeRange.value[0] > 0 || activeSizeRange.value[1] > 0
+  || activeMpRange.value[0] > 0 || activeMpRange.value[1] > 0
+);
+
+function setSizeFilter(min: number, max: number) {
+  if (isScanStreamingMode.value) return;
+  rememberFocusedFileForPresentationRefresh();
+  config.search.sizeMin = min;
+  config.search.sizeMax = max;
+}
+
+function setMpFilter(min: number, max: number) {
+  if (isScanStreamingMode.value) return;
+  rememberFocusedFileForPresentationRefresh();
+  config.search.mpMin = min;
+  config.search.mpMax = max;
+}
 
 function setFormatFilter(formats: string[]) {
   if (isScanStreamingMode.value) return;

@@ -468,6 +468,11 @@
       "placeholder": "Hledat podle názvu souboru"
     },
     "filter": {
+      "file_size": "Velikost souboru",
+      "resolution": "Rozlišení",
+      "range_from": "Od",
+      "range_to": "Do",
+      "range_clear": "Zrušit",
       "formats": "Formáty souborů",
       "all_formats": "Všechny formáty",
       "favorites_only": "Jen oblíbené",
