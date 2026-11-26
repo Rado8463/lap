@@ -2025,8 +2025,19 @@ const CUSTOM_SORT_MENU_INDEX = 9;
 const isCustomSort = computed(() =>
   !isSmartAlbumView.value && Number(config.search.sortType) === CUSTOM_SORT
 );
-// Random and manual order have no direction and no grouping.
+// Library > Ratings keeps one manual order per rating item (list id 1000 + item, "Rated" = 998).
+const libraryOrderListId = computed(() => {
+  if (config.main.sidebarIndex !== SIDEBAR.LIBRARY || libConfig.library.item !== LIB_ITEM.RATINGS) return 0;
+  const item = Number(libConfig.rating.item);
+  return item === RATE.ALL || item === RATE.UNRATED || item > 0 ? 1000 + item : 0;
+});
+
+// Random and manual order have no direction. They also have no grouping, except the manual
+// order of a Library list, which is applied inside each group.
 const isFixedOrderSort = computed(() => isRandomSort.value || isCustomSort.value);
+const isGroupingBlockedBySort = computed(() =>
+  isRandomSort.value || (isCustomSort.value && libraryOrderListId.value === 0)
+);
 
 const isRandomSort = computed(() => {
   const sortType = activeSmartAlbum.value
@@ -2036,7 +2047,7 @@ const isRandomSort = computed(() => {
 });
 
 const effectiveGroupBy = computed(() => {
-  if (isFixedOrderSort.value) return GROUP.NONE;
+  if (isGroupingBlockedBySort.value) return GROUP.NONE;
   const smartAlbum = getActiveCustomSmartAlbum();
   return Number(
     !isCollectionPane.value && config.main.sidebarIndex === SIDEBAR.SMART_ALBUM && smartAlbum
@@ -3801,13 +3812,6 @@ let reorderTarget: { folderId: number; beforeFileId: number | null; listId?: num
 let reorderPointer = { x: 0, y: 0 };
 let reorderScrollFrame = 0;
 
-// Library > Ratings keeps one manual order per rating item (list id 1000 + item, "Rated" = 998).
-const libraryOrderListId = computed(() => {
-  if (config.main.sidebarIndex !== SIDEBAR.LIBRARY || libConfig.library.item !== LIB_ITEM.RATINGS) return 0;
-  const item = Number(libConfig.rating.item);
-  return item === RATE.ALL || item === RATE.UNRATED || item > 0 ? 1000 + item : 0;
-});
-
 const customOrderFolderId = computed(() => {
   if (!isCustomSort.value || config.main.sidebarIndex !== SIDEBAR.ALBUM || libConfig.album.selected) return 0;
   return Number(libConfig.album.folderId || 0);
@@ -3841,6 +3845,20 @@ function updateReorderTarget(x: number, y: number) {
   const index = Number(itemElement.id.slice('item-'.length));
   const hovered = fileList.value[index];
   if (!Number.isInteger(index) || !isRealFileItem(hovered)) { clearReorderIndicator(); return; }
+  // In a grouped Library list files can only be moved inside their own group.
+  const sameSection = (other: any) => libraryOrderListId.value > 0
+    ? (!groupedModeActive.value
+      || (fileIdToGroupId.get(Number(other.id)) ?? '') === (fileIdToGroupId.get(Number(hovered.id)) ?? ''))
+    : Number(other.folder_id) === Number(hovered.folder_id);
+  if (groupedModeActive.value && libraryOrderListId.value > 0) {
+    const hoveredGroup = fileIdToGroupId.get(Number(hovered.id));
+    const dragged = pointerDragFiles || [];
+    if (!hoveredGroup || dragged.length === 0
+      || dragged.some((file: any) => fileIdToGroupId.get(Number(file.id)) !== hoveredGroup)) {
+      clearReorderIndicator();
+      return;
+    }
+  }
   const rect = itemElement.getBoundingClientRect();
   const after = x > rect.left + rect.width / 2;
   let beforeFile: any = null;
@@ -3849,7 +3867,7 @@ function updateReorderTarget(x: number, y: number) {
     const next = fileList.value[index + 1];
     if (!next) {
       markX = rect.right;                       // after the last file
-    } else if (isRealFileItem(next) && (libraryOrderListId.value > 0 || Number(next.folder_id) === Number(hovered.folder_id))) {
+    } else if (isRealFileItem(next) && sameSection(next)) {
       beforeFile = next;
       markX = rect.right;
     } else if (!isRealFileItem(next)) {
@@ -3905,6 +3923,7 @@ async function applyCustomReorder(
     toast.error(t('toolbar.filter.custom_order_failed'));
     return;
   }
+  groupFileIdsCache.clear();
   if (reorderLoadedFiles(ids, listId > 0 ? 0 : target.folderId, target.beforeFileId)) return;
   rememberFocusedFileForPresentationRefresh();
   pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
@@ -4019,6 +4038,7 @@ async function resetFolderCustomOrder() {
     toast.error(t('toolbar.filter.custom_order_failed'));
     return;
   }
+  groupFileIdsCache.clear();
   if (await reorderLoadedListInPlace()) return;
   rememberFocusedFileForPresentationRefresh();
   pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
@@ -12178,7 +12198,7 @@ const isSortControlDisabled = computed(() =>
 
 const isGroupControlDisabled = computed(() =>
   isFixedAiResultView.value ||
-  isFixedOrderSort.value ||
+  isGroupingBlockedBySort.value ||
   !isGroupingControlAvailable.value ||
   isScanStreamingMode.value
 );
