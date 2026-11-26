@@ -4148,10 +4148,23 @@ async function applyCustomReorder(
   await updateContent(true);
 }
 
+// File index range of the group that contains `fileIndex` (grouped mode).
+function getGroupedFileRange(fileIndex: number) {
+  let cursor = 0;
+  for (const group of groupedTimelineGroups.value) {
+    const count = Number(group.count || 0);
+    if (fileIndex >= cursor && fileIndex < cursor + count) {
+      return { groupId: String(group.groupId || ''), rowIndex: Number(group.rowIndex || 0), start: cursor, count };
+    }
+    cursor += count;
+  }
+  return null;
+}
+
 // Mirrors the backend move in the already loaded list so the grid does not reload.
 // Returns false when the list can't be updated reliably (unloaded slots in the way).
 function reorderLoadedFiles(ids: number[], folderId: number, beforeFileId: number | null): boolean {
-  if (groupedModeActive.value) return false;
+  const grouped = groupedModeActive.value;
   const list = fileList.value;
   const idSet = new Set(ids);
   const byId = new Map<number, any>();
@@ -4163,10 +4176,20 @@ function reorderLoadedFiles(ids: number[], folderId: number, beforeFileId: numbe
     }
   });
   if (byId.size !== ids.length) return false;
+  const sortedIdx = Array.from(movedIdx).sort((a, b) => a - b);
+  // Grouped list: the move stays inside one group, which is a contiguous block of the list.
+  let range: ReturnType<typeof getGroupedFileRange> = null;
+  if (grouped) {
+    range = getGroupedFileRange(sortedIdx[0]);
+    if (!range || sortedIdx[sortedIdx.length - 1] >= range.start + range.count) return false;
+  }
   let target: number;
   if (beforeFileId !== null) {
     target = list.findIndex(item => isRealFileItem(item) && Number(item.id) === beforeFileId);
     if (target < 0) return false;
+    if (range && (target < range.start || target >= range.start + range.count)) return false;
+  } else if (range) {
+    target = range.start + range.count; // end of the group
   } else {
     let last = -1;
     list.forEach((item, i) => { if (isRealFileItem(item) && (folderId === 0 || Number(item.folder_id) === folderId)) last = i; });
@@ -4175,7 +4198,6 @@ function reorderLoadedFiles(ids: number[], folderId: number, beforeFileId: numbe
     const after = list[target];
     if (after !== undefined && !isRealFileItem(after)) return false;
   }
-  const sortedIdx = Array.from(movedIdx).sort((a, b) => a - b);
   const lo = Math.min(sortedIdx[0], target);
   const hi = Math.max(sortedIdx[sortedIdx.length - 1], target - 1);
   for (let i = lo; i <= hi; i++) if (!isRealFileItem(list[i])) return false;
@@ -4184,6 +4206,18 @@ function reorderLoadedFiles(ids: number[], folderId: number, beforeFileId: numbe
   const insertAt = target - sortedIdx.filter(i => i < target).length;
   kept.splice(insertAt, 0, ...ids.map(id => byId.get(id)));
   fileList.value = kept;
+  if (range) {
+    // The item rows keep their positions; each shows the photo that now sits at its index.
+    for (let f = lo; f <= hi; f++) {
+      const row = groupedRows.value[range.rowIndex + 1 + (f - range.start)];
+      const file = fileList.value[f];
+      if (!isItemRow(row) || Number(row.file_index) !== f || !isRealFileItem(file)) continue;
+      row.file = file;
+      const rowId = String(row.id || '');
+      if (rowId.startsWith('item-row-')) row.id = `item-row-${file.id}`;
+      else if (rowId.startsWith('search-item-')) row.id = `search-item-${row.group_id || range.groupId}-${file.id}`;
+    }
+  }
   if (focusedId > 0) {
     const position = kept.findIndex(item => isRealFileItem(item) && Number(item.id) === focusedId);
     if (position >= 0) selectedItemIndex.value = position;
