@@ -2056,6 +2056,7 @@ function getActiveCustomSmartAlbum() {
 const isCollectionPane = computed(() => libConfig.activePane === 'collection');
 
 const RANDOM_SORT = 7;
+const NAME_SORT = 3;
 const RANDOM_SEED_MODULUS = 2_147_483_647;
 
 function createRandomSeed() {
@@ -12120,14 +12121,16 @@ const handleFileTypeSelect = (index: number) => {
 const handleSortTypeSelect = (option: any, extendOption: any) => {
   if (isScanStreamingMode.value) return;
   rememberFocusedFileForPresentationRefresh();
+  // The dropdown reports the position in the menu; the sort type is the option's value.
+  const sortValue = Number(toolbarSortOptions.value[Number(option)]?.value ?? option);
   if (isSmartAlbumView.value) {
     const album = getActiveCustomSmartAlbum();
     if (album) {
-      album.sort.type = option;
+      album.sort.type = sortValue;
       album.sort.order = extendOption;
     }
   } else {
-    config.search.sortType = Number(option) === CUSTOM_SORT_MENU_INDEX ? CUSTOM_SORT : option;
+    config.search.sortType = sortValue === CUSTOM_SORT_MENU_INDEX ? CUSTOM_SORT : sortValue;
     config.search.sortOrder = extendOption;
   }
 };
@@ -12343,6 +12346,9 @@ const customOrderAvailable = computed(() =>
 
 const sortOptions = computed(() => {
   const options = getSelectOptions(localeMsg.value.toolbar.filter?.sort_type_options);
+  // Name goes first in the menu; each option keeps its own sort type in `value`.
+  const nameAt = options.findIndex(option => option.value === NAME_SORT);
+  if (nameAt > 0) options.unshift(...options.splice(nameAt, 1));
   if (customOrderAvailable.value) {
     options.push({
       label: localeMsg.value.toolbar.filter?.custom_order || 'Custom order',
@@ -12407,9 +12413,11 @@ const toolbarGroupIndex = computed(() => {
 
 const toolbarSortType = computed(() => {
   if (isSimilaritySortedResultView.value) return 0;
-  return isSmartAlbumView.value
+  const sortValue = isSmartAlbumView.value
     ? Number(getActiveCustomSmartAlbum()?.sort?.type ?? 0)
     : (isCustomSort.value ? CUSTOM_SORT_MENU_INDEX : Number(config.search.sortType || 0));
+  // Menu position of the option with this sort type.
+  return Math.max(0, toolbarSortOptions.value.findIndex(option => Number(option.value) === sortValue));
 });
 
 const toolbarSortOrder = computed(() => (
