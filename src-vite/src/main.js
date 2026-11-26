@@ -16,6 +16,7 @@ import router from '@/common/router'
 import App from '@/App.vue'
 import { normalizeStatusBarFields } from '@/common/statusBarFields'
 import { useConfigStore } from '@/stores/configStore'
+import { libConfig } from '@/common/config'
 import '@/assets/app.css'
 
 performance.mark('startup-frontend-started')
@@ -76,6 +77,11 @@ listen('af-area-display-changed', (event) => {
 
 // Tile and Masonry styles were removed: fall back to Justified.
 if (config.settings.grid.style === 1 || config.settings.grid.style === 3) config.settings.grid.style = 2
+
+// The AI based Subjects list was removed from the Library sidebar: never start on it.
+try {
+  if (libConfig.library.item === 'subjects') libConfig.library.item = 'all-files'
+} catch {}
 
 // Resolve Regional Format before components first render dates.
 await getSystemRegionLocale().then((loc) => config.setSystemLocale(loc)).catch(() => {})

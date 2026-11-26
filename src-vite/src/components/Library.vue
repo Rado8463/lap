@@ -130,44 +130,6 @@
           </ul>
         </div>
       </Transition>
-
-      <div class="sidebar-item sidebar-item-hover" @click="toggleSubjects">
-        <IconRight
-          :class="[
-            'p-1 w-6 h-6 shrink-0 transition-transform',
-            libConfig.library.subjectsExpanded ? 'rotate-90' : '',
-          ]"
-          @click.stop="toggleSubjects"
-        />
-        <span class="sidebar-item-label">
-          {{ localeMsg.subject.title }}
-        </span>
-      </div>
-
-      <Transition
-        @before-enter="onBeforeEnter"
-        @enter="onEnter"
-        @after-enter="onAfterEnter"
-        @leave="onLeave"
-      >
-        <div v-if="libConfig.library.subjectsExpanded" class="overflow-hidden">
-          <ul class="mb-2">
-            <li v-for="item in smartTagItems" :key="item.id" class="pl-4">
-              <div
-                :class="[
-                  'sidebar-item sidebar-item-compact ml-2',
-                  libConfig.library.item === LIB_ITEM.SUBJECTS && libConfig.library.smartId === item.id ? 'sidebar-item-selected' : 'sidebar-item-hover',
-                ]"
-                @click="selectSmartTag(item.id)"
-              >
-                <IconBolt class="mx-1 w-4 h-4 shrink-0" />
-                <span class="sidebar-item-label">{{ item.label }}</span>
-                <span v-if="item.count" class="text-[10px] tabular-nums text-base-content/30 mr-2">{{ formatSearchResultCount(item.count) }}</span>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </Transition>
     </div>
 
   </div>
