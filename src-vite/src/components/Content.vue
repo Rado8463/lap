@@ -684,6 +684,14 @@
     @reset="errorMessage = ''"
   />
 
+  <ConvertDialog
+    v-if="convertTarget"
+    :file-path="convertTarget.filePath"
+    :file-name="convertTarget.fileName"
+    @close="convertTarget = null"
+    @saved="onConvertSaved"
+  />
+
   <RefreshFileInfoDialog
     v-if="fileRefreshSelection"
     :file-ids="fileRefreshSelection.ids"
@@ -953,6 +961,7 @@ import MediaViewer from '@/components/MediaViewer.vue';
 import MessageBox from '@/components/MessageBox.vue';
 import ModalDialog from '@/components/ModalDialog.vue';
 import RefreshFileInfoDialog from '@/components/RefreshFileInfoDialog.vue';
+import ConvertDialog from '@/components/ConvertDialog.vue';
 import { fileInfoRevision } from '@/common/fileInfoRefresh';
 import IndexRecoveryDialog from '@/components/IndexRecoveryDialog.vue';
 import MoveTo from '@/components/MoveTo.vue';
@@ -1448,6 +1457,26 @@ function removeDeletedFilesFromImageViewerSession(fileIds: number[]) {
     files,
   };
   return files.length;
+}
+
+// JPEG converter dialog (Ctrl+Shift+F / file menu) for the focused photo.
+const convertTarget = ref<{ filePath: string; fileName: string } | null>(null);
+
+function openConvertDialog() {
+  const file = fileList.value[selectedItemIndex.value];
+  if (!isRealFileItem(file) || (file.file_type !== 1 && file.file_type !== 3)) return;
+  if (convertTarget.value || !file.file_path) return;
+  convertTarget.value = { filePath: String(file.file_path), fileName: String(file.name || file.file_path) };
+}
+
+async function onConvertSaved(savedPath: string) {
+  const name = String(savedPath).split(/[\\/]/).pop() || savedPath;
+  try {
+    await indexAndInsertSavedFile(savedPath);
+  } catch (error) {
+    console.error('Failed to add the converted JPEG to the library:', error);
+  }
+  toast.success(t('convert.saved', { name }));
 }
 
 const fileRefreshSelection = ref<{ ids: number[]; libraryId: string; requestId: number; groupSizes: Map<string, number> } | null>(null);
@@ -5678,6 +5707,7 @@ function handleItemAction(payload: { action: string, index: number }) {
       }
     },
     'reveal': () => revealPath(fileList.value[selectedItemIndex.value].file_path),
+    'convert-to-jpeg': () => openConvertDialog(),
     'refresh-file-info': () => selectMode.value ? startSelectedFileRefresh() : void updateFile(fileList.value[selectedItemIndex.value], true),
     'save-xmp': async () => {
       const ids = selectMode.value
@@ -6018,6 +6048,12 @@ function handleLocalKeyDown(event: KeyboardEvent) {
   }
 
   if (selectedItemIndex.value < 0 || fileList.value.length === 0) {
+    return;
+  }
+
+  if (matchesShortcut('file.convertToJpeg', event, shortcutPlatform)) {
+    event.preventDefault();
+    if (!event.repeat) openConvertDialog();
     return;
   }
 

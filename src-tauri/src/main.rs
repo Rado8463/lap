@@ -20,6 +20,7 @@ mod t_batch_rename;
 mod t_cluster;
 mod t_cmds;
 mod t_common;
+mod t_convert;
 mod t_config;
 mod t_dedup;
 mod t_drag;
@@ -419,6 +420,11 @@ async fn main() {
             t_cmds::move_files_custom_order,
             t_cmds::reset_custom_order,
             t_cmds::reset_album_custom_order,
+            t_cmds::convert_open,
+            t_cmds::convert_preview,
+            t_cmds::convert_region,
+            t_cmds::convert_save,
+            t_cmds::convert_close,
             t_cmds::move_library_custom_order,
             t_cmds::reset_library_custom_order,
             t_cmds::set_file_culling_flag,

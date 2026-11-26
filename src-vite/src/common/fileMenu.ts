@@ -368,6 +368,13 @@ export const useFileMenuItems = (
       },
       { label: "-", action: null },
       {
+        label: String(localeMsg.value.menu.file.convert_to_jpeg || 'Convert to JPEG...'),
+        icon: markRaw(IconSave),
+        shortcut: shortcut('file.convertToJpeg'),
+        disabled: !isImage,
+        action: createAction('convert-to-jpeg')
+      },
+      {
         label: localeMsg.value.menu.file.refresh_file_info,
         icon: markRaw(IconRefresh),
         action: createAction('refresh-file-info')

@@ -1980,6 +1980,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'file.editImage', labelKey: 'edit_image' },
       { actionId: 'view.toggleBars', labelKey: 'toggle_bars' },
       { actionId: 'view.findFile', labelKey: 'find_file' },
+      { actionId: 'file.convertToJpeg', labelKey: 'convert_to_jpeg' },
       { actionId: 'view.moveItemLeft', labelKey: 'move_item_left' },
       { actionId: 'view.moveItemRight', labelKey: 'move_item_right' },
       { actionId: 'view.moveItemUp', labelKey: 'move_item_up' },

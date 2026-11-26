@@ -59,7 +59,7 @@ export function resetLibraryAccessibility() {
 
 const originalActions = new Set([
   'edit', 'print', 'rename', 'move-within-library', 'move-to-folder',
-  'save-xmp', 'copy-to-folder', 'trash', 'reveal', 'refresh-file-info', 'set-desktop-wallpaper', 'create-montage',
+  'save-xmp', 'copy-to-folder', 'trash', 'reveal', 'refresh-file-info', 'set-desktop-wallpaper', 'create-montage', 'convert-to-jpeg',
 ]);
 export function requiresOriginalAction(action: string): boolean {
   return originalActions.has(action) || action.startsWith('open-external-app');
@@ -67,7 +67,7 @@ export function requiresOriginalAction(action: string): boolean {
 
 const localContentActions = new Set([
   'open', 'edit', 'print', 'copy-to-folder', 'save-xmp',
-  'set-desktop-wallpaper', 'create-montage', 'compare-selected-images',
+  'set-desktop-wallpaper', 'create-montage', 'compare-selected-images', 'convert-to-jpeg',
 ]);
 
 export function requiresLocalContent(action: string): boolean {

@@ -4493,6 +4493,52 @@ pub fn reset_custom_order(folder_id: i64) -> Result<usize, String> {
     AFile::reset_custom_order(folder_id)
 }
 
+/// JPEG converter: loads the picture and returns its size and a fitted preview.
+#[tauri::command]
+pub async fn convert_open(
+    file_path: String,
+    background: u32,
+) -> Result<crate::t_convert::ConvertOpenResult, String> {
+    crate::t_convert::convert_open(file_path, background).await
+}
+
+/// JPEG converter: encodes with the given settings, returns the exact size and a preview of the result.
+#[tauri::command]
+pub async fn convert_preview(
+    file_path: String,
+    options: crate::t_convert::ConvertOptions,
+) -> Result<crate::t_convert::ConvertPreviewResult, String> {
+    crate::t_convert::convert_preview(file_path, options).await
+}
+
+/// JPEG converter: 1:1 crop of the original or the converted picture.
+#[tauri::command]
+pub async fn convert_region(
+    file_path: String,
+    converted: bool,
+    cx: i64,
+    cy: i64,
+    w: u32,
+    h: u32,
+) -> Result<crate::t_convert::ConvertRegion, String> {
+    crate::t_convert::convert_region(file_path, converted, cx, cy, w, h).await
+}
+
+/// JPEG converter: writes the converted file next to the original and returns its path.
+#[tauri::command]
+pub async fn convert_save(
+    file_path: String,
+    options: crate::t_convert::ConvertOptions,
+) -> Result<String, String> {
+    crate::t_convert::convert_save(file_path, options).await
+}
+
+/// JPEG converter: releases the pictures held for the dialog.
+#[tauri::command]
+pub fn convert_close() {
+    crate::t_convert::convert_close();
+}
+
 /// Remove the manual order of all folders of an album.
 #[tauri::command]
 pub fn reset_album_custom_order(album_id: i64) -> Result<usize, String> {

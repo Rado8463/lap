@@ -285,10 +285,12 @@ static bool lap_read_file(const char *file_path,
   }
 }
 
-int lap_jpeg_encode_rgb8_ex(const unsigned char *rgb_data, unsigned int width,
-                            unsigned int height, int quality, int full_chroma,
-                            unsigned char **out_data, unsigned long *out_len,
-                            char *err_buf, size_t err_buf_len) {
+// sampling: 0 = 4:4:4 (1:1), 1 = 4:2:2, 2 = 4:2:0. progressive / optimize_coding are 0 or 1.
+int lap_jpeg_encode_rgb8_opts(const unsigned char *rgb_data, unsigned int width,
+                              unsigned int height, int quality, int sampling,
+                              int progressive, int optimize_coding,
+                              unsigned char **out_data, unsigned long *out_len,
+                              char *err_buf, size_t err_buf_len) {
   if (!rgb_data || width == 0 || height == 0 || !out_data || !out_len) {
     if (err_buf && err_buf_len > 0) {
       std::snprintf(err_buf, err_buf_len, "Invalid JPEG encode arguments");
@@ -332,10 +334,21 @@ int lap_jpeg_encode_rgb8_ex(const unsigned char *rgb_data, unsigned int width,
 
   jpeg_set_defaults(&cinfo);
   jpeg_set_quality(&cinfo, quality, TRUE);
-  if (full_chroma) {
+  if (sampling == 0) {
     // 4:4:4 (no chroma subsampling): keeps sharp colour edges of lossless graphics.
     cinfo.comp_info[0].h_samp_factor = 1;
     cinfo.comp_info[0].v_samp_factor = 1;
+  } else if (sampling == 1) {
+    // 4:2:2 (horizontal chroma subsampling)
+    cinfo.comp_info[0].h_samp_factor = 2;
+    cinfo.comp_info[0].v_samp_factor = 1;
+  }
+  // sampling == 2 keeps the libjpeg default 4:2:0.
+  if (optimize_coding) {
+    cinfo.optimize_coding = TRUE;
+  }
+  if (progressive) {
+    jpeg_simple_progression(&cinfo);
   }
   jpeg_start_compress(&cinfo, TRUE);
 
@@ -348,6 +361,15 @@ int lap_jpeg_encode_rgb8_ex(const unsigned char *rgb_data, unsigned int width,
   jpeg_finish_compress(&cinfo);
   jpeg_destroy_compress(&cinfo);
   return 1;
+}
+
+int lap_jpeg_encode_rgb8_ex(const unsigned char *rgb_data, unsigned int width,
+                            unsigned int height, int quality, int full_chroma,
+                            unsigned char **out_data, unsigned long *out_len,
+                            char *err_buf, size_t err_buf_len) {
+  return lap_jpeg_encode_rgb8_opts(rgb_data, width, height, quality,
+                                   full_chroma ? 0 : 2, 0, 0, out_data, out_len,
+                                   err_buf, err_buf_len);
 }
 
 int lap_jpeg_encode_rgb8(const unsigned char *rgb_data, unsigned int width,

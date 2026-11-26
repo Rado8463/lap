@@ -77,6 +77,7 @@ export type ShortcutActionId =
   | 'view.cyclePanBeyondEdges'
   | 'view.toggleBars'
   | 'view.findFile'
+  | 'file.convertToJpeg'
   | 'view.moveItemLeft'
   | 'view.moveItemRight'
   | 'view.moveItemUp'
@@ -329,6 +330,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.moveItemDown',
     contexts: ['content'],
     defaultBindings: [{ key: 'ArrowDown', modifiers: ['alt'], label: { mac: '⌥↓', windows: 'Alt+↓', linux: 'Alt+↓' } }],
+  },
+  {
+    id: 'file.convertToJpeg',
+    contexts: ['content'],
+    defaultBindings: [{ code: 'KeyF', modifiers: ['ctrl', 'shift'], platforms: ['windows', 'linux'], label: 'Ctrl+Shift+F' }],
   },
   {
     id: 'view.findFile',

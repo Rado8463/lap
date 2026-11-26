@@ -1049,7 +1049,7 @@ fn cleanup_metadata_backup(path: &Option<PathBuf>) {
 
 /// Copies metadata from source to destination.
 /// Prefers little_exif for JPEGs and falls back to kamadak-exif for RAW formats.
-fn copy_metadata_to_output(source_path: &Path, dest_path: &Path) -> Result<(), String> {
+pub(crate) fn copy_metadata_to_output(source_path: &Path, dest_path: &Path) -> Result<(), String> {
     let source_path_buf = source_path.to_path_buf();
 
     // Check file type to detect RAW formats
@@ -1563,8 +1563,12 @@ fn png_viewer_jpeg(file_path: &str) -> Result<Vec<u8>, String> {
 
 /// Converts to RGB8; transparent pixels are blended over the viewer's transparency colour.
 fn flatten_for_viewer(decoded: DynamicImage) -> Result<RgbImage, String> {
+    flatten_with_background(decoded, PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Converts to RGB8; transparent pixels are blended over `bg` (0xRRGGBB).
+fn flatten_with_background(decoded: DynamicImage, bg: u32) -> Result<RgbImage, String> {
     let rgb = if decoded.color().has_alpha() {
-        let bg = PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed);
         let (br, bgc, bb) = (((bg >> 16) & 255) as u32, ((bg >> 8) & 255) as u32, (bg & 255) as u32);
         let rgba = decoded.into_rgba8();
         let (w, h) = rgba.dimensions();
@@ -1585,6 +1589,11 @@ fn flatten_for_viewer(decoded: DynamicImage) -> Result<RgbImage, String> {
 /// Native full-resolution decode of a TIFF (any size) as a high-quality JPEG; fails for
 /// files the `image` crate cannot read (e.g. CMYK), in which case the old path is used.
 fn tiff_decode_rgb(file_path: &str) -> Result<RgbImage, String> {
+    tiff_decode_rgb_with_background(file_path, PNG_ALPHA_BG.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Full-resolution, orientation-applied RGB decode of any format the `image` crate reads.
+fn tiff_decode_rgb_with_background(file_path: &str, bg: u32) -> Result<RgbImage, String> {
     use image::ImageDecoder;
     let mut reader = ImageReader::open(file_path)
         .map_err(|e| format!("Failed to open TIFF: {}", e))?
@@ -1600,7 +1609,7 @@ fn tiff_decode_rgb(file_path: &str) -> Result<RgbImage, String> {
     let mut decoded = DynamicImage::from_decoder(decoder)
         .map_err(|e| format!("Failed to decode TIFF: {}", e))?;
     decoded.apply_orientation(orientation);
-    flatten_for_viewer(decoded)
+    flatten_with_background(decoded, bg)
 }
 
 fn tiff_decode_shared(file_path: &str) -> Result<std::sync::Arc<RgbImage>, String> {
@@ -2911,6 +2920,54 @@ pub(crate) fn rotate_arbitrary(img: DynamicImage, angle_deg: f32) -> DynamicImag
 /// Decode a source image upright: formats the `image` crate cannot read
 /// (RAW, HEIC, JXL, ...) go through their generated preview, which is already
 /// oriented; the others are decoded directly and the EXIF orientation applied.
+/// Full-resolution RGB picture of any supported image for the JPEG converter; transparent
+/// pixels are blended over `bg` (0xRRGGBB). PSD/PSB use their merged composite, RAW / HEIC /
+/// JXL / AVIF and similar use the same picture the editor works on, everything else is decoded natively.
+pub(crate) async fn decode_for_conversion(file_path: &str, bg: u32) -> Result<RgbImage, String> {
+    t_utils::require_local_content(Path::new(file_path)).map_err(|e| e.to_string())?;
+    let path = file_path.to_string();
+    if crate::t_psd::is_psd_path(&path) {
+        return tauri::async_runtime::spawn_blocking(move || crate::t_psd::decode_composite(&path))
+            .await
+            .map_err(|e| format!("Failed to join decode task: {}", e))?;
+    }
+    let file_type = t_utils::get_file_type(&path).unwrap_or(0);
+    let needs_preview = should_generate_preview_for_file(&path, file_type)
+        && !crate::t_libraw::is_tiff_path(&path);
+    if needs_preview || crate::t_affinity::is_affinity_path(&path) {
+        let img = load_oriented_image(&path, get_image_orientation(&path)).await?;
+        return tauri::async_runtime::spawn_blocking(move || flatten_with_background(img, bg))
+            .await
+            .map_err(|e| format!("Failed to join decode task: {}", e))?;
+    }
+    tauri::async_runtime::spawn_blocking(move || tiff_decode_rgb_with_background(&path, bg))
+        .await
+        .map_err(|e| format!("Failed to join decode task: {}", e))?
+}
+
+/// Scales an RGB picture down so its longest side is `max_edge` (never upscales).
+pub(crate) fn resize_rgb_fit(rgb: &RgbImage, max_edge: u32) -> Result<RgbImage, String> {
+    let (src_w, src_h) = rgb.dimensions();
+    if max_edge == 0 || src_w.max(src_h) <= max_edge {
+        return Ok(rgb.clone());
+    }
+    let scale = max_edge as f64 / src_w.max(src_h) as f64;
+    let dst_w = ((src_w as f64 * scale).round() as u32).max(1);
+    let dst_h = ((src_h as f64 * scale).round() as u32).max(1);
+    let src_image =
+        fir::images::Image::from_vec_u8(src_w, src_h, rgb.as_raw().clone(), fir::PixelType::U8x3)
+            .map_err(|e| format!("Failed to prepare RGB source image for resize: {}", e))?;
+    let mut dst_image = fir::images::Image::new(dst_w, dst_h, fir::PixelType::U8x3);
+    let mut resizer = fir::Resizer::new();
+    let options = fir::ResizeOptions::new()
+        .resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::Bilinear));
+    resizer
+        .resize(&src_image, &mut dst_image, &options)
+        .map_err(|e| format!("Failed to resize RGB image: {}", e))?;
+    RgbImage::from_raw(dst_w, dst_h, dst_image.into_vec())
+        .ok_or_else(|| "Failed to build resized RGB image".to_string())
+}
+
 pub(crate) async fn load_oriented_image(
     file_path: &str,
     orientation: i32,
