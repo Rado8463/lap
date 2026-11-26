@@ -77,6 +77,10 @@ export type ShortcutActionId =
   | 'view.cyclePanBeyondEdges'
   | 'view.toggleBars'
   | 'view.findFile'
+  | 'view.moveItemLeft'
+  | 'view.moveItemRight'
+  | 'view.moveItemUp'
+  | 'view.moveItemDown'
   | 'view.cycleRawPreview'
   | 'view.toggleAfAreas'
   | 'view.toggleFullscreen'
@@ -305,6 +309,26 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.toggleBars',
     contexts: ['content'],
     defaultBindings: [{ code: 'KeyS', label: 'S' }],
+  },
+  {
+    id: 'view.moveItemLeft',
+    contexts: ['content'],
+    defaultBindings: [{ key: 'ArrowLeft', modifiers: ['alt'], label: { mac: '⌥←', windows: 'Alt+←', linux: 'Alt+←' } }],
+  },
+  {
+    id: 'view.moveItemRight',
+    contexts: ['content'],
+    defaultBindings: [{ key: 'ArrowRight', modifiers: ['alt'], label: { mac: '⌥→', windows: 'Alt+→', linux: 'Alt+→' } }],
+  },
+  {
+    id: 'view.moveItemUp',
+    contexts: ['content'],
+    defaultBindings: [{ key: 'ArrowUp', modifiers: ['alt'], label: { mac: '⌥↑', windows: 'Alt+↑', linux: 'Alt+↑' } }],
+  },
+  {
+    id: 'view.moveItemDown',
+    contexts: ['content'],
+    defaultBindings: [{ key: 'ArrowDown', modifiers: ['alt'], label: { mac: '⌥↓', windows: 'Alt+↓', linux: 'Alt+↓' } }],
   },
   {
     id: 'view.findFile',

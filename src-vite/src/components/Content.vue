@@ -3966,6 +3966,91 @@ function reorderAutoScrollTick() {
   reorderScrollFrame = requestAnimationFrame(reorderAutoScrollTick);
 }
 
+// Alt+arrows: moves the focused photo (or the whole selection) inside Custom order.
+let keyboardMoveChain: Promise<void> = Promise.resolve();
+
+function queueKeyboardReorder(direction: 'left' | 'right' | 'up' | 'down') {
+  keyboardMoveChain = keyboardMoveChain
+    .then(() => moveSelectionInCustomOrder(direction))
+    .catch(error => console.error('keyboard reorder error:', error));
+}
+
+async function moveSelectionInCustomOrder(direction: 'left' | 'right' | 'up' | 'down') {
+  if (!canReorderByDrag.value || isLoading.value) return;
+  const list = fileList.value;
+  const focusIndex = selectedItemIndex.value;
+  const focused = list[focusIndex];
+  if (!isRealFileItem(focused)) return;
+
+  // Step size: one photo for left/right, one row for up/down.
+  let delta = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+  if (delta === 0) {
+    const up = direction === 'up';
+    if (usesGeometryNavigation.value) {
+      const next = gridViewRef.value?.getNextItemIndex(focusIndex, up ? 'up' : 'down') ?? -1;
+      if (next < 0 || next === focusIndex) return;
+      delta = next - focusIndex;
+    } else {
+      const columns = Math.max(1, Number(gridViewRef.value?.getColumnCount?.() || 1));
+      delta = up ? -columns : columns;
+    }
+  }
+
+  // Files to move: the selection when the focused photo belongs to it, else just the focused photo.
+  const selected = getActionableSelectedItems();
+  if (focused.isSelected && selectedFileIds.size > selected.length) return; // part of the selection isn't loaded
+  const files = focused.isSelected && selected.length > 0 ? selected : [focused];
+  const movedIds = new Set(files.map((file: any) => Number(file.id)));
+  const moved = new Set<number>();
+  list.forEach((item, i) => { if (isRealFileItem(item) && movedIds.has(Number(item.id))) moved.add(i); });
+  if (moved.size !== movedIds.size) return;
+  const movedIdx = Array.from(moved).sort((x, y) => x - y);
+
+  const listId = libraryOrderListId.value;
+  const folderId = Number(focused.folder_id);
+  const groupOf = (item: any) => fileIdToGroupId.get(Number(item.id)) ?? '';
+  const sameSection = (item: any) => {
+    if (!isRealFileItem(item)) return false;
+    if (listId > 0) return !groupedModeActive.value || groupOf(item) === groupOf(focused);
+    return Number(item.folder_id) === folderId;
+  };
+  // Everything that moves has to live in the same group / folder.
+  if (!movedIdx.every(i => sameSection(list[i]))) return;
+
+  const n = list.length;
+  let beforeFileId: number | null = null;
+  if (delta < 0) {
+    const first = movedIdx[0];
+    let idx = Math.max(0, first + delta);
+    while (idx < first && (moved.has(idx) || !sameSection(list[idx]))) {
+      if (!moved.has(idx) && !isRealFileItem(list[idx])) return; // unloaded slot in the way
+      idx++;
+    }
+    if (idx >= first) return;
+    beforeFileId = Number(list[idx].id);
+  } else {
+    const last = movedIdx[movedIdx.length - 1];
+    let t = Math.min(n - 1, last + delta);
+    while (t > last && (moved.has(t) || !sameSection(list[t]))) {
+      if (!moved.has(t) && !isRealFileItem(list[t])) return;
+      t--;
+    }
+    if (t <= last) return;
+    let b = t + 1;
+    while (b < n && moved.has(b)) b++;
+    if (b < n) {
+      if (!isRealFileItem(list[b])) return;
+      // The next photo belongs to another group/folder: move to the end of this one.
+      beforeFileId = sameSection(list[b]) ? Number(list[b].id) : null;
+    }
+  }
+
+  await applyCustomReorder(
+    { folderId, beforeFileId, listId },
+    files as Array<{ id: number; folder_id: number }>,
+  );
+}
+
 async function applyCustomReorder(
   target: { folderId: number; beforeFileId: number | null; listId?: number },
   files: Array<{ id: number; folder_id: number }>,
@@ -5934,6 +6019,18 @@ function handleLocalKeyDown(event: KeyboardEvent) {
 
   if (selectedItemIndex.value < 0 || fileList.value.length === 0) {
     return;
+  }
+
+  if (canReorderByDrag.value) {
+    const moveDirection = matchesShortcut('view.moveItemLeft', event, shortcutPlatform) ? 'left'
+      : matchesShortcut('view.moveItemRight', event, shortcutPlatform) ? 'right'
+        : matchesShortcut('view.moveItemUp', event, shortcutPlatform) ? 'up'
+          : matchesShortcut('view.moveItemDown', event, shortcutPlatform) ? 'down' : null;
+    if (moveDirection) {
+      event.preventDefault();
+      queueKeyboardReorder(moveDirection);
+      return;
+    }
   }
 
   // Keep only close and background shortcuts available during slideshow.
