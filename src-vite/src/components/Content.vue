@@ -3978,6 +3978,8 @@ async function applyCustomReorder(
   }
   groupFileIdsCache.clear();
   if (reorderLoadedFiles(ids, listId > 0 ? 0 : target.folderId, target.beforeFileId)) return;
+  // Large lists (Library) have unloaded slots; re-sort from the id order and keep the loaded items.
+  if (listId > 0 && await reorderLoadedListInPlace()) return;
   rememberFocusedFileForPresentationRefresh();
   pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
   await updateContent(true);
