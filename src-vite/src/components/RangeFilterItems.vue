@@ -66,7 +66,7 @@ const props = defineProps<{ title: string; unit: string; min: number; max: numbe
 const emit = defineEmits<{ (event: 'update', min: number, max: number): void }>();
 
 const active = computed(() => props.min > 0 || props.max > 0);
-const open = ref(active.value);
+const open = ref(true);
 
 const summary = computed(() => {
   if (props.min > 0 && props.max > 0) return `${props.min}–${props.max} ${props.unit}`;

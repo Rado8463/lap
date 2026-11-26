@@ -48,7 +48,7 @@ const emit = defineEmits<{ (event: 'update:modelValue', value: string[]): void }
 
 const counts = ref<Array<[string, number]>>([]);
 const loaded = ref(false);
-const open = ref(props.modelValue.length > 0);
+const open = ref(true);
 
 // Selected formats stay listed even when the current view has no file of that format.
 const rows = computed(() => {
