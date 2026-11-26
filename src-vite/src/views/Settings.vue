@@ -849,7 +849,7 @@
         <div v-else-if="config.settings.tabIndex === SETTINGS_TAB.IMAGE_SEARCH" class="flex flex-col overflow-hidden space-y-2">
 
           <!-- image search -->
-          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+          <div v-if="false" class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
             <div class="flex items-center gap-2 text-base-content/30">
               <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.image_search.search_image') }}</span>
             </div>
@@ -908,7 +908,7 @@
           </div>
 
           <!-- similar photos -->
-          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+          <div v-if="false" class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
             <div class="flex items-center gap-2 text-base-content/30">
               <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.similar_photos.title') }}</span>
             </div>
@@ -924,7 +924,7 @@
           </div>
 
           <!-- face recognition -->
-          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+          <div v-if="false" class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
             <div class="flex items-center gap-2 text-base-content/30">
               <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.face_recognition.title') }}</span>
             </div>
@@ -972,7 +972,7 @@
 
           <section class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm" aria-labelledby="behavior-settings">
             <h2 id="behavior-settings" class="font-bold uppercase text-[10px] tracking-widest text-base-content/30">{{ $t('settings.advanced.behavior_section') }}</h2>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+            <div v-if="false" class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.advanced.ai_search_enabled') }}</div>
                 <div class="text-xs text-base-content/30">

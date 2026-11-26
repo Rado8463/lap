@@ -83,6 +83,11 @@ try {
   if (libConfig.library.item === 'subjects') libConfig.library.item = 'all-files'
 } catch {}
 
+// AI search, similar photos and face recognition are not offered in this build: keep them off,
+// so the models are never loaded and no embeddings are built.
+config.settings.aiSearchEnabled = false
+config.settings.face.enabled = false
+
 // Resolve Regional Format before components first render dates.
 await getSystemRegionLocale().then((loc) => config.setSystemLocale(loc)).catch(() => {})
 

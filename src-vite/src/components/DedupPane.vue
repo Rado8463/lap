@@ -14,6 +14,7 @@
           {{ $t('info_panel.dedup.tabs.exact') }}
         </button>
         <button
+          v-if="config.settings.aiSearchEnabled"
           class="px-1 cursor-pointer"
           :class="activeTab === 'similar' ? 'text-primary/70' : 'hover:text-base-content'"
           @click="openSimilarTab()"
@@ -631,7 +632,7 @@ const selectedDupIdsByGroup = ref<Map<number, Set<number>>>(new Map());
 const selectedSimilarIdsByGroup = ref<Map<number, Set<number>>>(new Map());
 const isDedupLoading = ref(true);
 const activeTab = ref<'duplicates' | 'similar'>(
-  config.dedup.activeTab === 'similar' ? 'similar' : 'duplicates',
+  config.dedup.activeTab === 'similar' && config.settings.aiSearchEnabled ? 'similar' : 'duplicates',
 );
 const similarLoading = ref(false);
 const similarRestoring = ref(false);
