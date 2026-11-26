@@ -1430,6 +1430,13 @@ pub async fn get_query_count_and_sum(params: QueryParams) -> Result<(i64, i64), 
         .map_err(|e| format!("Error while getting query files count: {}", e))
 }
 
+/// formats (with counts) present in the current query view
+#[tauri::command]
+pub async fn get_query_format_counts(params: QueryParams) -> Result<Vec<(String, i64)>, String> {
+    AFile::get_query_format_counts(&params)
+        .map_err(|e| format!("Error while getting query formats: {}", e))
+}
+
 /// get query time line
 #[tauri::command]
 pub async fn get_query_time_line(params: QueryParams) -> Result<Vec<ATimeLine>, String> {

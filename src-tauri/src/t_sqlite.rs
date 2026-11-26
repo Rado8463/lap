@@ -2192,6 +2192,9 @@ pub struct QueryParams {
     /// `library_custom_order` rows of that list instead of the per-folder order.
     #[serde(default)]
     pub list_id: i64,
+    /// Only files of these formats (upper case labels such as JPG, PNG, PSD); empty means all formats.
+    #[serde(default)]
+    pub formats: Vec<String>,
 }
 
 fn default_culling_flag() -> i64 {
@@ -4844,6 +4847,10 @@ impl AFile {
         list_params.sort_type = 10;
         list_params.sort_order = 0;
         list_params.list_id = list_id;
+        // The stored order covers the whole list, not just what the toolbar filters leave visible.
+        list_params.formats.clear();
+        list_params.is_favorite = false;
+        list_params.search_file_type = 0;
         let current = Self::get_query_file_ids(&list_params)?;
 
         let moving: Vec<i64> = current.iter().copied().filter(|id| file_ids.contains(id)).collect();
@@ -5650,6 +5657,14 @@ impl AFile {
             conditions.push(condition);
         }
 
+        if !params.formats.is_empty() {
+            let placeholders = vec!["?"; params.formats.len()].join(", ");
+            conditions.push(format!("UPPER(a.format_label) IN ({placeholders})"));
+            for format in &params.formats {
+                sql_params.push(Box::new(format.trim().to_uppercase()));
+            }
+        }
+
         Self::append_album_filter(&mut conditions);
 
         if !params.search_all_subfolders.is_empty() {
@@ -5801,6 +5816,29 @@ impl AFile {
     }
 
     // get query count and sum
+    /// Formats present in the current view (all other filters applied, the format filter itself ignored)
+    /// with their file counts, most frequent first.
+    pub fn get_query_format_counts(params: &QueryParams) -> Result<Vec<(String, i64)>, String> {
+        let mut view = params.clone();
+        view.formats.clear();
+        let (joins, where_clause, sql_params) = Self::build_search_query_parts(&view);
+        let sql = format!(
+            "SELECT UPPER(a.format_label), COUNT(DISTINCT a.id) FROM afiles a
+                LEFT JOIN afolders b ON a.folder_id = b.id
+                LEFT JOIN albums c ON b.album_id = c.id
+                {}{} AND a.format_label IS NOT NULL AND a.format_label != ''
+                GROUP BY UPPER(a.format_label) ORDER BY COUNT(DISTINCT a.id) DESC, UPPER(a.format_label) ASC",
+            joins, where_clause
+        );
+        let conn = open_conn()?;
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let final_params: Vec<&dyn ToSql> = sql_params.iter().map(|p| p.as_ref()).collect();
+        let rows = stmt
+            .query_map(final_params.as_slice(), |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    }
+
     pub fn get_query_count_and_sum(params: &QueryParams) -> Result<(i64, i64), String> {
         let (joins, where_clause, sql_params) = Self::build_search_query_parts(params);
 

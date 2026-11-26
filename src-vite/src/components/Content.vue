@@ -66,12 +66,13 @@
           :disabled="isFavoritesFilterDisabled"
           :keepTextWhenDisabled="true"
           :optionsDisabled="tempViewMode === 'person' || tempViewMode === 'similar'"
-          :selected="activeFileTypeMask !== 0 || activeFavoritesOnly || activeRatedOnly"
+          :selected="activeFileTypeMask !== 0 || activeFavoritesOnly || activeRatedOnly || activeFormats.length > 0"
           :title="activeFavoritesOnly ? $t('toolbar.filter.favorites_only') : (activeRatedOnly ? $t('toolbar.filter.rated_only') : '')"
           @select="handleFileTypeSelect"
         >
           <template #trigger-suffix>
             <IconHeartFilled v-if="activeFavoritesOnly" class="w-4 h-4 shrink-0" />
+            <span v-if="activeFormats.length > 0" class="text-xs font-semibold">{{ activeFormats.length === 1 ? activeFormats[0] : activeFormats.length }}</span>
             <template v-if="activeRatedOnly">
               <IconStarFilled class="w-4 h-4 shrink-0" />
               <span v-if="activeRatingFilter > 0" class="-ml-0.5">{{ activeRatingFilter }}</span>
@@ -97,6 +98,12 @@
                 <IconStarFilled v-for="n in stars" :key="n" class="w-3.5 h-3.5" />
               </span>
             </button>
+            <FormatFilterItems
+              v-if="formatFilterAvailable"
+              :model-value="activeFormats"
+              :params="currentQueryParams"
+              @update:model-value="setFormatFilter"
+            />
           </template>
         </DropDownSelect>
 
@@ -922,6 +929,7 @@ import ExternalAppsDialog from '@/components/ExternalAppsDialog.vue';
 import FileInfo from '@/components/FileInfo.vue';
 import Breadcrumb from '@/components/Breadcrumb.vue';
 import DedupPane from '@/components/DedupPane.vue';
+import FormatFilterItems from '@/components/FormatFilterItems.vue';
 import { getAspectRatio } from '@/common/layout';
 import SelectionPanel from '@/components/SelectionPanel.vue';
 import FileConflictDialog from '@/components/FileConflictDialog.vue';
@@ -4431,6 +4439,7 @@ const dedupSourceVersion = ref(0);
 // Store current query params for virtual scrolling
 const currentQueryParams = ref({
   searchFileType: 0,
+  formats: [] as string[],
   sortType: 0,
   sortOrder: 0,
   randomSeed: 0,
@@ -4586,7 +4595,7 @@ watch(
     if (countedFolderRequestId.value !== currentContentRequestId || currentQuerySource.value !== 'query' || !path
       || !contentReady.value || isLoading.value || contentQueryRefreshPending
       || !contentCountIsAuthoritative.value || tempViewMode.value !== 'none'
-      || config.search.favoritesOnly || activeRatedOnly.value || Number(currentQueryParams.value.searchFileType || 0) !== 0
+      || config.search.favoritesOnly || activeRatedOnly.value || activeFormats.value.length > 0 || Number(currentQueryParams.value.searchFileType || 0) !== 0
       || !matchesRequestedSidebarCount({ source: 'album-folder', path })) return;
     setFolderFileCount(path, Math.max(0, Number(totalFileCount.value || 0)));
   },
@@ -4629,7 +4638,7 @@ function matchesRequestedSidebarCount(request: any) {
 
 function commitRequestedSidebarCount(count: number, request = uiStore.countUpdateRequest) {
   if (!request || uiStore.countUpdateRequest !== request) return;
-  if (config.search.favoritesOnly || activeRatedOnly.value) {
+  if (config.search.favoritesOnly || activeRatedOnly.value || activeFormats.value.length > 0) {
     uiStore.clearCountUpdateRequest();
     return;
   }
@@ -7710,7 +7719,7 @@ let contentRefreshToken = 0;
 // Filter, sort and grouping are remembered separately for each sidebar tab (Library, Albums, ...).
 // config.search always holds the values of the active tab; the other tabs wait in config.search.perTab.
 // A sync watcher swaps them before any content refresh reads the new tab's settings.
-const SEARCH_TAB_DEFAULTS = { fileType: 0, favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
+const SEARCH_TAB_DEFAULTS = { fileType: 0, formats: [] as string[], favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
 watch(
   () => config.main.sidebarIndex,
   (next, previous) => {
@@ -7719,6 +7728,7 @@ watch(
     const perTab = { ...(search.perTab || {}) };
     perTab[String(previous)] = {
       fileType: search.fileType,
+      formats: [...(search.formats || [])],
       favoritesOnly: search.favoritesOnly,
       sortType: search.sortType,
       sortOrder: search.sortOrder,
@@ -7728,6 +7738,7 @@ watch(
     delete perTab[String(next)];
     search.perTab = perTab;
     search.fileType = saved.fileType ?? SEARCH_TAB_DEFAULTS.fileType;
+    search.formats = [...(saved.formats || [])];
     search.favoritesOnly = saved.favoritesOnly ?? SEARCH_TAB_DEFAULTS.favoritesOnly;
     search.sortType = saved.sortType ?? SEARCH_TAB_DEFAULTS.sortType;
     search.sortOrder = saved.sortOrder ?? SEARCH_TAB_DEFAULTS.sortOrder;
@@ -7763,6 +7774,7 @@ watch(
     libConfig.location.cc, libConfig.location.admin1, libConfig.location.name,                               // location
     libConfig.camera.make, libConfig.camera.model,                                    // camera 
     config.camera.isCamera, (libConfig.camera as any).lensMake, (libConfig.camera as any).lensModel, // lens
+    (config.search.formats || []).join(','), // file format filter (keep last: the indexes above are referenced)
   ], 
   (values, previousValues) => {
     // Replacing smartAlbums creates a new outer array even if these values match.
@@ -8800,7 +8812,8 @@ async function getFileList(
     gpsMinLat = null,
     gpsMaxLat = null,
     gpsMinLon = null,
-    gpsMaxLon = null
+    gpsMaxLon = null,
+    formats = Array.isArray(config.search.formats) ? [...config.search.formats] : [],
   } = {},
   requestId: number,
   sourceContext: { source: 'collection' | 'smart'; collectionId?: number | null; smartParams?: any } | null = null,
@@ -8845,6 +8858,7 @@ async function getFileList(
     gpsMinLon,
     gpsMaxLon,
     listId: sourceContext ? 0 : libraryOrderListId.value,
+    formats: sourceContext ? [] : formats,
   };
 
   if (sourceContext?.source === 'smart') {
@@ -11886,6 +11900,20 @@ const fileTypeSelectedIndex = computed(() => {
   const mask = normalizeFileTypeMask(activeFileTypeMask.value);
   return Math.max(0, fileTypeOptions.value.findIndex(option => option.value === mask));
 });
+
+// File format filter (several formats at once) of the toolbar; it applies to plain query views only.
+const formatFilterAvailable = computed(() =>
+  !isFavoritesFilterDisabled.value && currentQuerySource.value === 'query'
+);
+const activeFormats = computed<string[]>(() =>
+  formatFilterAvailable.value && Array.isArray(config.search.formats) ? config.search.formats : []
+);
+
+function setFormatFilter(formats: string[]) {
+  if (isScanStreamingMode.value) return;
+  rememberFocusedFileForPresentationRefresh();
+  config.search.formats = [...formats];
+}
 
 const handleFileTypeSelect = (index: number) => {
   if (isScanStreamingMode.value) return;

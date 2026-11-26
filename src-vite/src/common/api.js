@@ -785,6 +785,16 @@ export async function revealPath(path) {
 // files
 
 /// get query files count and sum
+// formats (with file counts) present in the view described by params
+export async function getQueryFormatCounts(params) {
+  try {
+    return await invoke('get_query_format_counts', { params });
+  } catch (error) {
+    console.error('getQueryFormatCounts error:', error);
+  }
+  return null;
+}
+
 export async function getQueryCountAndSum(params) {
   try {
     const result = await invoke('get_query_count_and_sum', { params });

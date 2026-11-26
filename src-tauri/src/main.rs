@@ -306,6 +306,7 @@ async fn main() {
             t_cmds::open_files_with_app,
             // file query
             t_cmds::get_query_count_and_sum,
+            t_cmds::get_query_format_counts,
             t_cmds::get_query_time_line,
             t_cmds::get_query_files,
             t_cmds::get_grouped_query_rows,

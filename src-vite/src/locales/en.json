@@ -468,6 +468,8 @@
       "placeholder": "Search file name"
     },
     "filter": {
+      "formats": "File formats",
+      "all_formats": "All formats",
       "favorites_only": "Favorites only",
       "rated_only": "Rated only",
       "show_selection_panel": "Open selection panel",

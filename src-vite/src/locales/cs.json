@@ -468,6 +468,8 @@
       "placeholder": "Hledat podle názvu souboru"
     },
     "filter": {
+      "formats": "Formáty souborů",
+      "all_formats": "Všechny formáty",
       "favorites_only": "Jen oblíbené",
       "rated_only": "Jen s hodnocením",
       "show_selection_panel": "Otevřít panel výběru",
