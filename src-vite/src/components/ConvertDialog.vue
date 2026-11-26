@@ -127,6 +127,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
+import { config } from '@/common/config';
 import { useUIStore } from '@/stores/uiStore';
 import ModalDialog from '@/components/ModalDialog.vue';
 
@@ -150,7 +151,7 @@ const done = ref(0);
 let stopRequested = false;
 
 const STORAGE_KEY = 'lap.convertDialog.v1';
-const DEFAULTS = { quality: 90, sampling: 0, progressive: false, optimize: true, restartMarkers: false, keepMetadata: true, background: '#ffffff' };
+const DEFAULTS = { quality: 90, sampling: 0, progressive: false, optimize: true, restartMarkers: false, keepMetadata: true };
 
 function loadSaved() {
   try {
@@ -162,7 +163,6 @@ function loadSaved() {
       optimize: saved.optimize !== false,
       restartMarkers: saved.restartMarkers === true, // off unless the user turned it on
       keepMetadata: saved.keepMetadata !== false,
-      background: /^#[0-9a-fA-F]{6}$/.test(saved.background) ? saved.background : DEFAULTS.background,
     };
   } catch {
     return { ...DEFAULTS };
@@ -177,7 +177,13 @@ const options = reactive({
   restartMarkers: saved.restartMarkers,
   keepMetadata: saved.keepMetadata,
 });
-const background = ref(saved.background);
+// Transparency is replaced by the viewer's transparency colour from Settings (changeable here for this dialog only).
+function settingsTransparencyColor(): string {
+  let hex = String(config.settings.transparencyColor || '#5a5a5a').trim().replace('#', '');
+  if (/^[0-9a-fA-F]{3}$/.test(hex)) hex = hex.split('').map(c => c + c).join('');
+  return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex.toLowerCase()}` : '#5a5a5a';
+}
+const background = ref(settingsTransparencyColor());
 
 const dialogWidth = Math.min(1240, Math.max(760, window.innerWidth - 60));
 const dialogHeight = Math.min(780, Math.max(520, window.innerHeight - 60));
@@ -407,7 +413,7 @@ function onDragEnd(event: MouseEvent) {
 // ---- apply / close ------------------------------------------------------------
 function rememberSettings() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...options, background: background.value }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...options }));
   } catch { /* storage unavailable: settings are simply not remembered */ }
 }
 
