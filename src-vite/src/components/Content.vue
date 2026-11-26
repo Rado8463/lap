@@ -7707,6 +7707,35 @@ watch(
 );
 
 let contentRefreshToken = 0;
+// Filter, sort and grouping are remembered separately for each sidebar tab (Library, Albums, ...).
+// config.search always holds the values of the active tab; the other tabs wait in config.search.perTab.
+// A sync watcher swaps them before any content refresh reads the new tab's settings.
+const SEARCH_TAB_DEFAULTS = { fileType: 0, favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
+watch(
+  () => config.main.sidebarIndex,
+  (next, previous) => {
+    if (next === previous || previous === undefined) return;
+    const search = config.search as any;
+    const perTab = { ...(search.perTab || {}) };
+    perTab[String(previous)] = {
+      fileType: search.fileType,
+      favoritesOnly: search.favoritesOnly,
+      sortType: search.sortType,
+      sortOrder: search.sortOrder,
+      groupBy: search.groupBy,
+    };
+    const saved = perTab[String(next)] || SEARCH_TAB_DEFAULTS;
+    delete perTab[String(next)];
+    search.perTab = perTab;
+    search.fileType = saved.fileType ?? SEARCH_TAB_DEFAULTS.fileType;
+    search.favoritesOnly = saved.favoritesOnly ?? SEARCH_TAB_DEFAULTS.favoritesOnly;
+    search.sortType = saved.sortType ?? SEARCH_TAB_DEFAULTS.sortType;
+    search.sortOrder = saved.sortOrder ?? SEARCH_TAB_DEFAULTS.sortOrder;
+    search.groupBy = saved.groupBy ?? SEARCH_TAB_DEFAULTS.groupBy;
+  },
+  { flush: 'sync' },
+);
+
 // Positions of config.search.sortType / sortOrder in the array watched below.
 const CONTENT_WATCH_SORT_TYPE_INDEX = 18;
 const CONTENT_WATCH_SORT_ORDER_INDEX = 19;

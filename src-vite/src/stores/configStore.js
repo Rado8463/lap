@@ -71,6 +71,7 @@ export const useConfigStore = defineStore('configStore', {
       sortType: 0,              // sort type (default to time)
       sortOrder: 0,             // sort order(0: ascending, 1: descending)
       groupBy: 0,               // result grouping: 0=none, 1=folder, 2=day, 3=month, 4=rating, 5=location, 6=camera, 7=lens, 8=year, 9=file type, 10=culling
+      perTab: {},               // filter/sort/group of the sidebar tabs that are not active: { [sidebarIndex]: { fileType, favoritesOnly, sortType, sortOrder, groupBy } }
     },
 
     calendar: {
