@@ -355,6 +355,7 @@ export const useFileMenuItems = (
         label: localeMsg.value.menu.file.find_similar_images,
         icon: markRaw(IconPhotoSearch),
         shortcut: shortcut('file.searchSimilar'),
+        hidden: !config.settings.aiSearchEnabled,
         disabled: !isImage,
         action: createAction('search-similar')
       },

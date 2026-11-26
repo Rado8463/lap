@@ -5900,7 +5900,7 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     return;
   }
 
-  if (matchesShortcut('file.searchSimilar', event, shortcutPlatform)) {
+  if (config.settings.aiSearchEnabled && matchesShortcut('file.searchSimilar', event, shortcutPlatform)) {
     event.preventDefault();
     if (selectMode.value && selectedCount.value === 0) return;
     enterSimilarSearchMode(fileList.value[selectedItemIndex.value]);
