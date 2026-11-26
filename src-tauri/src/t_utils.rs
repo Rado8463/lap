@@ -3758,6 +3758,11 @@ pub(crate) fn detect_label_from_header(header: &[u8], file_type: i64) -> Option<
     None
 }
 
+/// Format label taken from the file extension (used when the content header is not recognised).
+pub fn format_label_from_extension(file_path: &str) -> Option<String> {
+    get_file_extension(file_path).map(|ext| normalize_format_label(&ext))
+}
+
 pub fn detect_file_format_label(file_path: &str, file_type: i64) -> Option<String> {
     if file_type == 3 {
         return Some("RAW".to_string());

@@ -207,7 +207,40 @@ fn get_migrations() -> Vec<Migration> {
                       PRIMARY KEY (list_id, file_id)
                   );",
         },
+        Migration {
+            version: 27,
+            description: "Fill missing format labels (PSD, PSB, ...) from the file extension",
+            sql: "",
+        },
     ]
+}
+
+/// Files whose content header is not recognised (PSD, PSB, ...) were stored without a format label.
+/// Use the upper-case file extension for them, with the same aliases as `normalize_format_label`.
+fn backfill_missing_format_labels(conn: &Connection) -> Result<(), String> {
+    if !table_has_column(conn, "afiles", "format_label")? || !table_has_column(conn, "afiles", "name")? {
+        return Ok(());
+    }
+    if table_has_column(conn, "afiles", "file_type")? {
+        // RAW files carry the single label RAW, like newly indexed ones.
+        conn.execute(
+            "UPDATE afiles SET format_label = 'RAW' WHERE file_type = 3 AND (format_label IS NULL OR format_label = '')",
+            [],
+        )
+        .map_err(|e| format!("Migration 27 failed: {e}"))?;
+    }
+    conn.execute(
+        "UPDATE afiles SET format_label = CASE UPPER(substr(name, length(rtrim(name, replace(name, '.', ''))) + 1))
+                WHEN 'JPEG' THEN 'JPG' WHEN 'JPE' THEN 'JPG' WHEN 'JFIF' THEN 'JPG'
+                WHEN 'TIF' THEN 'TIFF' WHEN 'MPG' THEN 'MPEG' WHEN 'M4V' THEN 'MP4'
+                ELSE UPPER(substr(name, length(rtrim(name, replace(name, '.', ''))) + 1)) END
+         WHERE (format_label IS NULL OR format_label = '')
+           AND instr(name, '.') > 0
+           AND length(rtrim(name, replace(name, '.', ''))) < length(name)",
+        [],
+    )
+    .map_err(|e| format!("Migration 27 failed: {e}"))?;
+    Ok(())
 }
 
 fn migrate_unique_album_files(conn: &Connection) -> Result<(), String> {
@@ -577,6 +610,8 @@ pub fn check_and_migrate(conn: &Connection) -> Result<(), String> {
                 }
                 tx.pragma_update(None, "user_version", migration.version).map_err(|e| e.to_string())?;
                 tx.commit().map_err(|e| e.to_string())?;
+            } else if migration.version == 27 {
+                backfill_missing_format_labels(conn)?;
             } else if migration.version == 21 {
                 migrate_tag_tree(conn)?;
             } else if !migration.sql.trim().is_empty() {
@@ -680,11 +715,11 @@ mod album_filter_migration_tests {
         assert!(!has_exclusion_index(&conn));
         check_and_migrate(&conn).unwrap();
         assert!(has_exclusion_index(&conn));
-        assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 26);
+        assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 27);
         // Running again changes nothing.
         check_and_migrate(&conn).unwrap();
         assert!(has_exclusion_index(&conn));
-        assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 26);
+        assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 27);
     }
 
     #[test]
@@ -746,7 +781,7 @@ mod album_filter_migration_tests {
         // Simulate migration completing before the version was persisted.
         conn.execute_batch("PRAGMA user_version=17;").unwrap();
         check_and_migrate(&conn).unwrap();
-        assert_eq!(conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(),26);
+        assert_eq!(conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(),27);
     }
 
     #[test]
@@ -761,7 +796,7 @@ mod album_filter_migration_tests {
         // Simulate migration completing before the version was persisted.
         conn.execute_batch("PRAGMA user_version=18;").unwrap();
         check_and_migrate(&conn).unwrap();
-        assert_eq!(conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 26);
+        assert_eq!(conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).unwrap(), 27);
     }
 
     #[test]
@@ -776,7 +811,7 @@ mod album_filter_migration_tests {
         conn.execute_batch("UPDATE afiles SET e_title='Existing'; PRAGMA user_version=21;").unwrap();
         check_and_migrate(&conn).unwrap();
         assert_eq!(conn.query_row("SELECT e_title FROM afiles", [], |r| r.get::<_,String>(0)).unwrap(), "Existing");
-        assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_,i32>(0)).unwrap(), 26);
+        assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_,i32>(0)).unwrap(), 27);
     }
 }
 

@@ -2569,6 +2569,7 @@ impl AFile {
                 Some("RAW".to_string())
             } else {
                 t_utils::detect_label_from_header(hdr, file_type)
+                    .or_else(|| t_utils::format_label_from_extension(file_path))
             }
         } else {
             t_utils::detect_file_format_label(file_path, file_type)
