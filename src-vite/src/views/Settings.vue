@@ -1979,6 +1979,7 @@ const shortcutDisplaySections: Array<{ key: string; items: ShortcutDisplayItem[]
       { actionId: 'file.openExternalApp', labelKey: 'open_external_app' },
       { actionId: 'file.editImage', labelKey: 'edit_image' },
       { actionId: 'view.toggleBars', labelKey: 'toggle_bars' },
+      { actionId: 'view.findFile', labelKey: 'find_file' },
       { actionId: 'meta.info', labelKey: 'show_info' },
     ],
   },

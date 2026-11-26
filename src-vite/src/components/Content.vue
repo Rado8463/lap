@@ -58,6 +58,23 @@
       <!-- toolbar -->
       <div class="flex items-center gap-2 shrink-0">
 
+        <!-- find file by name (Ctrl+F): narrows the list to files whose name contains the text -->
+        <div v-if="nameFilterOpen && formatFilterAvailable" class="flex items-center gap-1">
+          <input
+            ref="nameFilterInputRef"
+            v-model="nameFilterInput"
+            type="text"
+            class="input input-bordered input-sm w-52"
+            :placeholder="$t('toolbar.filter.find_file')"
+            @keydown.esc.stop.prevent="closeNameFilter"
+            @keydown.enter.stop.prevent="finishNameFilterTyping"
+            @keydown.ctrl.f.stop.prevent="focusNameFilter"
+          />
+          <button class="p-1 rounded-box text-base-content/60 hover:text-base-content hover:bg-base-100/30 cursor-pointer"
+            :title="$t('toolbar.filter.range_clear')" @click="closeNameFilter"
+          ><IconClose class="size-4" /></button>
+        </div>
+
         <!-- file type options -->
         <DropDownSelect
           :icon="IconFilter"
@@ -4465,6 +4482,7 @@ const currentQueryParams = ref({
   sizeMax: 0,
   pixelsMin: 0,
   pixelsMax: 0,
+  nameFilter: '',
   sortType: 0,
   sortOrder: 0,
   randomSeed: 0,
@@ -5795,6 +5813,12 @@ function handleLocalKeyDown(event: KeyboardEvent) {
 
   // Check if there are modal dialogs
   if (uiStore.inputStack.length > 0) {
+    return;
+  }
+
+  if (matchesShortcut('view.findFile', event, shortcutPlatform)) {
+    event.preventDefault();
+    openNameFilter();
     return;
   }
 
@@ -7744,6 +7768,13 @@ let contentRefreshToken = 0;
 // Filter, sort and grouping are remembered separately for each sidebar tab (Library, Albums, ...).
 // config.search always holds the values of the active tab; the other tabs wait in config.search.perTab.
 // A sync watcher swaps them before any content refresh reads the new tab's settings.
+// State of the toolbar "find file" box (see openNameFilter); declared early because the content watcher reads it.
+const nameFilterOpen = ref(false);
+const nameFilterInput = ref('');
+const appliedNameFilter = ref('');
+const nameFilterInputRef = ref<HTMLInputElement | null>(null);
+let nameFilterTimer: ReturnType<typeof setTimeout> | null = null;
+
 const SEARCH_TAB_DEFAULTS = { fileType: 0, formats: [] as string[], sizeMin: 0, sizeMax: 0, mpMin: 0, mpMax: 0, favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
 watch(
   () => config.main.sidebarIndex,
@@ -7806,6 +7837,7 @@ watch(
     config.camera.isCamera, (libConfig.camera as any).lensMake, (libConfig.camera as any).lensModel, // lens
     // format, size and resolution filters (keep last: the indexes above are referenced)
     `${(config.search.formats || []).join(',')}|${config.search.sizeMin}-${config.search.sizeMax}|${config.search.mpMin}-${config.search.mpMax}`,
+    appliedNameFilter.value, // find file text
   ], 
   (values, previousValues) => {
     // Replacing smartAlbums creates a new outer array even if these values match.
@@ -8849,6 +8881,7 @@ async function getFileList(
     sizeMax = Number(config.search.sizeMax) || 0,
     mpMin = Number(config.search.mpMin) || 0,
     mpMax = Number(config.search.mpMax) || 0,
+    nameFilter = appliedNameFilter.value,
   } = {},
   requestId: number,
   sourceContext: { source: 'collection' | 'smart'; collectionId?: number | null; smartParams?: any } | null = null,
@@ -8898,6 +8931,7 @@ async function getFileList(
     sizeMax: sourceContext ? 0 : Math.round(sizeMax * 1024 * 1024),
     pixelsMin: sourceContext ? 0 : Math.round(mpMin * 1_000_000),
     pixelsMax: sourceContext ? 0 : Math.round(mpMax * 1_000_000),
+    nameFilter: sourceContext ? '' : nameFilter,
   };
 
   if (sourceContext?.source === 'smart') {
@@ -11948,6 +11982,67 @@ const activeFormats = computed<string[]>(() =>
   formatFilterAvailable.value && Array.isArray(config.search.formats) ? config.search.formats : []
 );
 
+// Find file (Ctrl+F): a text box in the toolbar; the list narrows to the files whose name contains the text.
+// It lives only as long as the current view (tab, album, Library item) and is not remembered.
+
+function applyNameFilter(value: string) {
+  const next = value.trim();
+  if (next === appliedNameFilter.value) return;
+  rememberFocusedFileForPresentationRefresh();
+  appliedNameFilter.value = next;
+}
+
+function focusNameFilter() {
+  void nextTick(() => {
+    nameFilterInputRef.value?.focus();
+    nameFilterInputRef.value?.select();
+  });
+}
+
+function openNameFilter() {
+  if (!formatFilterAvailable.value || isScanStreamingMode.value) return;
+  nameFilterOpen.value = true;
+  focusNameFilter();
+}
+
+function closeNameFilter() {
+  if (nameFilterTimer) clearTimeout(nameFilterTimer);
+  nameFilterTimer = null;
+  const hadFilter = appliedNameFilter.value !== '';
+  nameFilterOpen.value = false;
+  nameFilterInput.value = '';
+  appliedNameFilter.value = '';
+  if (hadFilter) activateContentPane();
+}
+
+// Enter applies the text at once and hands the keyboard back to the grid.
+function finishNameFilterTyping() {
+  if (nameFilterTimer) clearTimeout(nameFilterTimer);
+  nameFilterTimer = null;
+  applyNameFilter(nameFilterInput.value);
+  nameFilterInputRef.value?.blur();
+  activateContentPane();
+}
+
+watch(nameFilterInput, (value) => {
+  if (nameFilterTimer) clearTimeout(nameFilterTimer);
+  nameFilterTimer = setTimeout(() => {
+    nameFilterTimer = null;
+    applyNameFilter(value);
+  }, 250);
+});
+
+// A different tab, album or Library item starts without the text; this sync watcher runs before the
+// content refresh watcher, so the refresh already sees the cleared filter.
+watch(
+  () => [
+    config.main.sidebarIndex, libConfig.album.id, libConfig.album.folderId, libConfig.album.folderPath,
+    libConfig.album.selected, (libConfig.library as any).item, libConfig.rating.item,
+  ],
+  () => { if (nameFilterOpen.value || appliedNameFilter.value) closeNameFilter(); },
+  { flush: 'sync' },
+);
+
 const sizePresets = [
   { label: '< 1 MB', min: 0, max: 1 },
   { label: '1 – 10 MB', min: 1, max: 10 },
@@ -11970,6 +12065,7 @@ const activeMpRange = computed<[number, number]>(() =>
 // Any of the extra toolbar filters (format, size, resolution) narrows the view.
 const hasExtraToolbarFilters = computed(() =>
   activeFormats.value.length > 0
+  || (formatFilterAvailable.value && appliedNameFilter.value !== '')
   || activeSizeRange.value[0] > 0 || activeSizeRange.value[1] > 0
   || activeMpRange.value[0] > 0 || activeMpRange.value[1] > 0
 );

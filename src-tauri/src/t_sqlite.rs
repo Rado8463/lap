@@ -2205,6 +2205,9 @@ pub struct QueryParams {
     pub pixels_min: i64,
     #[serde(default)]
     pub pixels_max: i64,
+    /// Toolbar "find file": only files whose name contains this text (case-insensitive).
+    #[serde(default)]
+    pub name_filter: String,
 }
 
 fn default_culling_flag() -> i64 {
@@ -4860,6 +4863,7 @@ impl AFile {
         list_params.list_id = list_id;
         // The stored order covers the whole list, not just what the toolbar filters leave visible.
         list_params.formats.clear();
+        list_params.name_filter.clear();
         list_params.size_min = 0;
         list_params.size_max = 0;
         list_params.pixels_min = 0;
@@ -5678,6 +5682,16 @@ impl AFile {
             for format in &params.formats {
                 sql_params.push(Box::new(format.trim().to_uppercase()));
             }
+        }
+
+        let name_filter = params.name_filter.trim();
+        if !name_filter.is_empty() {
+            conditions.push("a.name LIKE ? ESCAPE '\\'".to_string());
+            let escaped = name_filter
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            sql_params.push(Box::new(format!("%{}%", escaped)));
         }
 
         if params.size_min > 0 {

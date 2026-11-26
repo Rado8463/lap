@@ -468,6 +468,7 @@
       "placeholder": "Search file name"
     },
     "filter": {
+      "find_file": "Find file…",
       "file_size": "File size",
       "resolution": "Resolution",
       "range_from": "From",
@@ -1858,6 +1859,7 @@
         "load_timing": "Load timings tooltip (debug)",
         "save_viewport": "Save viewport (zoom and position)",
         "zoom_lock": "Lock zoom (keep zoom when changing image)",
+        "find_file": "Find file by name (filter the list)",
         "toggle_bars": "Show/hide top bar and status bar",
         "cycle_pan_beyond_edges": "Cycle moving the photo past screen edges (off / vertical / free)",
         "clear_viewport": "Clear saved viewport",

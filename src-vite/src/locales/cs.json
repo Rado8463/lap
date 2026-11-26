@@ -468,6 +468,7 @@
       "placeholder": "Hledat podle názvu souboru"
     },
     "filter": {
+      "find_file": "Najít soubor…",
       "file_size": "Velikost souboru",
       "resolution": "Rozlišení",
       "range_from": "Od",
@@ -1857,6 +1858,7 @@
         "load_timing": "Tooltip s časy načítání (debug)",
         "save_viewport": "Uložit zobrazení (přiblížení a poloha)",
         "zoom_lock": "Zamknout přiblížení (zachovat při změně obrázku)",
+        "find_file": "Najít soubor podle názvu (filtr seznamu)",
         "toggle_bars": "Zobrazit/skrýt horní lištu a stavový řádek",
         "cycle_pan_beyond_edges": "Přepnout posun fotky přes okraje obrazovky (vypnuto / svisle / volný)",
         "clear_viewport": "Smazat uložené zobrazení",
