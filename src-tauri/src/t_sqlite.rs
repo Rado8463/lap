@@ -4846,6 +4846,18 @@ impl AFile {
         .map_err(|e| e.to_string())
     }
 
+    /// Forgets the manual order of every folder of an album.
+    pub fn reset_album_custom_order(album_id: i64) -> Result<usize, String> {
+        let conn = open_conn()?;
+        conn.execute(
+            "DELETE FROM afile_custom_order WHERE file_id IN (
+                 SELECT id FROM afiles WHERE folder_id IN (
+                     SELECT id FROM afolders WHERE album_id = ?1))",
+            params![album_id],
+        )
+        .map_err(|e| e.to_string())
+    }
+
     /// Moves files inside the manual order of one Library list (rating filter): the given files go
     /// (in their current order) in front of `before_file_id`, or to the end. `params` describes the list.
     pub fn move_in_library_order(

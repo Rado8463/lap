@@ -4493,6 +4493,12 @@ pub fn reset_custom_order(folder_id: i64) -> Result<usize, String> {
     AFile::reset_custom_order(folder_id)
 }
 
+/// Remove the manual order of all folders of an album.
+#[tauri::command]
+pub fn reset_album_custom_order(album_id: i64) -> Result<usize, String> {
+    AFile::reset_album_custom_order(album_id)
+}
+
 /// set a file's rating (0-5)
 #[tauri::command]
 pub fn set_file_rating(file_id: i64, rating: i32) -> Result<usize, String> {

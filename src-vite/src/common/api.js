@@ -1664,6 +1664,16 @@ export async function resetCustomOrder(folderId) {
   }
 }
 
+export async function resetAlbumCustomOrder(albumId) {
+  try {
+    await invoke('reset_album_custom_order', { albumId });
+    return true;
+  } catch (error) {
+    console.error('Failed to reset the album custom order:', error);
+    return false;
+  }
+}
+
 export async function setFileRating(fileId, rating) {
   try {
     const result = await invoke('set_file_rating', { fileId, rating });

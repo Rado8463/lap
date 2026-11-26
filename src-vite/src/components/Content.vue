@@ -155,7 +155,7 @@
           @select="handleSortTypeSelect"
         >
           <template #menu-after>
-            <template v-if="isCustomSort && (customOrderFolderId > 0 || libraryOrderListId > 0)">
+            <template v-if="isCustomSort && (customOrderFolderId > 0 || libraryOrderListId > 0 || customOrderAlbumId > 0)">
               <div class="mx-2 my-1 border-t border-base-content/10"></div>
               <button class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
                 @click="resetFolderCustomOrder">
@@ -912,7 +912,7 @@ import { getAlbum, getAllAlbums, recountAlbum, getQueryCountAndSum, getQueryTime
          copyImages, renameFile, moveFile, moveFileOutsideLibrary, copyFile, withFileTransferBatch, batchDeleteFiles, getFileThumb, getFileThumbById, getFileThumbs, getFileInfo,
          setFileRotate, setFileFavorite, setFileRating, setFileCullingFlag, batchUpdateFileMetadata, getTagsForFile, searchSimilarImages, generateEmbedding,
          revealPath, getTagName, indexAlbum, listenIndexProgress, listenIndexFinished, setAlbumCover, setDesktopWallpaper,
-         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, moveLibraryCustomOrder, resetLibraryCustomOrder, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
+         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, moveLibraryCustomOrder, resetLibraryCustomOrder, resetAlbumCustomOrder, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
          openFilesWithApp, getAppConfig, getIndexRecoveryInfo, clearIndexRecoveryInfo, setLastSelectedItemIndex, setLastScrollTop,
          dedupDelete, getQueryFilePosition, getFolderSearchExcluded,
          listCollections, createCollection, addFilesToCollection, removeFilesFromCollection, getFileCollections, getCollectionCountAndSum, getCollectionFiles, getCollectionGroupedQueryRows, getCollectionGroupFileIds, getCollectionQueryFileIds, fetchFolder, isDirectoryAccessible, checkAlbumAccessibility, addTagToFile, saveXmpMetadata } from '@/common/api';
@@ -3870,6 +3870,12 @@ const customOrderFolderId = computed(() => {
   return Number(libConfig.album.folderId || 0);
 });
 
+// Album root selected: the order of all its folders can be reset at once.
+const customOrderAlbumId = computed(() => {
+  if (!isCustomSort.value || config.main.sidebarIndex !== SIDEBAR.ALBUM || !libConfig.album.selected) return 0;
+  return Number(libConfig.album.id || 0);
+});
+
 const canReorderByDrag = computed(() =>
   isCustomSort.value
   && (config.main.sidebarIndex === SIDEBAR.ALBUM || libraryOrderListId.value > 0)
@@ -4085,10 +4091,13 @@ async function reorderLoadedListInPlace(syncSortParams = false): Promise<boolean
 async function resetFolderCustomOrder() {
   const folderId = customOrderFolderId.value;
   const listId = libraryOrderListId.value;
-  if (folderId <= 0 && listId <= 0) return;
+  const albumId = customOrderAlbumId.value;
+  if (folderId <= 0 && listId <= 0 && albumId <= 0) return;
   const done = listId > 0 && folderId <= 0
     ? await resetLibraryCustomOrder(listId)
-    : await resetCustomOrder(folderId);
+    : folderId > 0
+      ? await resetCustomOrder(folderId)
+      : await resetAlbumCustomOrder(albumId);
   if (!done) {
     toast.error(t('toolbar.filter.custom_order_failed'));
     return;

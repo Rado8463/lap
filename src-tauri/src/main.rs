@@ -418,6 +418,7 @@ async fn main() {
             t_cmds::set_file_rating,
             t_cmds::move_files_custom_order,
             t_cmds::reset_custom_order,
+            t_cmds::reset_album_custom_order,
             t_cmds::move_library_custom_order,
             t_cmds::reset_library_custom_order,
             t_cmds::set_file_culling_flag,
