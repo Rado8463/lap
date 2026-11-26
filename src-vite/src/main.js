@@ -87,6 +87,8 @@ try {
 // so the models are never loaded and no embeddings are built.
 config.settings.aiSearchEnabled = false
 config.settings.face.enabled = false
+// The file type menu (All / Images / RAW / Videos) was removed: always list images (bit 1) and RAW (bit 4), no video.
+config.search.fileType = 5
 
 // Resolve Regional Format before components first render dates.
 await getSystemRegionLocale().then((loc) => config.setSystemLocale(loc)).catch(() => {})

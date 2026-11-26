@@ -78,14 +78,12 @@
         <!-- file type options -->
         <DropDownSelect
           :icon="IconFilter"
-          :options="fileTypeOptions"
-          :defaultIndex="fileTypeSelectedIndex"
+          :options="[]"
+          :triggerText="$t('toolbar.filter.title')"
           :disabled="isFavoritesFilterDisabled"
           :keepTextWhenDisabled="true"
-          :optionsDisabled="tempViewMode === 'person' || tempViewMode === 'similar'"
-          :selected="activeFileTypeMask !== 0 || activeFavoritesOnly || activeRatedOnly || hasExtraToolbarFilters"
+          :selected="activeFavoritesOnly || activeRatedOnly || hasExtraToolbarFilters"
           :title="activeFavoritesOnly ? $t('toolbar.filter.favorites_only') : (activeRatedOnly ? $t('toolbar.filter.rated_only') : '')"
-          @select="handleFileTypeSelect"
         >
           <template #trigger-suffix>
             <IconHeartFilled v-if="activeFavoritesOnly" class="w-4 h-4 shrink-0" />
@@ -7776,7 +7774,8 @@ const appliedNameFilter = ref('');
 const nameFilterInputRef = ref<HTMLInputElement | null>(null);
 let nameFilterTimer: ReturnType<typeof setTimeout> | null = null;
 
-const SEARCH_TAB_DEFAULTS = { fileType: 0, formats: [] as string[], sizeMin: 0, sizeMax: 0, mpMin: 0, mpMax: 0, favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
+const SEARCH_TAB_DEFAULTS = { fileType: 5, // images + RAW, no video
+   formats: [] as string[], sizeMin: 0, sizeMax: 0, mpMin: 0, mpMax: 0, favoritesOnly: false, sortType: 0, sortOrder: 0, groupBy: 0 };
 watch(
   () => config.main.sidebarIndex,
   (next, previous) => {
@@ -7795,7 +7794,7 @@ watch(
     const saved = perTab[String(next)] || SEARCH_TAB_DEFAULTS;
     delete perTab[String(next)];
     search.perTab = perTab;
-    search.fileType = saved.fileType ?? SEARCH_TAB_DEFAULTS.fileType;
+    search.fileType = SEARCH_TAB_DEFAULTS.fileType; // the file type is fixed (images), see main.js
     search.formats = [...(saved.formats || [])];
     search.sizeMin = saved.sizeMin ?? 0;
     search.sizeMax = saved.sizeMax ?? 0;

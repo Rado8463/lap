@@ -468,6 +468,7 @@
       "placeholder": "Hledat podle názvu souboru"
     },
     "filter": {
+      "title": "Filtr",
       "find_file": "Najít soubor…",
       "file_size": "Velikost souboru",
       "resolution": "Rozlišení",

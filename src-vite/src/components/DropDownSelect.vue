@@ -157,6 +157,11 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  // Fixed trigger text for menus that list no options (only the menu-after slot).
+  triggerText: {
+    type: String,
+    default: '',
+  },
 });
 
 // Emits
@@ -173,6 +178,7 @@ const normalizedSelectedValues = computed(() =>
   Array.isArray(props.selectedValues) ? props.selectedValues.map(value => Number(value)) : []
 );
 const triggerLabel = computed(() => {
+  if (props.triggerText) return props.triggerText;
   if (props.multiSelect) {
     return props.summaryLabel || props.options[0]?.label || '';
   }

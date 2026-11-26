@@ -468,6 +468,7 @@
       "placeholder": "Search file name"
     },
     "filter": {
+      "title": "Filter",
       "find_file": "Find file…",
       "file_size": "File size",
       "resolution": "Resolution",
