@@ -17,6 +17,13 @@
     "actual_size": "1:1",
     "hint_fit": "Kliknutím na obrázek přiblížíte na 100 % v daném místě",
     "hint_zoomed": "Tažením posunete oba obrázky, dvojklikem se vrátíte",
+    "batch_title": "{count} fotek",
+    "sample": "Náhled:",
+    "restart_markers": "Restart markery",
+    "converting": "Převádím…",
+    "apply_batch": "Převést {count} fotek",
+    "batch_done": "Do JPEG převedeno fotek: {count}",
+    "batch_failed": "Nepodařilo se převést fotek: {count}",
     "save_failed": "JPEG se nepodařilo uložit",
     "saved": "Uloženo: {name}"
   },

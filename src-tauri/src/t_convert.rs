@@ -22,22 +22,29 @@ pub struct ConvertOptions {
     pub sampling: u8,
     pub progressive: bool,
     pub optimize: bool,
+    /// a restart marker after every MCU row
+    #[serde(default)]
+    pub restart_markers: bool,
     pub keep_metadata: bool,
 }
 
 impl ConvertOptions {
-    fn key(&self) -> (u8, u8, bool, bool) {
+    fn key(&self) -> ConvertKey {
         (
             self.quality.clamp(1, 100),
             self.sampling.min(2),
             self.progressive,
             self.optimize,
+            self.restart_markers,
         )
     }
 }
 
+/// quality, sampling, progressive, optimized, restart markers
+type ConvertKey = (u8, u8, bool, bool, bool);
+
 struct Compressed {
-    key: (u8, u8, bool, bool),
+    key: ConvertKey,
     bytes: Arc<Vec<u8>>,
     decoded: Arc<RgbImage>,
 }
@@ -79,8 +86,8 @@ fn encode_preview(rgb: &RgbImage) -> Result<String, String> {
 }
 
 fn encode_with(rgb: &RgbImage, options: &ConvertOptions) -> Result<Vec<u8>, String> {
-    let (quality, sampling, progressive, optimize) = options.key();
-    crate::t_jpeg::encode_rgb8_opts(rgb, quality, sampling, progressive, optimize)
+    let (quality, sampling, progressive, optimize, restart) = options.key();
+    crate::t_jpeg::encode_rgb8_opts(rgb, quality, sampling, progressive, optimize, restart)
 }
 
 /// Loads the picture for the converter and returns its size and a fitted preview.
@@ -258,20 +265,40 @@ pub async fn convert_save(file_path: String, options: ConvertOptions) -> Result<
             Some(bytes) => bytes,
             None => Arc::new(encode_with(&original, &options)?),
         };
-        let source = Path::new(&path);
-        let dest = free_destination(source);
-        std::fs::write(&dest, bytes.as_slice())
-            .map_err(|e| format!("Failed to write {}: {}", dest.display(), e))?;
-        if options.keep_metadata {
-            // Best effort: the converted picture is already saved even without metadata.
-            if let Err(error) = crate::t_image::copy_metadata_to_output(source, &dest) {
-                eprintln!("convert: metadata not copied: {}", error);
-            }
-        }
-        Ok(dest.to_string_lossy().to_string())
+        write_converted(Path::new(&path), bytes.as_slice(), options.keep_metadata)
     })
     .await
     .map_err(|e| format!("Failed to join save task: {}", e))?
+}
+
+/// Writes the JPEG next to the original and copies the metadata (best effort).
+fn write_converted(source: &Path, bytes: &[u8], keep_metadata: bool) -> Result<String, String> {
+    let dest = free_destination(source);
+    std::fs::write(&dest, bytes)
+        .map_err(|e| format!("Failed to write {}: {}", dest.display(), e))?;
+    if keep_metadata {
+        // The converted picture is already saved even when the metadata cannot be copied.
+        if let Err(error) = crate::t_image::copy_metadata_to_output(source, &dest) {
+            eprintln!("convert: metadata not copied: {}", error);
+        }
+    }
+    Ok(dest.to_string_lossy().to_string())
+}
+
+/// Converts one file without the dialog's picture session (batch conversion); returns the new path.
+pub async fn convert_file(
+    file_path: String,
+    options: ConvertOptions,
+    background: u32,
+) -> Result<String, String> {
+    let rgb = crate::t_image::decode_for_conversion(&file_path, background & 0xff_ffff).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = encode_with(&rgb, &options)?;
+        drop(rgb);
+        write_converted(Path::new(&file_path), &bytes, options.keep_metadata)
+    })
+    .await
+    .map_err(|e| format!("Failed to join convert task: {}", e))?
 }
 
 /// Frees the pictures held for the converter dialog.

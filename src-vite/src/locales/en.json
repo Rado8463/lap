@@ -17,6 +17,13 @@
     "actual_size": "1:1",
     "hint_fit": "Click a picture to zoom to 100 % there",
     "hint_zoomed": "Drag to move both pictures, double-click to fit",
+    "batch_title": "{count} photos",
+    "sample": "Preview of:",
+    "restart_markers": "Restart markers",
+    "converting": "Converting…",
+    "apply_batch": "Convert {count} photos",
+    "batch_done": "Converted {count} photos to JPEG",
+    "batch_failed": "{count} photos could not be converted",
     "save_failed": "Could not save the JPEG",
     "saved": "Saved {name}"
   },

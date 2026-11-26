@@ -686,10 +686,10 @@
 
   <ConvertDialog
     v-if="convertTarget"
-    :file-path="convertTarget.filePath"
-    :file-name="convertTarget.fileName"
+    :files="convertTarget.files"
     @close="convertTarget = null"
     @saved="onConvertSaved"
+    @batch-done="onConvertBatchDone"
   />
 
   <RefreshFileInfoDialog
@@ -1459,14 +1459,28 @@ function removeDeletedFilesFromImageViewerSession(fileIds: number[]) {
   return files.length;
 }
 
-// JPEG converter dialog (Ctrl+Shift+F / file menu) for the focused photo.
-const convertTarget = ref<{ filePath: string; fileName: string } | null>(null);
+// JPEG converter dialog (Ctrl+Shift+F / file menu): the focused photo, or every selected one in select mode.
+const convertTarget = ref<{ files: Array<{ filePath: string; fileName: string; folderId: number }> } | null>(null);
 
-function openConvertDialog() {
-  const file = fileList.value[selectedItemIndex.value];
-  if (!isRealFileItem(file) || (file.file_type !== 1 && file.file_type !== 3)) return;
-  if (convertTarget.value || !file.file_path) return;
-  convertTarget.value = { filePath: String(file.file_path), fileName: String(file.name || file.file_path) };
+async function openConvertDialog() {
+  if (convertTarget.value) return;
+  const isConvertible = (file: any) =>
+    isRealFileItem(file) && (file.file_type === 1 || file.file_type === 3) && !!file.file_path;
+  let candidates: any[] = [];
+  if (selectMode.value && selectedCount.value > 0) {
+    const items = await getActionableSelectedItemsForAction();
+    if (!items) return;
+    candidates = items;
+  } else {
+    candidates = [fileList.value[selectedItemIndex.value]];
+  }
+  const files = candidates.filter(isConvertible).map((file: any) => ({
+    filePath: String(file.file_path),
+    fileName: String(file.name || file.file_path),
+    folderId: Number(file.folder_id || 0),
+  }));
+  if (files.length === 0 || convertTarget.value) return;
+  convertTarget.value = { files };
 }
 
 async function onConvertSaved(savedPath: string) {
@@ -1477,6 +1491,34 @@ async function onConvertSaved(savedPath: string) {
     console.error('Failed to add the converted JPEG to the library:', error);
   }
   toast.success(t('convert.saved', { name }));
+}
+
+async function onConvertBatchDone(result: { saved: Array<{ path: string; folderId: number }>; failed: number }) {
+  let indexed = 0;
+  const folders = new Set<string>();
+  for (const item of result.saved) {
+    try {
+      if (item.folderId > 0 && await addFileToDb(item.folderId, item.path)) {
+        indexed++;
+        folders.add(String(item.path).replace(/[\\/][^\\/]*$/, ''));
+      }
+    } catch (error) {
+      console.error('Failed to add the converted JPEG to the library:', item.path, error);
+    }
+  }
+  if (indexed > 0) {
+    try {
+      await refreshFolderSidebarCounts(Array.from(folders));
+      await refreshLibraryTotalCount();
+    } catch (error) {
+      console.error('Failed to refresh counts after conversion:', error);
+    }
+    rememberFocusedFileForPresentationRefresh();
+    pendingRestoreScrollTop.value = gridViewRef.value?.getScrollTop() ?? null;
+    await updateContent(true);
+  }
+  if (result.saved.length > 0) toast.success(t('convert.batch_done', { count: result.saved.length }));
+  if (result.failed > 0) toast.error(t('convert.batch_failed', { count: result.failed }));
 }
 
 const fileRefreshSelection = ref<{ ids: number[]; libraryId: string; requestId: number; groupSizes: Map<string, number> } | null>(null);
@@ -5707,7 +5749,7 @@ function handleItemAction(payload: { action: string, index: number }) {
       }
     },
     'reveal': () => revealPath(fileList.value[selectedItemIndex.value].file_path),
-    'convert-to-jpeg': () => openConvertDialog(),
+    'convert-to-jpeg': () => void openConvertDialog(),
     'refresh-file-info': () => selectMode.value ? startSelectedFileRefresh() : void updateFile(fileList.value[selectedItemIndex.value], true),
     'save-xmp': async () => {
       const ids = selectMode.value
@@ -6053,7 +6095,7 @@ function handleLocalKeyDown(event: KeyboardEvent) {
 
   if (matchesShortcut('file.convertToJpeg', event, shortcutPlatform)) {
     event.preventDefault();
-    if (!event.repeat) openConvertDialog();
+    if (!event.repeat) void openConvertDialog();
     return;
   }
 

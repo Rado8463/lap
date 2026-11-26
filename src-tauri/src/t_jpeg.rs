@@ -33,6 +33,7 @@ unsafe extern "C" {
         sampling: c_int,
         progressive: c_int,
         optimize_coding: c_int,
+        restart_markers: c_int,
         out_data: *mut *mut u8,
         out_len: *mut c_ulong,
         err_buf: *mut c_char,
@@ -337,6 +338,7 @@ pub fn encode_rgb8_opts(
     sampling: u8,
     progressive: bool,
     optimize_coding: bool,
+    restart_markers: bool,
 ) -> Result<Vec<u8>, String> {
     let mut out_data: *mut u8 = std::ptr::null_mut();
     let mut out_len: c_ulong = 0;
@@ -351,6 +353,7 @@ pub fn encode_rgb8_opts(
             sampling as c_int,
             progressive as c_int,
             optimize_coding as c_int,
+            restart_markers as c_int,
             &mut out_data,
             &mut out_len,
             err_buf.as_mut_ptr(),

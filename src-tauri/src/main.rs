@@ -424,6 +424,7 @@ async fn main() {
             t_cmds::convert_preview,
             t_cmds::convert_region,
             t_cmds::convert_save,
+            t_cmds::convert_file,
             t_cmds::convert_close,
             t_cmds::move_library_custom_order,
             t_cmds::reset_library_custom_order,

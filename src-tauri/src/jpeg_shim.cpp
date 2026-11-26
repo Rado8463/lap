@@ -285,10 +285,11 @@ static bool lap_read_file(const char *file_path,
   }
 }
 
-// sampling: 0 = 4:4:4 (1:1), 1 = 4:2:2, 2 = 4:2:0. progressive / optimize_coding are 0 or 1.
+// sampling: 0 = 4:4:4 (1:1), 1 = 4:2:2, 2 = 4:2:0. progressive / optimize_coding / restart_markers are 0 or 1.
 int lap_jpeg_encode_rgb8_opts(const unsigned char *rgb_data, unsigned int width,
                               unsigned int height, int quality, int sampling,
                               int progressive, int optimize_coding,
+                              int restart_markers,
                               unsigned char **out_data, unsigned long *out_len,
                               char *err_buf, size_t err_buf_len) {
   if (!rgb_data || width == 0 || height == 0 || !out_data || !out_len) {
@@ -350,6 +351,10 @@ int lap_jpeg_encode_rgb8_opts(const unsigned char *rgb_data, unsigned int width,
   if (progressive) {
     jpeg_simple_progression(&cinfo);
   }
+  if (restart_markers) {
+    // One restart marker per MCU row: lets decoders split the picture over several threads.
+    cinfo.restart_in_rows = 1;
+  }
   jpeg_start_compress(&cinfo, TRUE);
 
   while (cinfo.next_scanline < cinfo.image_height) {
@@ -368,7 +373,7 @@ int lap_jpeg_encode_rgb8_ex(const unsigned char *rgb_data, unsigned int width,
                             unsigned char **out_data, unsigned long *out_len,
                             char *err_buf, size_t err_buf_len) {
   return lap_jpeg_encode_rgb8_opts(rgb_data, width, height, quality,
-                                   full_chroma ? 0 : 2, 0, 0, out_data, out_len,
+                                   full_chroma ? 0 : 2, 0, 0, 0, out_data, out_len,
                                    err_buf, err_buf_len);
 }
 

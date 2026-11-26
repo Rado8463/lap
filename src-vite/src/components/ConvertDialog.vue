@@ -1,5 +1,5 @@
 <template>
-  <ModalDialog :title="`${$t('convert.title')} – ${fileName}`" :width="dialogWidth" :height="dialogHeight" @cancel="close">
+  <ModalDialog :title="batch ? `${$t('convert.title')} – ${$t('convert.batch_title', { count: files.length })}` : `${$t('convert.title')} – ${fileName}`" :width="dialogWidth" :height="dialogHeight" @cancel="close">
     <div class="flex flex-1 min-h-0 gap-3 text-sm">
       <!-- comparison -->
       <div class="flex-1 min-w-0 flex flex-col gap-2">
@@ -8,6 +8,12 @@
             {{ zoomed ? $t('convert.fit') : $t('convert.actual_size') }}
           </button>
           <span class="text-base-content/50 truncate">{{ $t(zoomed ? 'convert.hint_zoomed' : 'convert.hint_fit') }}</span>
+          <template v-if="batch">
+            <span class="ml-auto shrink-0 text-base-content/50">{{ $t('convert.sample') }}</span>
+            <select v-model.number="sampleIndex" class="select select-bordered select-xs w-56 text-xs" :disabled="converting">
+              <option v-for="(file, index) in files" :key="index" :value="index">{{ file.fileName }}</option>
+            </select>
+          </template>
         </div>
         <div class="flex flex-1 min-h-0 gap-2">
           <div v-for="side in ['original', 'converted']" :key="side" class="flex-1 min-w-0 flex flex-col gap-1">
@@ -88,6 +94,10 @@
           <span>{{ $t('convert.optimize') }}</span>
         </label>
         <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" class="checkbox checkbox-primary checkbox-xs" v-model="options.restartMarkers" />
+          <span>{{ $t('convert.restart_markers') }}</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" class="checkbox checkbox-primary checkbox-xs" v-model="options.keepMetadata" />
           <span>{{ $t('convert.keep_metadata') }}</span>
         </label>
@@ -98,11 +108,15 @@
         </div>
 
         <div class="mt-auto flex flex-col gap-2">
+          <div v-if="converting" class="space-y-1 text-xs">
+            <div class="flex justify-between"><span>{{ $t('convert.converting') }}</span><span class="tabular-nums">{{ done }} / {{ files.length }}</span></div>
+            <progress class="progress progress-primary w-full" :value="done" :max="files.length"></progress>
+          </div>
           <div v-if="saveError" class="text-xs text-error">{{ saveError }}</div>
-          <button class="t-button-primary" :disabled="!ready || busy || saving" @click="apply">
-            {{ $t('convert.apply') }}
+          <button v-if="!converting" class="t-button-primary" :disabled="!ready || busy || saving" @click="apply">
+            {{ batch ? $t('convert.apply_batch', { count: files.length }) : $t('convert.apply') }}
           </button>
-          <button class="t-button-default" :disabled="saving" @click="close">{{ $t('msgbox.cancel') }}</button>
+          <button class="t-button-default" :disabled="saving && !converting" @click="close">{{ $t('msgbox.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -119,13 +133,24 @@ import ModalDialog from '@/components/ModalDialog.vue';
 type OpenResult = { width: number; height: number; originalBytes: number; originalPreview: string };
 type Region = { image: string; x: number; y: number; width: number; height: number };
 
-const props = defineProps<{ filePath: string; fileName: string }>();
-const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', path: string): void }>();
+type ConvertFile = { filePath: string; fileName: string; folderId: number };
+type BatchResult = { saved: { path: string; folderId: number }[]; failed: number };
+const props = defineProps<{ files: ConvertFile[] }>();
+const emit = defineEmits<{ (e: 'close'): void; (e: 'saved', path: string): void; (e: 'batch-done', result: BatchResult): void }>();
 const { t } = useI18n();
 const uiStore = useUIStore();
 
+// Batch: one photo (the sample) drives the preview, the settings are applied to every file.
+const batch = computed(() => props.files.length > 1);
+const sampleIndex = ref(0);
+const filePath = computed(() => props.files[sampleIndex.value]?.filePath || '');
+const fileName = computed(() => props.files[sampleIndex.value]?.fileName || '');
+const converting = ref(false);
+const done = ref(0);
+let stopRequested = false;
+
 const STORAGE_KEY = 'lap.convertDialog.v1';
-const DEFAULTS = { quality: 90, sampling: 0, progressive: false, optimize: true, keepMetadata: true, background: '#ffffff' };
+const DEFAULTS = { quality: 90, sampling: 0, progressive: false, optimize: true, restartMarkers: false, keepMetadata: true, background: '#ffffff' };
 
 function loadSaved() {
   try {
@@ -135,6 +160,7 @@ function loadSaved() {
       sampling: [0, 1, 2].includes(Number(saved.sampling)) ? Number(saved.sampling) : DEFAULTS.sampling,
       progressive: saved.progressive === true, // off unless the user turned it on
       optimize: saved.optimize !== false,
+      restartMarkers: saved.restartMarkers === true, // off unless the user turned it on
       keepMetadata: saved.keepMetadata !== false,
       background: /^#[0-9a-fA-F]{6}$/.test(saved.background) ? saved.background : DEFAULTS.background,
     };
@@ -148,6 +174,7 @@ const options = reactive({
   sampling: saved.sampling,
   progressive: saved.progressive,
   optimize: saved.optimize,
+  restartMarkers: saved.restartMarkers,
   keepMetadata: saved.keepMetadata,
 });
 const background = ref(saved.background);
@@ -164,7 +191,7 @@ const errorText = ref('');
 const saveError = ref('');
 const ready = computed(() => !!info.value && !errorText.value);
 
-const resultName = computed(() => props.fileName.replace(/\.[^./\\]+$/, '') + '.jpg');
+const resultName = computed(() => fileName.value.replace(/\.[^./\\]+$/, '') + '.jpg');
 const savedPercent = computed(() => {
   if (!info.value || resultBytes.value === null || info.value.originalBytes <= 0) return null;
   return (1 - resultBytes.value / info.value.originalBytes) * 100;
@@ -186,6 +213,7 @@ function currentOptions() {
     sampling: options.sampling,
     progressive: options.progressive,
     optimize: options.optimize || options.progressive,
+    restartMarkers: options.restartMarkers,
     keepMetadata: options.keepMetadata,
   };
 }
@@ -203,7 +231,7 @@ async function openPicture() {
   resultBytes.value = null;
   resultPreview.value = '';
   try {
-    const result = await invoke<OpenResult>('convert_open', { filePath: props.filePath, background: hexToRgb(background.value) });
+    const result = await invoke<OpenResult>('convert_open', { filePath: filePath.value, background: hexToRgb(background.value) });
     if (disposed || seq !== openSeq) return;
     info.value = result;
     await runPreview();
@@ -221,7 +249,7 @@ async function runPreview() {
   busy.value = true;
   try {
     const result = await invoke<{ bytes: number; preview: string }>('convert_preview', {
-      filePath: props.filePath,
+      filePath: filePath.value,
       options: currentOptions(),
     });
     if (disposed || seq !== previewSeq) return;
@@ -244,7 +272,15 @@ function schedulePreview() {
   previewTimer = setTimeout(() => { previewTimer = null; void runPreview(); }, 350);
 }
 
-watch(() => [options.quality, options.sampling, options.progressive, options.optimize], schedulePreview);
+watch(() => [options.quality, options.sampling, options.progressive, options.optimize, options.restartMarkers], schedulePreview);
+watch(sampleIndex, () => {
+  zoomed.value = false;
+  regions.original = null;
+  regions.converted = null;
+  center.x = 0;
+  center.y = 0;
+  void openPicture();
+});
 let backgroundTimer: ReturnType<typeof setTimeout> | null = null;
 watch(background, () => {
   if (backgroundTimer) clearTimeout(backgroundTimer);
@@ -296,9 +332,9 @@ async function fetchRegions() {
     const cx = Math.round(center.x);
     const cy = Math.round(center.y);
     const [original, converted] = await Promise.all([
-      invoke<Region>('convert_region', { filePath: props.filePath, converted: false, cx, cy, w, h }),
+      invoke<Region>('convert_region', { filePath: filePath.value, converted: false, cx, cy, w, h }),
       resultBytes.value !== null
-        ? invoke<Region>('convert_region', { filePath: props.filePath, converted: true, cx, cy, w, h })
+        ? invoke<Region>('convert_region', { filePath: filePath.value, converted: true, cx, cy, w, h })
         : Promise.resolve(null),
     ]);
     if (disposed || seq !== regionSeq) return;
@@ -375,13 +411,45 @@ function rememberSettings() {
   } catch { /* storage unavailable: settings are simply not remembered */ }
 }
 
+async function applyBatch() {
+  const result: BatchResult = { saved: [], failed: 0 };
+  converting.value = true;
+  stopRequested = false;
+  done.value = 0;
+  const bg = hexToRgb(background.value);
+  for (const file of props.files) {
+    if (stopRequested || disposed) break;
+    try {
+      const path = await invoke<string>('convert_file', { filePath: file.filePath, options: currentOptions(), background: bg });
+      result.saved.push({ path, folderId: file.folderId });
+    } catch (error) {
+      console.error('convert_file failed:', file.filePath, error);
+      result.failed++;
+    }
+    done.value++;
+  }
+  converting.value = false;
+  rememberSettings();
+  emit('batch-done', result);
+  emit('close');
+}
+
 async function apply() {
   if (!ready.value || saving.value) return;
   saving.value = true;
   saveError.value = '';
+  if (batch.value) {
+    try {
+      if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+      await applyBatch();
+    } finally {
+      saving.value = false;
+    }
+    return;
+  }
   try {
     if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
-    const path = await invoke<string>('convert_save', { filePath: props.filePath, options: currentOptions() });
+    const path = await invoke<string>('convert_save', { filePath: filePath.value, options: currentOptions() });
     rememberSettings();
     emit('saved', path);
     emit('close');
@@ -394,6 +462,10 @@ async function apply() {
 }
 
 function close() {
+  if (converting.value) {
+    stopRequested = true; // finish the current file, convert no more
+    return;
+  }
   if (saving.value) return;
   rememberSettings();
   emit('close');

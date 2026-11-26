@@ -4533,6 +4533,16 @@ pub async fn convert_save(
     crate::t_convert::convert_save(file_path, options).await
 }
 
+/// JPEG converter: converts one file of a batch and returns the new path.
+#[tauri::command]
+pub async fn convert_file(
+    file_path: String,
+    options: crate::t_convert::ConvertOptions,
+    background: u32,
+) -> Result<String, String> {
+    crate::t_convert::convert_file(file_path, options, background).await
+}
+
 /// JPEG converter: releases the pictures held for the dialog.
 #[tauri::command]
 pub fn convert_close() {
