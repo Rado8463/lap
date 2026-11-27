@@ -250,6 +250,8 @@ import { handleVideoPlaybackShortcut, handleVideoEscapeShortcut } from '@/common
 import {
   checkFileAccessibility,
   copyImages,
+  deleteFile,
+  deleteFilePermanently,
   getFileCollections,
   getFileInfo,
   getTagsForFile,
@@ -477,10 +479,11 @@ async function standaloneShow(index: number) {
 async function initStandalone() {
   standaloneViewer.value = true;
   // The viewer has its own settings profile, so it gets a fixed look: dark "Business" theme,
-  // black viewer background, full screen.
+  // black viewer background, gold accent colour, full screen.
   config.setAppearance(1);
   config.setDarkTheme(8);
   config.setViewBackground(1);
+  config.settings.accentColor = '#af854b'; // RGB 175, 133, 75
   isFullScreen.value = true;
   fileIndex.value = -1;
   fileId.value = 0;
@@ -807,10 +810,60 @@ function openDeleteDialog(permanently: boolean) {
   showDeleteMsgbox.value = true;
 }
 
+// Standalone mode has no main window to carry out the deletion, so the file is deleted here
+// (trash or permanently), dropped from the folder listing and the next file is shown.
+async function standaloneDeleteFile(target: { id: number; name: string }, permanently: boolean) {
+  const index = standaloneIds.get(fileIndex.value) === target.id
+    ? fileIndex.value
+    : [...standaloneIds.entries()].find(([, id]) => id === target.id)?.[0] ?? -1;
+  const filePath = String(getFileInfoByPane(getActivePane())?.file_path || '');
+  if (index < 0 || !filePath) return;
+  try {
+    const result: any = permanently
+      ? await deleteFilePermanently(target.id, filePath)
+      : await deleteFile(target.id, filePath);
+    const deleted = new Set<number>(result?.deletedFileIds ?? []);
+    if (!deleted.has(target.id)) {
+      toast.error(t(permanently ? 'msgbox.permanent_delete.files_error' : 'msgbox.move_to_trash.files_error'));
+      return;
+    }
+    // Drop every deleted file (a paired file may go with it) and shift the index-keyed caches.
+    const keep: number[] = [];
+    standaloneFiles.forEach((_, i) => {
+      const id = standaloneIds.get(i);
+      if (i !== index && !(id && deleted.has(id))) keep.push(i);
+    });
+    const ids = new Map<number, number>();
+    const info = new Map<number, any>();
+    keep.forEach((oldIndex, newIndex) => {
+      const id = standaloneIds.get(oldIndex);
+      if (id) ids.set(newIndex, id);
+      const cached = standaloneInfo.get(oldIndex);
+      if (cached) info.set(newIndex, cached);
+    });
+    standaloneFiles = keep.map(i => standaloneFiles[i]);
+    standaloneIds.clear(); ids.forEach((v, k) => standaloneIds.set(k, v));
+    standaloneInfo.clear(); info.forEach((v, k) => standaloneInfo.set(k, v));
+    toast.success(t(permanently ? 'msgbox.permanent_delete.file_success' : 'msgbox.move_to_trash.file_success', { file: target.name }));
+    if (standaloneFiles.length === 0) {
+      await appWindow.close();
+      return;
+    }
+    await standaloneShow(Math.min(index, standaloneFiles.length - 1));
+  } catch (error) {
+    console.error('Failed to delete file:', error);
+    toast.error(t(permanently ? 'msgbox.permanent_delete.files_error' : 'msgbox.move_to_trash.files_error'));
+  }
+}
+
 function onDeleteConfirmed() {
   const target = deleteTargetFile.value;
   showDeleteMsgbox.value = false;
   if (!target) return;
+  if (standaloneViewer.value) {
+    void standaloneDeleteFile(target, deletePermanentlyRequested.value);
+    return;
+  }
   void emit('message-from-image-viewer', {
     message: 'delete-file',
     fileId: target.id,
