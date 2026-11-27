@@ -6000,8 +6000,9 @@ impl AFile {
                 "CASE WHEN COALESCE(a.e_lens_model, '') = '' THEN 'unknown-lens' ELSE a.e_lens_model END".to_string(),
                 "COALESCE(a.e_lens_model, '')".to_string(),
             )),
+            // One group per graphic file format (JPEG, PNG, PSD, TIFF, ...), from the normalized format label.
             GROUP_BY_FILE_TYPE => Some((
-                "CASE a.file_type WHEN 1 THEN 'image' WHEN 3 THEN 'raw' WHEN 2 THEN 'video' ELSE 'other' END".to_string(),
+                "CASE WHEN COALESCE(a.format_label, '') = '' THEN 'unknown-format' ELSE UPPER(a.format_label) END".to_string(),
                 "0".to_string(),
             )),
             GROUP_BY_CULLING => Some((
@@ -6042,7 +6043,7 @@ impl AFile {
                 _ => "label COLLATE NOCASE ASC".to_string(),
             },
             GROUP_BY_RATING => "CAST(group_id AS INTEGER) DESC".to_string(),
-            GROUP_BY_FILE_TYPE => "CASE group_id WHEN 'image' THEN 0 WHEN 'raw' THEN 1 WHEN 'video' THEN 2 ELSE 3 END".to_string(),
+            GROUP_BY_FILE_TYPE => "CASE WHEN group_id = 'unknown-format' THEN 1 ELSE 0 END, label COLLATE NOCASE ASC".to_string(),
             GROUP_BY_CULLING => "CASE group_id WHEN '1' THEN 0 WHEN '2' THEN 1 ELSE 2 END".to_string(),
             GROUP_BY_ALBUM => "MAX(group_sort) ASC, label COLLATE NOCASE ASC".to_string(),
             GROUP_BY_LOCATION | GROUP_BY_CAMERA | GROUP_BY_LENS => match category_sort {

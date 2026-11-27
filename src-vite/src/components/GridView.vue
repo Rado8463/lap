@@ -149,7 +149,6 @@ import {
   IconPhoto,
   IconSearch,
   IconStarFilled,
-  IconVideo,
 } from '@/common/icons';
 
 const props = withDefaults(defineProps<{
@@ -1027,15 +1026,7 @@ function getGroupIcon(item: any) {
           return IconFlag;
       }
     case GROUP.FILE_TYPE:
-      switch (item?.group_id) {
-        case 'image':
-        case 'raw':
-          return IconPhoto;
-        case 'video':
-          return IconVideo;
-        default:
-          return IconFiles;
-      }
+      return IconPhoto;
     case GROUP.LOCATION:
       return IconLocation;
     case GROUP.CAMERA:

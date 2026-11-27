@@ -2334,14 +2334,9 @@ function formatGroupLabel(label: string) {
   if (groupBy === GROUP.RATING) return formatRatingGroupLabel(label);
   if (groupBy === GROUP.CULLING) return formatCullingGroupLabel(label);
   if (groupBy === GROUP.FILE_TYPE) {
-    const labels = localeMsg.value.toolbar.filter?.file_type_options || [];
-    const fileTypeLabels: Record<string, string> = {
-      image: labels[1] || 'Images',
-      raw: labels[2] || 'RAW Files',
-      video: labels[3] || 'Videos',
-      other: localeMsg.value.toolbar.filter?.file_type_other || 'Other',
-    };
-    return fileTypeLabels[label] || label || '';
+    // Groups are graphic file formats (JPEG, PNG, PSD, ...); the label is the format itself.
+    if (label === 'unknown-format') return localeMsg.value.toolbar.filter?.file_type_other || 'Other';
+    return label || '';
   }
   return label || '';
 }
