@@ -97,17 +97,17 @@
           </template>
           <template #menu-after>
             <div class="mx-2 my-1 border-t border-base-content/10"></div>
-            <button class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
+            <button v-if="!isLibrarySidebar" class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
               role="menuitemcheckbox" :aria-checked="activeFavoritesOnly" @click="toggleFavoritesFilter">
               <span class="w-5"><IconOk v-if="activeFavoritesOnly" class="w-4 h-4" /></span>
               <span class="mr-4">{{ $t('toolbar.filter.favorites_only') }}</span>
             </button>
-            <button class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
+            <button v-if="!isLibrarySidebar" class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
               role="menuitemcheckbox" :aria-checked="activeRatingFilter === RATE.ALL" @click="setRatingFilter(RATE.ALL)">
               <span class="w-5"><IconOk v-if="activeRatingFilter === RATE.ALL" class="w-4 h-4" /></span>
               <span class="mr-4">{{ $t('toolbar.filter.rated_only') }}</span>
             </button>
-            <button v-for="stars in ratingFilterOptions" :key="stars"
+            <button v-for="stars in (isLibrarySidebar ? [] : ratingFilterOptions)" :key="stars"
               class="p-1 flex items-center text-sm whitespace-nowrap rounded-box hover:bg-base-100/30 hover:text-base-content cursor-pointer"
               role="menuitemcheckbox" :aria-checked="activeRatingFilter === stars" @click="setRatingFilter(stars)">
               <span class="w-5"><IconOk v-if="activeRatingFilter === stars" class="w-4 h-4" /></span>
@@ -4881,7 +4881,7 @@ watch(
     if (countedFolderRequestId.value !== currentContentRequestId || currentQuerySource.value !== 'query' || !path
       || !contentReady.value || isLoading.value || contentQueryRefreshPending
       || !contentCountIsAuthoritative.value || tempViewMode.value !== 'none'
-      || config.search.favoritesOnly || activeRatedOnly.value || hasExtraToolbarFilters.value || Number(currentQueryParams.value.searchFileType || 0) !== 0
+      || activeFavoritesOnly.value || activeRatedOnly.value || hasExtraToolbarFilters.value || Number(currentQueryParams.value.searchFileType || 0) !== 0
       || !matchesRequestedSidebarCount({ source: 'album-folder', path })) return;
     setFolderFileCount(path, Math.max(0, Number(totalFileCount.value || 0)));
   },
@@ -4924,7 +4924,7 @@ function matchesRequestedSidebarCount(request: any) {
 
 function commitRequestedSidebarCount(count: number, request = uiStore.countUpdateRequest) {
   if (!request || uiStore.countUpdateRequest !== request) return;
-  if (config.search.favoritesOnly || activeRatedOnly.value || hasExtraToolbarFilters.value) {
+  if (activeFavoritesOnly.value || activeRatedOnly.value || hasExtraToolbarFilters.value) {
     uiStore.clearCountUpdateRequest();
     return;
   }
@@ -9353,7 +9353,7 @@ async function getCollectionFileList(collectionId: number, requestId: number) {
     lensModel: '',
     locationCc: null, locationDepth: 0, locationAdmin1: '',
     locationName: '',
-    isFavorite: Boolean(config.search.favoritesOnly),
+    isFavorite: activeFavoritesOnly.value,
     rating: -1,
     tagId: 0,
     personId: 0,
@@ -12210,7 +12210,9 @@ const activeFileTypeMask = computed(() =>
 
 const isFavoritesFilterDisabled = computed(() => tempViewMode.value === 'person'
   || tempViewMode.value === 'similar' || tempViewMode.value === 'album' || isScanStreamingMode.value);
-const activeFavoritesOnly = computed(() => Boolean(config.search.favoritesOnly) && !isFavoritesFilterDisabled.value);
+// The Library filters by favorites / rating in its sidebar, so the toolbar's Favorites / rating filter is neither offered nor applied there.
+const isLibrarySidebar = computed(() => config.main.sidebarIndex === SIDEBAR.LIBRARY);
+const activeFavoritesOnly = computed(() => Boolean(config.search.favoritesOnly) && !isFavoritesFilterDisabled.value && !isLibrarySidebar.value);
 
 // Rating filter of the Albums view, remembered per album (key 0: all files):
 // RATE.ALL (-2) shows files with any star rating, 1-5 exactly that many stars, -1 no filter.
