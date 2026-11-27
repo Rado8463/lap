@@ -1426,15 +1426,22 @@ const barsRevealed = ref(false);
 const topOffsetClass = computed(() => (config.settings.autoHideBars ? 'mt-0' : 'mt-[2.375rem]'));
 const layoutStatusBar = computed(() => !!config.settings.showStatusBar && !config.settings.autoHideBars);
 const barsHiddenNow = computed(() => !!config.settings.autoHideBars && !barsRevealed.value);
-const BAR_REVEAL_EDGE_PX = 3;
+const BAR_REVEAL_EDGE_PX = 8;
 function onBarsMouseMove(event: MouseEvent) {
   if (!config.settings.autoHideBars) return;
   const scale = Number(config.settings.scale || 1);
   if (!barsRevealed.value) {
-    if (event.clientY <= BAR_REVEAL_EDGE_PX) barsRevealed.value = true;
+    if (event.clientY <= BAR_REVEAL_EDGE_PX * scale) barsRevealed.value = true;
   } else if (!barsPinned && event.clientY > 56 * scale && event.clientY < window.innerHeight - 40 * scale) {
     barsRevealed.value = false;
   }
+}
+// A maximized/fullscreen window can have an invisible resize border along the top edge where the
+// page gets no mouse events; the pointer then leaves the page near the top, which also reveals the bars.
+function onBarsMouseLeave(event: MouseEvent) {
+  if (!config.settings.autoHideBars || barsRevealed.value) return;
+  const scale = Number(config.settings.scale || 1);
+  if (event.clientY <= (BAR_REVEAL_EDGE_PX + 8) * scale) barsRevealed.value = true;
 }
 let barsPinned = false; // revealed with the keyboard: stays until S is pressed again
 function toggleBarsByKey() {
@@ -1443,8 +1450,14 @@ function toggleBarsByKey() {
   barsRevealed.value = barsPinned;
 }
 watch(() => config.settings.autoHideBars, () => { barsRevealed.value = false; barsPinned = false; });
-onMounted(() => window.addEventListener('mousemove', onBarsMouseMove));
-onBeforeUnmount(() => window.removeEventListener('mousemove', onBarsMouseMove));
+onMounted(() => {
+  window.addEventListener('mousemove', onBarsMouseMove);
+  document.documentElement.addEventListener('mouseleave', onBarsMouseLeave);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', onBarsMouseMove);
+  document.documentElement.removeEventListener('mouseleave', onBarsMouseLeave);
+});
 
 function removeDeletedFilesFromImageViewerSession(fileIds: number[]) {
   const session = imageViewerSession.value;
