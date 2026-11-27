@@ -61,7 +61,7 @@
       >{{ cancelText }}</button>
       
       <button 
-        :class="warningOk ? 't-button-error' : 't-button-primary'"
+        :class="fixedRedOk ? 't-button-red' : warningOk ? 't-button-error' : 't-button-primary'"
         :disabled="isLoading || (showInput && !isInputValid)"
         @click="clickOk"
       ><span v-if="isLoading" class="loading loading-spinner loading-xs mr-2"></span>{{ OkText }}</button>
@@ -116,6 +116,10 @@ const props = defineProps({
   cancelText: { 
     type: String, 
     default: 'Cancel' 
+  },
+  fixedRedOk: {       // OK button is always red, whatever the theme / accent colour
+    type: Boolean,
+    default: false
   },
   warningOk: {        // show warning color for OK button
     type: Boolean, 

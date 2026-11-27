@@ -200,6 +200,7 @@
       :message="deleteMsgboxMessage"
       :OkText="deletePermanentlyRequested ? $t('msgbox.file_delete.confirm', 1) : $t('msgbox.move_to_trash.ok')"
       :cancelText="$t('msgbox.cancel')"
+      :fixedRedOk="true"
       @ok="onDeleteConfirmed"
       @cancel="showDeleteMsgbox = false"
     />

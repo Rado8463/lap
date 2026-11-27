@@ -81,6 +81,22 @@ select option {
   @apply btn btn-sm rounded-box min-w-20 btn-error;
 }
 
+/* Always red, whatever the theme / accent colour */
+.t-button-red {
+  @apply btn btn-sm rounded-box min-w-20;
+  --btn-color: #dc2626;
+  --btn-fg: #ffffff;
+  background-color: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.t-button-red:hover:not(:disabled) {
+  --btn-color: #b91c1c;
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+}
+
 .preview-press-icon {
   transition: transform 100ms ease-out;
 }
