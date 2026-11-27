@@ -1427,13 +1427,33 @@ const topOffsetClass = computed(() => (config.settings.autoHideBars ? 'mt-0' : '
 const layoutStatusBar = computed(() => !!config.settings.showStatusBar && !config.settings.autoHideBars);
 const barsHiddenNow = computed(() => !!config.settings.autoHideBars && !barsRevealed.value);
 const BAR_REVEAL_EDGE_PX = 8;
+const BARS_HIDE_DELAY_MS = 400;
+let barsHideTimer: ReturnType<typeof setTimeout> | null = null;
+function cancelBarsHide() {
+  if (barsHideTimer) { clearTimeout(barsHideTimer); barsHideTimer = null; }
+}
+// Menus, dropdowns and dialogs are teleported to <body>; while one is open the bars must stay.
+function hasOpenPopup(): boolean {
+  return !!document.body.querySelector(':scope > .menu, :scope > .fixed:not(.pointer-events-none)');
+}
 function onBarsMouseMove(event: MouseEvent) {
   if (!config.settings.autoHideBars) return;
   const scale = Number(config.settings.scale || 1);
   if (!barsRevealed.value) {
     if (event.clientY <= BAR_REVEAL_EDGE_PX * scale) barsRevealed.value = true;
-  } else if (!barsPinned && event.clientY > 56 * scale && event.clientY < window.innerHeight - 40 * scale) {
-    barsRevealed.value = false;
+    return;
+  }
+  if (barsPinned) return;
+  const inBarZone = event.clientY <= 56 * scale || event.clientY >= window.innerHeight - 40 * scale;
+  if (inBarZone || hasOpenPopup()) {
+    cancelBarsHide();
+    return;
+  }
+  if (!barsHideTimer) {
+    barsHideTimer = setTimeout(() => {
+      barsHideTimer = null;
+      if (!barsPinned && !hasOpenPopup()) barsRevealed.value = false;
+    }, BARS_HIDE_DELAY_MS);
   }
 }
 // A maximized/fullscreen window can have an invisible resize border along the top edge where the
@@ -1445,11 +1465,12 @@ function onBarsMouseLeave(event: MouseEvent) {
 }
 let barsPinned = false; // revealed with the keyboard: stays until S is pressed again
 function toggleBarsByKey() {
+  cancelBarsHide();
   if (!config.settings.autoHideBars) return;
   barsPinned = !barsRevealed.value;
   barsRevealed.value = barsPinned;
 }
-watch(() => config.settings.autoHideBars, () => { barsRevealed.value = false; barsPinned = false; });
+watch(() => config.settings.autoHideBars, () => { cancelBarsHide(); barsRevealed.value = false; barsPinned = false; });
 onMounted(() => {
   window.addEventListener('mousemove', onBarsMouseMove);
   document.documentElement.addEventListener('mouseleave', onBarsMouseLeave);
@@ -1457,6 +1478,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onBarsMouseMove);
   document.documentElement.removeEventListener('mouseleave', onBarsMouseLeave);
+  cancelBarsHide();
 });
 
 function removeDeletedFilesFromImageViewerSession(fileIds: number[]) {
