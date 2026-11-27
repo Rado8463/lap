@@ -472,7 +472,8 @@
         "Objectief",
         "Jaar",
         "Bestandstype",
-        "Schiften"
+        "Schiften",
+        "Album"
       ],
       "sort_type_options": [
         "Opnamedatum",

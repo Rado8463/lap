@@ -521,7 +521,8 @@
         "Lens",
         "Year",
         "File type",
-        "Culling"
+        "Culling",
+        "Album"
       ],
       "sort_type_options": [
         "Taken Date",

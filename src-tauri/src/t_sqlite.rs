@@ -2324,6 +2324,7 @@ const GROUP_BY_LENS: i64 = 7;
 const GROUP_BY_DATE_YEAR: i64 = 8;
 const GROUP_BY_FILE_TYPE: i64 = 9;
 const GROUP_BY_CULLING: i64 = 10;
+const GROUP_BY_ALBUM: i64 = 11;
 
 /// Define the AI image search parameters struct
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -6007,6 +6008,11 @@ impl AFile {
                 "CAST(COALESCE(a.culling_flag, 0) AS TEXT)".to_string(),
                 "0".to_string(),
             )),
+            // One group per album (named after the album); ordered like the album sidebar.
+            GROUP_BY_ALBUM => Some((
+                "COALESCE(c.name, 'unknown-album')".to_string(),
+                "COALESCE(c.display_order_id, 2147483647)".to_string(),
+            )),
             _ => None,
         }
     }
@@ -6038,6 +6044,7 @@ impl AFile {
             GROUP_BY_RATING => "CAST(group_id AS INTEGER) DESC".to_string(),
             GROUP_BY_FILE_TYPE => "CASE group_id WHEN 'image' THEN 0 WHEN 'raw' THEN 1 WHEN 'video' THEN 2 ELSE 3 END".to_string(),
             GROUP_BY_CULLING => "CASE group_id WHEN '1' THEN 0 WHEN '2' THEN 1 ELSE 2 END".to_string(),
+            GROUP_BY_ALBUM => "MAX(group_sort) ASC, label COLLATE NOCASE ASC".to_string(),
             GROUP_BY_LOCATION | GROUP_BY_CAMERA | GROUP_BY_LENS => match category_sort {
                 1 => "CASE WHEN group_id LIKE 'unknown-%' THEN 1 ELSE 0 END, MAX(group_sort) COLLATE NOCASE DESC, label COLLATE NOCASE DESC".to_string(),
                 2 => "CASE WHEN group_id LIKE 'unknown-%' THEN 1 ELSE 0 END, COUNT(*) ASC, label COLLATE NOCASE ASC".to_string(),

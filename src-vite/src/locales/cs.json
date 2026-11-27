@@ -521,7 +521,8 @@
         "Objektiv",
         "Rok",
         "Typ souboru",
-        "Výběr fotografií"
+        "Výběr fotografií",
+        "Album"
       ],
       "sort_type_options": [
         "Datum pořízení",

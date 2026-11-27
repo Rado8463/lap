@@ -72,6 +72,7 @@ export const GROUP = {
   YEAR: 8,
   FILE_TYPE: 9,
   CULLING: 10,
+  ALBUM: 11,
 } as const;
 
 export type Group = (typeof GROUP)[keyof typeof GROUP];

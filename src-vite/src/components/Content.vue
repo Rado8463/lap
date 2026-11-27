@@ -2208,6 +2208,8 @@ const isRandomSort = computed(() => {
 
 const effectiveGroupBy = computed(() => {
   if (isGroupingBlockedBySort.value) return GROUP.NONE;
+  // Grouping by album only makes sense in the Library, which mixes files from several albums.
+  if (Number(config.search.groupBy) === GROUP.ALBUM && config.main.sidebarIndex !== SIDEBAR.LIBRARY) return GROUP.NONE;
   const smartAlbum = getActiveCustomSmartAlbum();
   return Number(
     !isCollectionPane.value && config.main.sidebarIndex === SIDEBAR.SMART_ALBUM && smartAlbum
@@ -2322,6 +2324,7 @@ function formatGroupLabel(label: string) {
     'unknown-location': localeMsg.value.search?.unknown_location || 'Unknown location',
     'unknown-camera': localeMsg.value.search?.unknown_camera || 'Unknown camera',
     'unknown-lens': localeMsg.value.search?.unknown_lens || 'Unknown lens',
+    'unknown-album': localeMsg.value.toolbar.filter?.group_type_options?.[GROUP.ALBUM] || 'Album',
   };
   if (unknownGroupLabels[label]) return unknownGroupLabels[label];
 
@@ -12646,7 +12649,8 @@ const groupOptions = computed(() => {
 
   return [
     ...options,
-    ...[GROUP.FOLDER, GROUP.FILE_TYPE, GROUP.DAY, GROUP.MONTH, GROUP.YEAR, GROUP.RATING, GROUP.CULLING, GROUP.LOCATION, GROUP.CAMERA, GROUP.LENS]
+    ...[GROUP.FOLDER, GROUP.ALBUM, GROUP.FILE_TYPE, GROUP.DAY, GROUP.MONTH, GROUP.YEAR, GROUP.RATING, GROUP.CULLING, GROUP.LOCATION, GROUP.CAMERA, GROUP.LENS]
+      .filter(value => value !== GROUP.ALBUM || config.main.sidebarIndex === SIDEBAR.LIBRARY)
       // Location is no longer offered (kept only while it is still the active grouping).
       .filter(value => value !== GROUP.LOCATION || Number(config.search.groupBy) === GROUP.LOCATION)
       .map(value => ({ label: groupTypeLabels.value[value], value }))

@@ -144,6 +144,7 @@ import {
   IconFlagFilled,
   IconFlagOff,
   IconFolder,
+  IconFolders,
   IconLocation,
   IconPhoto,
   IconSearch,
@@ -1007,6 +1008,8 @@ function getGroupIcon(item: any) {
   switch (Number(props.groupBy || 0)) {
     case GROUP.FOLDER:
       return IconFolder;
+    case GROUP.ALBUM:
+      return IconFolders;
     case GROUP.DAY:
       return IconCalendarDay;
     case GROUP.MONTH:
