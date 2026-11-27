@@ -2363,3 +2363,11 @@ export async function saveXmpMetadata(fileIds, libraryId) {
   }
 }
 
+
+/**
+ * Lossless: insert restart markers into a JPEG file in place.
+ * Resolves to 0 = added, 1 = already present, 2 = progressive (skipped); rejects on error.
+ */
+export async function addJpegRestartMarkers(filePath) {
+  return await invoke('add_jpeg_restart_markers', { filePath });
+}

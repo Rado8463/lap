@@ -426,6 +426,7 @@ async fn main() {
             t_cmds::convert_save,
             t_cmds::convert_file,
             t_cmds::convert_close,
+            t_cmds::add_jpeg_restart_markers,
             t_cmds::move_library_custom_order,
             t_cmds::reset_library_custom_order,
             t_cmds::set_file_culling_flag,

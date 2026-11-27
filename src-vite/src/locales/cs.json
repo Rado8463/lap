@@ -1,4 +1,12 @@
 {
+  "restart_markers": {
+    "added": "Restart markery byly přidány do souborů: {count}.",
+    "skipped": "Přeskočeno: {count}.",
+    "already": "Není co měnit: restart markery už jsou přítomné.",
+    "progressive": "Přeskočeno: progresivní JPEG z restart markerů nic nemá.",
+    "failed": "Restart markery se nepodařilo přidat do souborů: {count}.",
+    "no_jpeg": "Není vybrán žádný soubor JPEG."
+  },
   "convert": {
     "title": "Převést do JPEG",
     "format": "Formát:",
@@ -836,6 +844,7 @@
       "reveal_in_finder": "Zobrazit ve Vyhledávači…",
       "reveal_in_file_explorer": "Zobrazit v Průzkumníku souborů…",
       "convert_to_jpeg": "Převést do JPEG…",
+      "add_restart_markers": "Přidat restart markery (JPEG)",
       "refresh_file_info": "Aktualizovat informace o souboru",
       "set_album_cover": "Nastavit jako obálku alba",
       "set_as": "Nastavit jako",

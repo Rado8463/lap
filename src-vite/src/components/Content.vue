@@ -920,7 +920,7 @@ import { getAlbum, getAllAlbums, recountAlbum, getQueryCountAndSum, getQueryTime
          copyImages, renameFile, moveFile, moveFileOutsideLibrary, copyFile, withFileTransferBatch, batchDeleteFiles, getFileThumb, getFileThumbById, getFileThumbs, getFileInfo,
          setFileRotate, setFileFavorite, setFileRating, setFileCullingFlag, batchUpdateFileMetadata, getTagsForFile, searchSimilarImages, generateEmbedding,
          revealPath, getTagName, indexAlbum, listenIndexProgress, listenIndexFinished, setAlbumCover, setDesktopWallpaper,
-         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, moveLibraryCustomOrder, resetLibraryCustomOrder, resetAlbumCustomOrder, importClipboard, addFileToDb, checkFileExists, checkFileAccessibility, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
+         updateFileInfo, refreshFileInfo, changeVideoThumbnail, getSupportedFormatExtensions, importFiles, importUrl, importFileBytes, getDragPayload, moveFilesCustomOrder, resetCustomOrder, moveLibraryCustomOrder, resetLibraryCustomOrder, resetAlbumCustomOrder, importClipboard, addFileToDb, addJpegRestartMarkers, checkFileExists, checkFileAccessibility, cancelIndexing as cancelIndexingApi, selectFolder, getFacesForFile, listenFaceIndexProgress,
          openFilesWithApp, getAppConfig, getIndexRecoveryInfo, clearIndexRecoveryInfo, setLastSelectedItemIndex, setLastScrollTop,
          dedupDelete, getQueryFilePosition, getFolderSearchExcluded,
          listCollections, createCollection, addFilesToCollection, removeFilesFromCollection, getFileCollections, getCollectionCountAndSum, getCollectionFiles, getCollectionGroupedQueryRows, getCollectionGroupFileIds, getCollectionQueryFileIds, fetchFolder, isDirectoryAccessible, checkAlbumAccessibility, addTagToFile, saveXmpMetadata } from '@/common/api';
@@ -1516,6 +1516,61 @@ async function openConvertDialog() {
   }));
   if (files.length === 0 || convertTarget.value) return;
   convertTarget.value = { files };
+}
+
+// Lossless: insert restart markers into the focused / selected JPEG files (in place).
+async function addRestartMarkersToSelection() {
+  const isJpeg = (file: any) =>
+    isRealFileItem(file) && file.file_type === 1 && /\.(jpe?g|jpe|jfif?)$/i.test(String(file.file_path || ''));
+  let candidates: any[] = [];
+  if (selectMode.value && selectedCount.value > 0) {
+    const items = await getActionableSelectedItemsForAction();
+    if (!items) return;
+    candidates = items;
+  } else {
+    candidates = [fileList.value[selectedItemIndex.value]];
+  }
+  const files = candidates.filter(isJpeg);
+  if (files.length === 0) {
+    toast.warning(t('restart_markers.no_jpeg'));
+    return;
+  }
+  if (!await requireOriginalFiles(files)) return;
+  const libraryId = libConfig._libraryId;
+  let added = 0;
+  let already = 0;
+  let progressive = 0;
+  let failed = 0;
+  for (const file of files) {
+    try {
+      const status = await addJpegRestartMarkers(String(file.file_path));
+      if (status === 0) {
+        added++;
+        const updated = await updateFileInfo(file.id, file.file_path);
+        if (updated && libraryId === libConfig._libraryId) Object.assign(file, updated);
+      } else if (status === 1) {
+        already++;
+      } else {
+        progressive++;
+      }
+    } catch (error) {
+      console.error('Failed to add restart markers:', error);
+      failed++;
+    }
+  }
+  if (libraryId !== libConfig._libraryId) return;
+  if (added > 0) {
+    refreshFileGeometryLayout();
+    fileInfoRevision.value++;
+  }
+  const skipped = already + progressive;
+  if (added > 0) {
+    toast.success(t('restart_markers.added', { count: added.toLocaleString() })
+      + (skipped > 0 ? ' ' + t('restart_markers.skipped', { count: skipped.toLocaleString() }) : ''));
+  } else if (skipped > 0 && failed === 0) {
+    toast.warning(t(progressive > 0 && already === 0 ? 'restart_markers.progressive' : 'restart_markers.already'));
+  }
+  if (failed > 0) toast.error(t('restart_markers.failed', { count: failed.toLocaleString() }));
 }
 
 async function onConvertSaved(savedPath: string) {
@@ -5818,6 +5873,7 @@ function handleItemAction(payload: { action: string, index: number }) {
     },
     'reveal': () => revealPath(fileList.value[selectedItemIndex.value].file_path),
     'convert-to-jpeg': () => void openConvertDialog(),
+    'add-restart-markers': () => void addRestartMarkersToSelection(),
     'refresh-file-info': () => selectMode.value ? startSelectedFileRefresh() : void updateFile(fileList.value[selectedItemIndex.value], true),
     'save-xmp': async () => {
       const ids = selectMode.value

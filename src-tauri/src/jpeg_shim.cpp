@@ -674,6 +674,96 @@ int lap_jpeg_decode_parallel_scaled_rgb8(const char *file_path, unsigned int tar
   return 1;
 }
 
+// Lossless: rewrite a JPEG with restart markers (one per MCU row) without touching the pixels.
+// Only the entropy-coded data is re-emitted from the DCT coefficients (like `jpegtran -restart`);
+// every APPn / COM marker (EXIF, ICC, XMP, JFIF ...) is copied verbatim.
+// Returns 1 = written to out_data, 2 = the file already has restart markers, 3 = progressive
+// (restart markers would not help), 0 = error.
+int lap_jpeg_add_restart_markers(const char *file_path, unsigned char **out_data,
+                                 unsigned long *out_len, char *err_buf,
+                                 size_t err_buf_len) {
+  if (!file_path || !out_data || !out_len) {
+    if (err_buf && err_buf_len > 0) {
+      std::snprintf(err_buf, err_buf_len, "Invalid JPEG restart arguments");
+    }
+    return 0;
+  }
+  *out_data = nullptr;
+  *out_len = 0;
+
+  std::vector<unsigned char> input;
+  if (!lap_read_file(file_path, input) || input.empty()) {
+    if (err_buf && err_buf_len > 0) {
+      std::snprintf(err_buf, err_buf_len, "Failed to read JPEG file");
+    }
+    return 0;
+  }
+
+  jpeg_decompress_struct src;
+  jpeg_compress_struct dst;
+  std::memset(&src, 0, sizeof(src));
+  std::memset(&dst, 0, sizeof(dst));
+  LapJpegErrorManager jerr;
+  src.err = jpeg_std_error(&jerr.pub);
+  dst.err = &jerr.pub;
+  jerr.pub.error_exit = lap_jpeg_error_exit;
+  jerr.message[0] = '\0';
+
+  if (setjmp(jerr.setjmp_buffer)) {
+    jpeg_destroy_compress(&dst);
+    jpeg_destroy_decompress(&src);
+    if (err_buf && err_buf_len > 0) {
+      if (jerr.message[0] != '\0') {
+        std::snprintf(err_buf, err_buf_len, "%s", jerr.message);
+      } else {
+        std::snprintf(err_buf, err_buf_len, "libjpeg-turbo transcode failed");
+      }
+    }
+    if (*out_data) {
+      std::free(*out_data);
+      *out_data = nullptr;
+    }
+    *out_len = 0;
+    return 0;
+  }
+
+  jpeg_create_decompress(&src);
+  jpeg_mem_src(&src, input.data(), static_cast<unsigned long>(input.size()));
+  jpeg_save_markers(&src, JPEG_COM, 0xFFFF);
+  for (int m = 0; m < 16; ++m) {
+    jpeg_save_markers(&src, JPEG_APP0 + m, 0xFFFF);
+  }
+  jpeg_read_header(&src, TRUE);
+
+  if (src.restart_interval > 0) {
+    jpeg_destroy_decompress(&src);
+    return 2;
+  }
+  if (src.progressive_mode) {
+    jpeg_destroy_decompress(&src);
+    return 3;
+  }
+
+  jvirt_barray_ptr *coefs = jpeg_read_coefficients(&src);
+
+  jpeg_create_compress(&dst);
+  jpeg_mem_dest(&dst, out_data, out_len);
+  jpeg_copy_critical_parameters(&src, &dst);
+  // The saved markers (including JFIF / Adobe) are written back verbatim below.
+  dst.write_JFIF_header = FALSE;
+  dst.write_Adobe_marker = FALSE;
+  dst.restart_in_rows = 1;
+  jpeg_write_coefficients(&dst, coefs);
+  for (jpeg_saved_marker_ptr marker = src.marker_list; marker; marker = marker->next) {
+    jpeg_write_marker(&dst, marker->marker, marker->data, marker->data_length);
+  }
+  jpeg_finish_compress(&dst);
+  jpeg_destroy_compress(&dst);
+  jpeg_finish_decompress(&src);
+  jpeg_destroy_decompress(&src);
+  return 1;
+}
+
 void lap_jpeg_free_buffer(unsigned char *data) {
   if (data) {
     std::free(data);

@@ -174,6 +174,12 @@ export const useFileMenuItems = (
         action: createAction('convert-to-jpeg'),
       },
       {
+        label: String(localeMsg.value.menu.file.add_restart_markers || 'Add restart markers (JPEG)'),
+        icon: markRaw(IconSave),
+        disabled: unavailable || options?.selectionHasCloudOnly?.value || selectionCount === 0,
+        action: createAction('add-restart-markers'),
+      },
+      {
         label: localeMsg.value.menu.file.refresh_file_info,
         icon: markRaw(IconRefresh),
         disabled: unavailable || selectionCount === 0,
@@ -380,6 +386,12 @@ export const useFileMenuItems = (
         shortcut: shortcut('file.convertToJpeg'),
         disabled: !isImage,
         action: createAction('convert-to-jpeg')
+      },
+      {
+        label: String(localeMsg.value.menu.file.add_restart_markers || 'Add restart markers (JPEG)'),
+        icon: markRaw(IconSave),
+        hidden: !/\.(jpe?g|jpe|jfif?)$/i.test(String(f.file_path || '')),
+        action: createAction('add-restart-markers')
       },
       {
         label: localeMsg.value.menu.file.refresh_file_info,

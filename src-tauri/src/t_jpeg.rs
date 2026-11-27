@@ -83,6 +83,13 @@ unsafe extern "C" {
         err_buf: *mut c_char,
         err_buf_len: usize,
     ) -> c_int;
+    fn lap_jpeg_add_restart_markers(
+        file_path: *const c_char,
+        out_data: *mut *mut u8,
+        out_len: *mut c_ulong,
+        err_buf: *mut c_char,
+        err_buf_len: usize,
+    ) -> c_int;
     fn lap_jpeg_free_buffer(data: *mut u8);
 }
 
@@ -385,4 +392,63 @@ pub fn encode_rgb8_opts(
     };
 
     Ok(bytes)
+}
+
+/// Result of [`add_restart_markers`].
+pub enum RestartMarkersResult {
+    /// New, equivalent JPEG bytes with a restart marker after every MCU row.
+    Added(Vec<u8>),
+    /// The file already contains restart markers.
+    AlreadyPresent,
+    /// Progressive JPEG: restart markers would not help, the file was left alone.
+    Progressive,
+}
+
+/// Losslessly re-emit a JPEG with restart markers (pixels and all metadata markers unchanged).
+pub fn add_restart_markers(path: &str) -> Result<RestartMarkersResult, String> {
+    let c_path = std::ffi::CString::new(path).map_err(|_| "Invalid path".to_string())?;
+    let mut out_data: *mut u8 = std::ptr::null_mut();
+    let mut out_len: c_ulong = 0;
+    let mut err_buf = vec![0 as c_char; 512];
+
+    let status = unsafe {
+        lap_jpeg_add_restart_markers(
+            c_path.as_ptr(),
+            &mut out_data,
+            &mut out_len,
+            err_buf.as_mut_ptr(),
+            err_buf.len(),
+        )
+    };
+
+    match status {
+        1 => {
+            if out_data.is_null() || out_len < 4 {
+                return Err("libjpeg-turbo returned empty JPEG output".to_string());
+            }
+            let bytes = unsafe {
+                let slice = std::slice::from_raw_parts(out_data, out_len as usize);
+                let result = slice.to_vec();
+                lap_jpeg_free_buffer(out_data);
+                result
+            };
+            if bytes[0] != 0xFF || bytes[1] != 0xD8 || bytes[bytes.len() - 2] != 0xFF || bytes[bytes.len() - 1] != 0xD9 {
+                return Err("Restart marker rewrite produced an invalid JPEG".to_string());
+            }
+            Ok(RestartMarkersResult::Added(bytes))
+        }
+        2 => Ok(RestartMarkersResult::AlreadyPresent),
+        3 => Ok(RestartMarkersResult::Progressive),
+        _ => {
+            let err = unsafe { CStr::from_ptr(err_buf.as_ptr()) }
+                .to_string_lossy()
+                .trim()
+                .to_string();
+            Err(if err.is_empty() {
+                "libjpeg-turbo transcode failed".to_string()
+            } else {
+                format!("libjpeg-turbo transcode failed: {}", err)
+            })
+        }
+    }
 }

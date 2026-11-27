@@ -1,4 +1,12 @@
 {
+  "restart_markers": {
+    "added": "Restart markers added to {count} file(s).",
+    "skipped": "Skipped {count}.",
+    "already": "Nothing to change: restart markers are already present.",
+    "progressive": "Skipped: progressive JPEG does not benefit from restart markers.",
+    "failed": "Failed to add restart markers to {count} file(s).",
+    "no_jpeg": "No JPEG file selected."
+  },
   "convert": {
     "title": "Convert to JPEG",
     "format": "Format:",
@@ -836,6 +844,7 @@
       "reveal_in_finder": "Reveal in Finder...",
       "reveal_in_file_explorer": "Reveal in File Explorer...",
       "convert_to_jpeg": "Convert to JPEG…",
+      "add_restart_markers": "Add restart markers (JPEG)",
       "refresh_file_info": "Refresh file info",
       "set_album_cover": "Set as album cover",
       "set_as": "Set as",

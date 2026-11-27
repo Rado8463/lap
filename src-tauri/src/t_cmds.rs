@@ -4543,6 +4543,39 @@ pub async fn convert_file(
     crate::t_convert::convert_file(file_path, options, background).await
 }
 
+/// Lossless: insert restart markers (one per MCU row) into a JPEG file in place.
+/// Returns 0 = markers added, 1 = the file already had them, 2 = progressive JPEG (left alone).
+/// The pixels and all metadata markers stay unchanged; the modification time is kept.
+#[tauri::command]
+pub async fn add_jpeg_restart_markers(file_path: String) -> Result<u8, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use crate::t_jpeg::RestartMarkersResult;
+        let path = std::path::Path::new(&file_path);
+        let original_modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();
+        let bytes = match crate::t_jpeg::add_restart_markers(&file_path)? {
+            RestartMarkersResult::Added(bytes) => bytes,
+            RestartMarkersResult::AlreadyPresent => return Ok(1),
+            RestartMarkersResult::Progressive => return Ok(2),
+        };
+        let mut temp_name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+        temp_name.push(".lap-restart.tmp");
+        let temp_path = path.with_file_name(temp_name);
+        std::fs::write(&temp_path, &bytes).map_err(|e| format!("Failed to write temporary file: {e}"))?;
+        if let Err(e) = std::fs::rename(&temp_path, path) {
+            let _ = std::fs::remove_file(&temp_path);
+            return Err(format!("Failed to replace the file: {e}"));
+        }
+        if let Some(modified) = original_modified {
+            if let Ok(file) = std::fs::OpenOptions::new().write(true).open(path) {
+                let _ = file.set_modified(modified);
+            }
+        }
+        Ok(0)
+    })
+    .await
+    .map_err(|e| format!("Restart markers task failed: {e}"))?
+}
+
 /// JPEG converter: releases the pictures held for the dialog.
 #[tauri::command]
 pub fn convert_close() {
