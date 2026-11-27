@@ -27,7 +27,7 @@
       :geometry="virtualScrollGeometry"
       :content-height="virtualScrollContentHeight"
       :transition="isLayoutTransitioning"
-      :raised-index="enlargeSelected ? selectedItemIndex : -1"
+      :raised-index="raisedDisplayIndex"
       key-field="id"
       :emit-update="true"
       :buffer="4"
@@ -339,6 +339,14 @@ const fileIndexToRowIndex = computed(() => {
     }
   });
   return map;
+});
+// The raised (enlarged, selected) item is addressed by display row, which differs from the file index
+// when group headers are present.
+const raisedDisplayIndex = computed(() => {
+  if (!enlargeSelected.value) return -1;
+  const index = props.selectedItemIndex;
+  if (index < 0) return -1;
+  return fileIndexToRowIndex.value.get(index) ?? index;
 });
 const rowIndexToFileIndex = computed(() => {
   const map = new Map<number, number>();
