@@ -1283,6 +1283,10 @@
                       >{{ $t('settings.shortcuts.press_key') }}</span>
                       <template v-else>
                         <span
+                          v-if="rowIndex === 0 && row.keys.length === 0"
+                          class="h-7 px-2 inline-flex items-center rounded-box border border-dashed border-base-content/15 text-xs text-base-content/30"
+                        >{{ $t('settings.shortcuts.not_assigned') }}</span>
+                        <span
                           v-for="(key, keyIndex) in row.keys"
                           :key="keyIndex"
                           class="min-w-7 h-7 px-2 inline-flex items-center justify-center rounded-box border border-base-content/10 bg-base-100/40 text-xs font-semibold shadow-sm"
@@ -1291,6 +1295,12 @@
                           {{ key }}
                         </span>
                       </template>
+                      <button
+                        v-if="rowIndex === 0 && row.keys.length > 0 && isRebindable(item.actionId)"
+                        class="btn btn-ghost btn-xs"
+                        :title="$t('settings.shortcuts.remove')"
+                        @click.stop="removeShortcut(item.actionId)"
+                      >✕</button>
                       <button
                         v-if="rowIndex === 0 && isShortcutOverridden(item.actionId)"
                         class="btn btn-ghost btn-xs"
@@ -2065,7 +2075,7 @@ const shortcutSections = computed(() => {
           ? translatedActionLabels[item.actionId] ?? shortcutMessages.actions[getShortcutActionLabelKey(item)]
           : `${localeMsg.value.settings.image_view.view_background}: ${localeMsg.value.settings.image_view.view_background_options[item.backgroundValue]}`;
         const rows = [{ label, keys }];
-        if (item.advanceLabelKey) {
+        if (item.advanceLabelKey && keys.length > 0) {
           rows.push({
             label: shortcutMessages.actions[item.advanceLabelKey],
             keys: [shortcutPlatform === 'mac' ? '⇧' : 'Shift', ...keys],
@@ -2073,7 +2083,8 @@ const shortcutSections = computed(() => {
         }
         return { actionId: item.actionId, rows, order };
       })
-      .filter((item) => item.rows[0].keys.length > 0);
+      // An unassigned shortcut stays listed so it can be assigned again.
+      .filter((item) => item.rows[0].keys.length > 0 || isRebindable(item.actionId));
     return {
       key: section.key,
       title: shortcutMessages.sections[section.key],
@@ -2156,6 +2167,11 @@ function onCaptureKey(event: KeyboardEvent) {
   }
   applyShortcutOverrides({ ...(config.settings.shortcutOverrides || {}), [actionId]: [binding] });
   stopCapture();
+}
+
+function removeShortcut(actionId: ShortcutActionId) {
+  if (capturingAction.value === actionId) stopCapture();
+  applyShortcutOverrides({ ...(config.settings.shortcutOverrides || {}), [actionId]: [] });
 }
 
 function resetShortcut(actionId: ShortcutActionId) {

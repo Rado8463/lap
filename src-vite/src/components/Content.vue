@@ -2163,6 +2163,7 @@ const isCollectionPane = computed(() => libConfig.activePane === 'collection');
 
 const RANDOM_SORT = 7;
 const NAME_SORT = 3;
+const DURATION_SORT = 6;
 const RANDOM_SEED_MODULUS = 2_147_483_647;
 
 function createRandomSeed() {
@@ -6207,9 +6208,9 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     if (selectMode.value && selectedCount.value === 0) return;
     if (selectMode.value) {
-      void selectModeSetCullingFlags(cullingShortcut);
+      void selectModeSetCullingFlags(cullingShortcut, cullingShortcut !== 0);
     } else {
-      if (!event.repeat) void setSelectedFileCullingFlag(cullingShortcut, event.shiftKey && config.settings.shiftAdvanceMetadata === true);
+      if (!event.repeat) void setSelectedFileCullingFlag(cullingShortcut, event.shiftKey && config.settings.shiftAdvanceMetadata === true, cullingShortcut !== 0);
     }
     return;
   }
@@ -11785,13 +11786,14 @@ const selectModeSetRatings = async (rating: number) => {
   }
 }
 
-const setSelectedFileCullingFlag = async (cullingFlag: number, advance = false) => {
+// With `toggle`, pressing the same flag again clears it (Picks / Rejected shortcuts).
+const setSelectedFileCullingFlag = async (cullingFlag: number, advance = false, toggle = false) => {
   const requestId = currentContentRequestId;
   if (selectedItemIndex.value < 0) return;
   const item = fileList.value[selectedItemIndex.value];
   if (!item) return;
-  const normalized = Math.max(0, Math.min(2, cullingFlag));
   const previous = Number(item.culling_flag ?? item.cullingFlag ?? 0);
+  const normalized = toggle && previous === cullingFlag ? 0 : Math.max(0, Math.min(2, cullingFlag));
   item.culling_flag = normalized;
   const result = await setFileCullingFlag(item.id, normalized);
   if (result === null) {
@@ -11803,12 +11805,13 @@ const setSelectedFileCullingFlag = async (cullingFlag: number, advance = false) 
   if (advance) advanceAfterMetadataShortcut(item.id, requestId);
 };
 
-const selectModeSetCullingFlags = async (cullingFlag: number) => {
+const selectModeSetCullingFlags = async (cullingFlag: number, toggle = false) => {
   if (!selectMode.value || selectedCount.value === 0) return;
   const items = await getActionableSelectedItemsForAction();
   if (!items) return;
   if (!await confirmLargeBatch(items.length)) return;
-  const normalized = Math.max(0, Math.min(2, cullingFlag));
+  const allHaveFlag = items.every(item => Number(item.culling_flag ?? item.cullingFlag ?? 0) === cullingFlag);
+  const normalized = toggle && allHaveFlag ? 0 : Math.max(0, Math.min(2, cullingFlag));
   const result = await batchUpdateFileMetadata({
     fileIds: items.map(item => item.id),
     cullingFlag: normalized,
@@ -12597,7 +12600,10 @@ const customOrderAvailable = computed(() =>
 );
 
 const sortOptions = computed(() => {
-  const options = getSelectOptions(localeMsg.value.toolbar.filter?.sort_type_options);
+  const currentSortValue = isCustomSort.value ? CUSTOM_SORT_MENU_INDEX : Number(config.search.sortType || 0);
+  // Duration and Random are no longer offered (kept only while one of them is still the active sort).
+  const options = getSelectOptions(localeMsg.value.toolbar.filter?.sort_type_options)
+    .filter(option => ![DURATION_SORT, RANDOM_SORT].includes(Number(option.value)) || Number(option.value) === currentSortValue);
   // Name goes first in the menu; each option keeps its own sort type in `value`.
   const nameAt = options.findIndex(option => option.value === NAME_SORT);
   if (nameAt > 0) options.unshift(...options.splice(nameAt, 1));
@@ -12641,6 +12647,8 @@ const groupOptions = computed(() => {
   return [
     ...options,
     ...[GROUP.FOLDER, GROUP.FILE_TYPE, GROUP.DAY, GROUP.MONTH, GROUP.YEAR, GROUP.RATING, GROUP.CULLING, GROUP.LOCATION, GROUP.CAMERA, GROUP.LENS]
+      // Location is no longer offered (kept only while it is still the active grouping).
+      .filter(value => value !== GROUP.LOCATION || Number(config.search.groupBy) === GROUP.LOCATION)
       .map(value => ({ label: groupTypeLabels.value[value], value }))
       .filter(option => option.label),
   ];

@@ -408,12 +408,12 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   {
     id: 'meta.culling.reject',
     contexts: ['content', 'media-viewer', 'image-viewer'],
-    defaultBindings: [], // X now cycles the pan-beyond-edges mode
+    defaultBindings: [{ code: 'KeyU', allowShift: true, label: 'U' }], // toggles Rejected
   },
   {
     id: 'meta.culling.unreviewed',
     contexts: ['content', 'media-viewer', 'image-viewer'],
-    defaultBindings: [{ code: 'KeyU', allowShift: true, label: 'U' }],
+    defaultBindings: [],
   },
   {
     id: 'meta.tag',
@@ -631,7 +631,8 @@ export function getShortcutOverrides(): Record<string, ShortcutBinding[]> {
 
 export function getActiveBindings(shortcut: ShortcutDefinition): readonly ShortcutBinding[] {
   const custom = shortcutOverrides[shortcut.id];
-  return Array.isArray(custom) && custom.length > 0 ? custom : shortcut.defaultBindings;
+  // An explicit empty list means the user removed the shortcut (it stays unassigned).
+  return Array.isArray(custom) ? custom : shortcut.defaultBindings;
 }
 
 export function getShortcut(actionId: ShortcutActionId): ShortcutDefinition {

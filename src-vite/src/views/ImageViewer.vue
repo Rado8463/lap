@@ -990,7 +990,7 @@ function handleKeyDown(event: KeyboardEvent) {
   const cullingShortcut = getMatchedCulling(event);
   if (cullingShortcut !== null) {
     event.preventDefault();
-    if (!event.repeat) void setCurrentFileCullingFlag(cullingShortcut, getActiveFilePane(), event.shiftKey && config.settings.shiftAdvanceMetadata === true);
+    if (!event.repeat) void setCurrentFileCullingFlag(cullingShortcut, getActiveFilePane(), event.shiftKey && config.settings.shiftAdvanceMetadata === true, cullingShortcut !== 0);
     return;
   }
 
@@ -1726,13 +1726,13 @@ const setCurrentFileRating = async (rating: number, pane: Pane = 'left', advance
   if (advance) advanceAfterMetadataShortcut(currentFileId, pane);
 };
 
-const setCurrentFileCullingFlag = async (cullingFlag: number, pane: Pane = 'left', advance = false) => {
+const setCurrentFileCullingFlag = async (cullingFlag: number, pane: Pane = 'left', advance = false, toggle = false) => {
   const target = getFileInfoByPane(pane);
   const currentFileId = getFileIdByPane(pane);
   if (!target || currentFileId <= 0) return;
 
-  const normalized = Math.max(0, Math.min(2, cullingFlag));
   const previous = Number(target.culling_flag ?? target.cullingFlag ?? 0);
+  const normalized = toggle && previous === cullingFlag ? 0 : Math.max(0, Math.min(2, cullingFlag));
   applyFileMetaToPanes(currentFileId, { culling_flag: normalized });
   const result = await setFileCullingFlag(currentFileId, normalized);
   if (result === null) {

@@ -1852,6 +1852,8 @@
       "reset": "Reset to default",
       "reset_all": "Reset all shortcuts",
       "press_key": "Press a key…",
+      "remove": "Remove shortcut",
+      "not_assigned": "Not assigned",
       "conflict": "This shortcut is already used by another action.",
       "title": "Shortcuts",
       "sections": {

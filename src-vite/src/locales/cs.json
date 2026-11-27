@@ -1851,6 +1851,8 @@
       "reset": "Obnovit výchozí",
       "reset_all": "Obnovit všechny zkratky",
       "press_key": "Stiskněte klávesu…",
+      "remove": "Odstranit zkratku",
+      "not_assigned": "Nepřiřazeno",
       "conflict": "Tato zkratka je již použita jinou akcí.",
       "title": "Klávesové zkratky",
       "sections": {
