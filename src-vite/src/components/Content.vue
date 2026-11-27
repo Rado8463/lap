@@ -6179,6 +6179,14 @@ function handleLocalKeyDown(event: KeyboardEvent) {
     return;
   }
 
+  if (matchesShortcut('view.toggleBarsLayout', event, shortcutPlatform)) {
+    if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    // Bars take their own space (grid below them) or are hidden; unlike S they never float over the thumbnails.
+    if (!event.repeat) config.settings.autoHideBars = !config.settings.autoHideBars;
+    return;
+  }
+
   if (matchesShortcut('view.toggleBars', event, shortcutPlatform)) {
     if (target.tagName === 'SELECT' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
     event.preventDefault();

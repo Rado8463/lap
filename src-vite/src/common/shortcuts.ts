@@ -76,6 +76,7 @@ export type ShortcutActionId =
   | 'view.zoomLock'
   | 'view.cyclePanBeyondEdges'
   | 'view.toggleBars'
+  | 'view.toggleBarsLayout'
   | 'view.findFile'
   | 'file.convertToJpeg'
   | 'view.moveItemLeft'
@@ -310,6 +311,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: 'view.toggleBars',
     contexts: ['content'],
     defaultBindings: [{ code: 'KeyS', label: 'S' }],
+  },
+  {
+    id: 'view.toggleBarsLayout',
+    contexts: ['content'],
+    defaultBindings: [{ code: 'KeyS', modifiers: ['alt'], label: { mac: '⌥S', windows: 'Alt+S', linux: 'Alt+S' } }],
   },
   {
     id: 'view.moveItemLeft',

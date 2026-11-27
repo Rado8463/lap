@@ -1895,6 +1895,7 @@
         "move_item_up": "Posunout miniaturu nahoru (vlastní pořadí)",
         "move_item_down": "Posunout miniaturu dolů (vlastní pořadí)",
         "toggle_bars": "Zobrazit/skrýt horní lištu a stavový řádek",
+        "toggle_bars_layout": "Skrýt/zobrazit horní lištu a stavový řádek (mimo náhledů)",
         "cycle_pan_beyond_edges": "Přepnout posun fotky přes okraje obrazovky (vypnuto / svisle / volný)",
         "clear_viewport": "Smazat uložené zobrazení",
         "cycle_raw_preview": "Přepnout režim náhledu RAW",

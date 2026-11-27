@@ -1896,6 +1896,7 @@
         "move_item_up": "Move thumbnail up (Custom order)",
         "move_item_down": "Move thumbnail down (Custom order)",
         "toggle_bars": "Show/hide top bar and status bar",
+        "toggle_bars_layout": "Hide/show top bar and status bar (not over thumbnails)",
         "cycle_pan_beyond_edges": "Cycle moving the photo past screen edges (off / vertical / free)",
         "clear_viewport": "Clear saved viewport",
         "cycle_raw_preview": "Cycle RAW Preview Mode",
