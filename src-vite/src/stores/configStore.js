@@ -213,6 +213,8 @@ export const useConfigStore = defineStore('configStore', {
       
       // image view settings
       fitDragLoupe: true,        // dragging on a fit-to-window image zooms to 100% under the cursor (release to go back)
+      clickToZoom: false,        // a click on the photo zooms one step in around the click point (Ctrl+click: out)
+      clickToZoomDelayMs: 250,   // wait this long (ms) after a click so a double click can be recognised (0 = zoom immediately)
       mouseWheelMode: 1,         // 0: previous/next, 1: zoom in/out (default)
       slideShowInterval: 1,      // slide show interval in seconds [1, 3, 5, 10, 30, 60]
       slideShowTransition: 0,    // 0: Slide, 1: Fade, 2: None

@@ -488,6 +488,24 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.click_to_zoom') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.click_to_zoom_hint') }}
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-sm" v-model="config.settings.clickToZoom" />
+            </div>
+            <div v-if="config.settings.clickToZoom" class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.image_view.click_to_zoom_delay') }}</div>
+                <div class="text-xs text-base-content/30">
+                  {{ $t('settings.image_view.click_to_zoom_delay_hint') }}
+                </div>
+              </div>
+              <input type="number" min="0" max="1000" step="10" class="input input-bordered input-sm w-24 text-right" v-model.number="config.settings.clickToZoomDelayMs" />
+            </div>
+            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.image_view.shift_advance_metadata') }}</div>
                 <div class="text-xs text-base-content/30">
                   {{ $t('settings.image_view.shift_advance_metadata_hint') }}

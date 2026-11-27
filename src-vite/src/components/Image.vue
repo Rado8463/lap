@@ -94,7 +94,7 @@
           @mousemove="handleImageMouseMove"
           @mouseup="handleImageMouseUp"
           @mouseleave="handleImageMouseLeave"
-          @dblclick.stop="toggleZoomFit"
+          @dblclick.stop="onImageDblClick"
           @contextmenu.prevent.stop="$emit('context-menu', $event)"
         />
         <!-- Tiled mode (huge JPEG): the visible part decoded by the backend, over the preview. -->
@@ -2101,6 +2101,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousemove', trackImageDragOut, true);
   document.documentElement.removeEventListener('mouseleave', trackImageDragOut);
   document.removeEventListener('mouseup', handleImageMouseUp, true);
+  cancelClickZoom();
   endLoupe();
   rawAbortController?.abort();
   for (const url of rawObjectUrls) URL.revokeObjectURL(url);
@@ -3049,11 +3050,45 @@ function trackImageDragOut(event: MouseEvent) {
   if (Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6 || !isWindowDragEdge(event)) return;
   mouseDragNavDeltaX.value = 0;
   mouseDragNavDeltaY.value = 0;
+  clickCandidate = null;
   finishImageMouseDrag(false);
   void startNativeFileDrag([start.path], start.preview).catch(error => {
     console.error('Native image drag failed:', error);
     toast.error(t('tooltip.drag_out.failed'));
   });
+}
+
+// ---- Click to zoom: a short left click on the picture zooms one step in around the click point,
+// Ctrl+click one step out. With a delay > 0 the zoom waits so that a double click (fit / 100 %)
+// can cancel it; with 0 it is immediate (and a double click then also zooms twice).
+const CLICK_ZOOM_MAX_MOVE = 5;
+let clickCandidate: { x: number; y: number; time: number; ctrl: boolean } | null = null;
+let clickZoomTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelClickZoom() {
+  if (clickZoomTimer) clearTimeout(clickZoomTimer);
+  clickZoomTimer = null;
+}
+
+function onImageDblClick() {
+  cancelClickZoom();
+  toggleZoomFit();
+}
+
+function handleClickZoom(candidate: { x: number; y: number; time: number; ctrl: boolean }) {
+  if (config.settings.clickToZoom !== true || props.isSlideShow || props.originalUnavailable || loadError.value || isLoading.value) return;
+  if (!(imageSizeRotated.value[activeImage.value].width > 0)) return;
+  // Second click of a double click: leave it to the dblclick handler.
+  if (clickZoomTimer) { cancelClickZoom(); return; }
+  const anchor = { x: candidate.x - containerPos.value.x, y: candidate.y - containerPos.value.y };
+  const index = activeImage.value;
+  const run = () => {
+    clickZoomTimer = null;
+    if (activeImage.value !== index || props.isSlideShow) return;
+    if (candidate.ctrl) zoomOut(anchor); else zoomIn(anchor);
+  };
+  const delay = Math.max(0, Math.min(Number(config.settings.clickToZoomDelayMs) || 0, 1000));
+  if (delay <= 0) run(); else clickZoomTimer = setTimeout(run, delay);
 }
 
 // ---- Press-and-hold "loupe": hold the left button to zoom to 100 % under the
@@ -3100,6 +3135,7 @@ function beginLoupe() {
   if (!(imageSizeRotated.value[index].width > 0) || Math.abs(current - target) / target < 0.01) return;
 
   updatePosition();
+  clickCandidate = null;
   loupeSaved = { index, scale: current, x: position.value[index].x, y: position.value[index].y };
   startLoupeAnimation();
   zoomImage(loupeStart.x - containerPos.value.x, loupeStart.y - containerPos.value.y, target, true);
@@ -3139,6 +3175,7 @@ const handleImageMouseDown = (event: MouseEvent) => {
       document.addEventListener('mouseup', handleImageMouseUp, true);
     }
     isDraggingImage.value = true;
+    clickCandidate = { x: event.clientX, y: event.clientY, time: performance.now(), ctrl: event.ctrlKey || event.metaKey };
     startLoupeTimer(event);
     lastMousePosition.value = { x: event.clientX, y: event.clientY };
     mouseDragNavDeltaX.value = 0;
@@ -3170,6 +3207,9 @@ const handleImageMouseMove = (event: MouseEvent) => {
   if (loupeTimer && Math.hypot(event.clientX - loupeStart.x, event.clientY - loupeStart.y) > LOUPE_MOVE_TOLERANCE) {
     cancelLoupeTimer();
   }
+  if (clickCandidate && Math.hypot(event.clientX - clickCandidate.x, event.clientY - clickCandidate.y) > CLICK_ZOOM_MAX_MOVE) {
+    clickCandidate = null;
+  }
   latestMouseEvent.value = event;
 
   if (animationFrameId) {
@@ -3180,7 +3220,16 @@ const handleImageMouseMove = (event: MouseEvent) => {
 };
 
 // stop dragging
-const handleImageMouseUp = () => finishImageMouseDrag(true);
+const handleImageMouseUp = (event?: MouseEvent) => {
+  const candidate = mouseDragNavTriggered.value ? null : clickCandidate;
+  clickCandidate = null;
+  finishImageMouseDrag(true);
+  if (candidate && event && event.button === 0
+      && Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y) <= CLICK_ZOOM_MAX_MOVE
+      && performance.now() - candidate.time < LOUPE_HOLD_MS) {
+    handleClickZoom(candidate);
+  }
+};
 
 function finishImageMouseDrag(navigate: boolean) {
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -3475,22 +3524,22 @@ function stepZoomAnchor(): { x: number; y: number } {
   return { x: container.width / 2, y: container.height / 2 };
 }
 
-const zoomIn = () => {
+const zoomIn = (explicitAnchor?: { x: number; y: number }) => {
   const dpr = window.devicePixelRatio || 1;
   const current = scale.value[activeImage.value] * dpr;
   const next = getZoomSteps(dpr).find(step => step > current * 1.005);
   const newScale = Math.min(next !== undefined ? next / dpr : scale.value[activeImage.value], maxScale.value);
-  const anchor = stepZoomAnchor();
+  const anchor = explicitAnchor ?? stepZoomAnchor();
   zoomImage(anchor.x, anchor.y, newScale);
 };
 
-const zoomOut = () => {
+const zoomOut = (explicitAnchor?: { x: number; y: number }) => {
   minScale.value = 0.1;
   const dpr = window.devicePixelRatio || 1;
   const current = scale.value[activeImage.value] * dpr;
   const previous = getZoomSteps(dpr).reverse().find(step => step < current * 0.995);
   const newScale = Math.max(previous !== undefined ? previous / dpr : minScale.value, minScale.value);
-  const anchor = stepZoomAnchor();
+  const anchor = explicitAnchor ?? stepZoomAnchor();
   zoomImage(anchor.x, anchor.y, newScale);
 };
 
