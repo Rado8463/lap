@@ -25,8 +25,8 @@
           :showThumbnailPlaceholder="false"
           :nextFilePath="nextFilePath"
           :neighborFilePaths="neighborFilePaths"
-          :hasPrevious="fileIndex > 0"
-          :hasNext="fileIndex < fileCount - 1"
+          :hasPrevious="standaloneViewer ? fileCount > 1 : fileIndex > 0"
+          :hasNext="standaloneViewer ? fileCount > 1 : fileIndex < fileCount - 1"
           :fileIndex="fileIndex"
           :fileCount="fileCount"
           :isSlideShow="isSlideShow"
@@ -75,8 +75,8 @@
             :file="getFileInfoByPane(activePane)"
             :nextFilePath="getNextFilePathByPane(activePane)"
             :neighborFilePaths="getNeighborPathsByPane(activePane)"
-            :hasPrevious="getFileIndexByPane(activePane) > 0"
-            :hasNext="getFileIndexByPane(activePane) < fileCount - 1"
+            :hasPrevious="standaloneViewer ? fileCount > 1 : getFileIndexByPane(activePane) > 0"
+            :hasNext="standaloneViewer ? fileCount > 1 : getFileIndexByPane(activePane) < fileCount - 1"
             :fileIndex="getFileIndexByPane(activePane)"
             :fileCount="fileCount"
             :isSlideShow="false"
@@ -121,8 +121,8 @@
                 :showThumbnailPlaceholder="false"
                 :nextFilePath="getNextFilePathByPane(pane)"
                 :neighborFilePaths="getNeighborPathsByPane(pane)"
-                :hasPrevious="getFileIndexByPane(pane) > 0"
-                :hasNext="getFileIndexByPane(pane) < fileCount - 1"
+                :hasPrevious="standaloneViewer ? fileCount > 1 : getFileIndexByPane(pane) > 0"
+                :hasNext="standaloneViewer ? fileCount > 1 : getFileIndexByPane(pane) < fileCount - 1"
                 :fileIndex="getFileIndexByPane(pane)"
                 :fileCount="fileCount"
                 :isSlideShow="false"
@@ -417,9 +417,19 @@ async function standaloneEnsure(index: number): Promise<number> {
   return id;
 }
 
+// Navigation wraps around the folder, so the neighbours of the ends are on the other end.
+function standaloneWrap(i: number) {
+  const n = standaloneFiles.length;
+  return n > 0 ? ((i % n) + n) % n : i;
+}
+
 function standaloneNeighbors(index: number) {
   const out: any[] = [];
-  const add = (i: number) => {
+  const seen = new Set<number>([index]);
+  const add = (raw: number) => {
+    const i = standaloneWrap(raw);
+    if (seen.has(i)) return;
+    seen.add(i);
     const info = standaloneInfo.get(i);
     if (info && info.file_type === 1) {
       out.push({ path: info.file_path, id: info.id, version: info.modified_at || 0, width: info.width || 0, height: info.height || 0, album_id: info.album_id || 0 });
@@ -449,8 +459,8 @@ async function standaloneShow(index: number) {
   // Register and read the nearest files in the background so the following navigation can
   // preload them (the window must not wait for this).
   void (async () => {
-    for (const i of [index + 1, index - 1, index + 2, index - 2]) {
-      if (i < 0 || i >= standaloneFiles.length || standaloneInfo.has(i)) continue;
+    for (const i of [index + 1, index - 1, index + 2, index - 2].map(standaloneWrap)) {
+      if (i === index || standaloneInfo.has(i)) continue;
       try {
         const nid = await standaloneEnsure(i);
         const info = await getFileInfo(nid);
@@ -459,7 +469,7 @@ async function standaloneShow(index: number) {
       if (request !== standaloneRequest) return;
     }
     neighborFilePaths.value = standaloneNeighbors(index);
-    const next = standaloneInfo.get(index + 1);
+    const next = standaloneInfo.get(standaloneWrap(index + 1));
     nextFilePath.value = next && next.file_type === 1 ? next.file_path : '';
   })();
 }
@@ -1574,6 +1584,9 @@ function clickPrev(pane: Pane = 'left') {
   const viewerRef = getViewerRef(pane);
   if (currentIndex > 0) {
     requestFileAtIndex(currentIndex - 1, pane);
+  } else if (standaloneViewer.value && fileCount.value > 1) {
+    // Standalone viewer: before the first photo comes the last one.
+    requestFileAtIndex(fileCount.value - 1, pane);
   } else {
     viewerRef?.showMessage((localeMsg.value as any).tooltip.image_viewer.first_image);
   }
@@ -1585,7 +1598,7 @@ function clickNext(pane: Pane = 'left') {
   const viewerRef = getViewerRef(pane);
 
   // Fix loop for slideshow
-  if (isSlideShow.value && currentIndex >= fileCount.value - 1) {
+  if ((isSlideShow.value || (standaloneViewer.value && fileCount.value > 1)) && currentIndex >= fileCount.value - 1) {
     requestFileAtIndex(0, pane);
     return;
   }
