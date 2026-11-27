@@ -490,6 +490,13 @@ const startGridSize = ref(0);
 let layoutTransitionTimer: ReturnType<typeof setTimeout> | null = null;
 let layoutAnchorVersion = 0;
 let isInitialLayout = true;
+let lastUserInputAt = 0;
+let recenterTimers: ReturnType<typeof setTimeout>[] = [];
+function markUserInput() { lastUserInputAt = performance.now(); }
+function clearRecenterTimers() {
+  recenterTimers.forEach(clearTimeout);
+  recenterTimers = [];
+}
 
 const gap = 8; // Gap between items
 const isVerticalFilmstrip = computed(() => isFilmstripView.value && config.settings.grid.previewPosition >= 2);
@@ -566,6 +573,18 @@ watch(() => [props.gridSize, config.settings.grid.style, isFilmstripView.value],
 
   centerItem(props.selectedItemIndex);
 
+  // The new layout (column count, row heights, scroll height) can settle a moment after the first
+  // centering, e.g. when the thumbnail size changes together with the style; centre again until the
+  // layout is stable, unless the user has scrolled or pressed a key in the meantime.
+  clearRecenterTimers();
+  const startedAt = performance.now();
+  for (const delay of [30, 120, 300, 600]) {
+    recenterTimers.push(setTimeout(() => {
+      if (anchorVersion !== layoutAnchorVersion || lastUserInputAt > startedAt) return;
+      centerItem(props.selectedItemIndex);
+    }, delay));
+  }
+
   if (layoutTransitionTimer) clearTimeout(layoutTransitionTimer);
   layoutTransitionTimer = setTimeout(() => {
     layoutTransitionTimer = null;
@@ -636,12 +655,17 @@ onMounted(() => {
     // gesture events for macOS touchpad pinch
     containerRef.value.addEventListener('gesturestart', onGestureStart as any);
     containerRef.value.addEventListener('gesturechange', onGestureChange as any);
+    containerRef.value.addEventListener('wheel', markUserInput, { passive: true });
+    containerRef.value.addEventListener('pointerdown', markUserInput, { passive: true });
   }
   window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keydown', markUserInput, true);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('keydown', markUserInput, true);
+  clearRecenterTimers();
   clearPointerDragListeners();
   pendingPointerDrag = null;
   document.documentElement.style.userSelect = '';
@@ -657,6 +681,8 @@ onBeforeUnmount(() => {
   if (containerRef.value) {
     containerRef.value.removeEventListener('gesturestart', onGestureStart as any);
     containerRef.value.removeEventListener('gesturechange', onGestureChange as any);
+    containerRef.value.removeEventListener('wheel', markUserInput);
+    containerRef.value.removeEventListener('pointerdown', markUserInput);
   }
   if (resizeObserver) {
     resizeObserver.disconnect();
