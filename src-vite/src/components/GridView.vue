@@ -557,7 +557,9 @@ function updateLayout() {
   emit('layout-update', { height: layoutContentHeight.value });
 }
 
-watch(() => [props.gridSize, config.settings.grid.style, isFilmstripView.value], async () => {
+watch(() => [props.gridSize, config.settings.grid.style, isFilmstripView.value], async (current, previous) => {
+  // After switching the grid style the grid is also snapped to a whole row (see centerItemSnapped).
+  const styleChanged = !!previous && current[1] !== previous[1];
   if (isInitialLayout) {
     isInitialLayout = false;
     updateColumnCount();
@@ -571,7 +573,8 @@ watch(() => [props.gridSize, config.settings.grid.style, isFilmstripView.value],
   await nextTick();
   if (anchorVersion !== layoutAnchorVersion) return;
 
-  centerItem(props.selectedItemIndex);
+  const centerSelected = () => (styleChanged ? centerItemSnapped(props.selectedItemIndex) : centerItem(props.selectedItemIndex));
+  centerSelected();
 
   // The new layout (column count, row heights, scroll height) can settle a moment after the first
   // centering, e.g. when the thumbnail size changes together with the style; centre again until the
@@ -581,7 +584,7 @@ watch(() => [props.gridSize, config.settings.grid.style, isFilmstripView.value],
   for (const delay of [30, 120, 300, 600]) {
     recenterTimers.push(setTimeout(() => {
       if (anchorVersion !== layoutAnchorVersion || lastUserInputAt > startedAt) return;
-      centerItem(props.selectedItemIndex);
+      centerSelected();
     }, delay));
   }
 
@@ -925,6 +928,38 @@ function getScrollTop() {
 
 function centerItem(index: number) {
   if (index >= 0) scrollToItem(index, true);
+}
+
+// Tops of the grid rows in scroll coordinates (ascending); empty when unknown.
+function getRowTops(): number[] {
+  if (isFilmstripView.value) return [];
+  if (virtualScrollGeometry.value && layoutGeometry.value.length > 0) {
+    const tops = new Set<number>();
+    layoutGeometry.value.forEach(box => { if (box) tops.add(Math.round(box.y)); });
+    return [...tops].sort((a, b) => a - b);
+  }
+  if (!(columnCount.value > 0) || !(itemHeight.value > 0)) return [];
+  const rows = Math.ceil(props.fileList.length / columnCount.value);
+  return Array.from({ length: rows }, (_, row) => row * itemHeight.value);
+}
+
+// Centre the item, then move the scroll position to the nearest row start, so the top edge of the
+// first visible row sits right under the top bar (or at the window top when the bars are hidden)
+// instead of a row being cut off.
+function centerItemSnapped(index: number) {
+  if (index < 0) return;
+  scrollToItem(index, true);
+  const el = scroller.value?.$el as HTMLElement | undefined;
+  if (!el) return;
+  const tops = getRowTops();
+  if (tops.length === 0) return;
+  const current = el.scrollTop;
+  let nearest = tops[0];
+  for (const top of tops) {
+    if (Math.abs(top - current) < Math.abs(nearest - current)) nearest = top;
+  }
+  const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+  el.scrollTop = Math.min(Math.max(0, nearest), maxScroll);
 }
 
 function getNextItemIndex(currentIndex: number, direction: 'up' | 'down', page = false): number {
